@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help smoke validate-labels sample-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official push-model
+.PHONY: help smoke validate-labels sample-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-review curate-legacy-eval push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -30,6 +30,7 @@ help:
 	@echo "  make train CFG=...                 Train via training submodule"
 	@echo "  make test CFG=...                  Evaluate via training submodule"
 	@echo "  make test-official CFG=...         Evaluate and record official metrics"
+	@echo "  make curate-legacy-eval CFG=...    Evaluate dev/test and build curation review JSONL"
 	@echo "  make push-model CFG=...            Push model payload to Hugging Face"
 
 smoke:
@@ -82,6 +83,15 @@ test:
 
 test-official:
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+
+curation-eval:
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+
+curation-review:
+	$(PYTHON) -m lib.build_curation_review --validation-jsonl "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" $(ARGS)
+
+curate-legacy-eval: curation-eval curation-review
 
 push-model:
 	$(PYTHON) -m lib.push_model_to_hub --repo-id "$(HF_MODEL)" --model "$(MODEL)" --card hf_model/README.md $(ARGS)

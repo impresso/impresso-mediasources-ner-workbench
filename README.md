@@ -154,6 +154,14 @@ make test-official PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 
 Metrics and prediction JSONL files are written under `models/newsagency_radiostation_modernbert_v0.1.0/eval/`.
 
+For basic curation of the existing French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
+
+```bash
+make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+```
+
+The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains the document metadata, gold entity, predicted entity, token context, and an empty `decision` block for manual curation.
+
 The fine-tuned Hugging Face model repository is configured as `HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner`. The v0.1 label space covers news agencies and radio stations; the repository name leaves room for future cited media-source families such as newspaper citations.
 
 ```bash
