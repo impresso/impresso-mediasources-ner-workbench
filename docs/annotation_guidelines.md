@@ -1,17 +1,17 @@
 # Annotation Guidelines
 
-These guidelines define how to annotate news-agency and radio-station source mentions for the Impresso media sources dataset.
+These guidelines define how to annotate news-agency and radio-station mentions for the Impresso media sources dataset.
 
 The dataset trains one joint token-classification model with two entity families:
 
 - `org.ent.pressagency.<canonical_id>`
 - `org.ent.radiostation.<canonical_id>`
 
-Annotators work on sampled search results and short paragraph-sized contexts, not complete long articles. The goal is to capture explicit source attributions cleanly while keeping the annotation task fast and consistent.
+Annotators work on sampled search results and short paragraph-sized contexts, not complete long articles. The goal is to capture explicit mentions of canonical news agencies and radio stations cleanly while keeping the annotation task fast and consistent.
 
 ## Core Task
 
-Annotate a news agency or radio station only when the organization is presented as the source, sender, broadcaster, cited origin, or transmission channel for the reported information.
+Annotate every explicit mention of a specific canonical news agency or radio station in the paragraph, regardless of whether it is used as a cited source, institutional topic, business actor, office, broadcaster, or programme listing.
 
 Typical positive contexts:
 
@@ -21,27 +21,27 @@ Typical positive contexts:
 - `Radio Londres annonce ...`
 - `Nach einer Meldung der BBC ...`
 - `Le poste de Moscou diffuse ...`
+- an article about Reuters, BBC, or another canonical organization as a topic
+- a business story about an agency merger, office, ownership, staff, or infrastructure
+- a programme schedule, channel listing, or broadcast listing that mentions a canonical radio station
 
 Typical negative contexts:
 
-- an article about Reuters, BBC, or another organization as a topic
-- a business story about an agency merger or office
-- a programme schedule where a radio station is not the cited source of news
 - a generic phrase such as `une agence`, `ag.`, or `Agentur` without a resolved real organization
 - an author signature or correspondent attribution
 
-The annotation target is the source mention, not the whole sentence and not the article.
+The annotation target is the organization mention, not the whole sentence and not the article.
 
 ## Annotation Unit
 
 The new workflow annotates short contexts sampled from search results:
 
 - Prefer one paragraph or a compact paragraph window around the search hit.
-- Include enough surrounding text to decide whether the mention is a source attribution.
+- Include enough surrounding text to identify the organization and its boundaries.
 - Do not require the full article unless the short context is ambiguous.
 - If the search hit is in a title or dateline, include the following paragraph when possible.
-- If a paragraph contains multiple source mentions, annotate all accepted mentions in that paragraph.
-- If the paragraph contains no accepted source mention, keep it as a negative example when it is useful for disambiguation.
+- If a paragraph contains multiple specific canonical organization mentions, annotate all accepted mentions in that paragraph.
+- If the paragraph contains no accepted organization mention, keep it as a negative example when it is useful for disambiguation.
 
 The paragraph is the training row source. Metadata must still preserve the original article/document ID, newspaper/media ID, date, language, search query, search hit, and paragraph offsets where available.
 
@@ -67,7 +67,7 @@ Only labels backed by canonical metadata in `resources/newsagency_seeds.json` ar
 
 ### Radio Stations
 
-Use `org.ent.radiostation.<canonical_id>` for real radio stations or broadcasters when they are cited as the source or broadcaster of information.
+Use `org.ent.radiostation.<canonical_id>` for real radio stations or broadcasters whenever the specific station is mentioned.
 
 Examples:
 
@@ -79,26 +79,28 @@ Examples:
 - Radio Free Europe
 - Deutsche Welle
 
-Do not annotate every radio-station mention. Annotate only source-like uses: broadcasts, announcements, reports, bulletins, monitored radio news, or cited radio messages.
+Annotate every specific canonical radio-station mention, including source-like uses, institutional references, and programme or broadcast schedule mentions.
 
 ## Positive And Negative Decisions
 
 ### Annotate
 
-Annotate when the context means that the information comes from the agency or station:
+Annotate every explicit mention of a specific canonical agency or station. This includes source-attribution contexts:
 
 - source verbs: `meldet`, `berichtet`, `annonce`, `communique`, `déclare`, `diffuse`, `broadcasts`, `reports`
 - source nouns: `Meldung`, `dépêche`, `communiqué`, `bulletin`, `émission`, `broadcast`
 - dateline/source formulas: `(Reuter)`, `(Havas)`, `(D.N.B.)`, `Radio Londres:`
 - indirect source attribution: `nach Reuter`, `selon Havas`, `d'après la BBC`
 
-### Do Not Annotate
-
-Do not annotate when the organization is only discussed as an institution:
+Also annotate institutional, business, and programme contexts:
 
 - `Reuters eröffnet ein Büro ...`
 - `La BBC emploie ...`
 - `L'agence Havas fut critiquée ...`
+- `Fusion de l'agence Havas avec ...`
+- `Programme de Radio Londres ...`
+
+### Do Not Annotate
 
 Do not annotate when the mention is too generic:
 
@@ -193,8 +195,8 @@ Recommended workflow:
 1. Search for aliases, abbreviations, historical spellings, and OCR variants.
 2. Sample search hits by entity, language, decade, newspaper/media source, and query variant.
 3. Extract a paragraph-sized context around each hit.
-4. Annotate accepted source mentions in that paragraph.
-5. Mark hard negatives where the alias appears but is not a source mention.
+4. Annotate accepted organization mentions in that paragraph.
+5. Mark hard negatives where the alias appears but is not a specific canonical organization mention.
 6. Record the decision status, query provenance, and metadata.
 7. Run an alias-based missed-mention audit over the paragraph before export.
 
@@ -202,8 +204,8 @@ Keep negative examples. They are especially important for short acronyms and rad
 
 - `AP` as a non-agency acronym
 - `ATP`, `FN`, or sports abbreviations
-- BBC as an institution rather than a source
-- radio station schedule mentions
+- BBC as a non-broadcaster acronym or unrelated OCR/string match
+- generic radio schedule words without a specific canonical station
 - generic `ag.`, `agence`, `Agentur`
 
 ## Quality Statuses
@@ -212,8 +214,8 @@ Each paragraph candidate should receive a curation status:
 
 | Status | Meaning | Training use |
 | --- | --- | --- |
-| `accepted` | Contains one or more verified source mentions. | Include. |
-| `negative` | Contains no source mention but is useful contrastive material. | Include as all-`O`. |
+| `accepted` | Contains one or more verified canonical agency/station mentions. | Include. |
+| `negative` | Contains no specific canonical agency/station mention but is useful contrastive material. | Include as all-`O`. |
 | `review` | Potential mention needs a decision or canonical metadata update. | Exclude until resolved. |
 | `non_usable` | Too noisy, too little context, wrong language, or broken OCR. | Exclude. |
 
@@ -221,11 +223,10 @@ Use `review` for ambiguous historical labels rather than forcing uncertain annot
 
 ## Differences From The MA Thesis Guidelines
 
-The new guidelines keep the central semantic rule from the MA thesis: annotate explicit source attributions, not all organization mentions.
+The new guidelines change the central semantic rule from the MA thesis. The MA thesis focused on explicit source attributions. The new dataset annotates every explicit mention of a specific canonical news agency or radio station in the paragraph.
 
 Important continuities:
 
-- The source-attribution definition remains the core rule.
 - OCR-noisy but identifiable mentions should be retained with correction metadata.
 - Abbreviation-internal periods remain part of the mention.
 - Sentence-final punctuation remains outside the mention.
@@ -236,7 +237,9 @@ Important continuities:
 Important changes:
 
 - The new dataset includes both news agencies and radio stations in one model.
-- Radio stations are first-class labels only when they function as cited information sources or broadcasters.
+- Source attribution is no longer required for a positive label.
+- Mentions of agencies or stations as article topics, institutional actors, business entities, offices, staff, infrastructure, programme schedules, or broadcast listings are positive when the organization is specific and canonical.
+- Radio stations are first-class labels whenever the specific canonical station is mentioned.
 - Annotation is paragraph-centered, not full-document-centered.
 - The workflow begins from sampled search results and query provenance.
 - Negative paragraph examples are deliberately curated for disambiguation.
@@ -246,16 +249,16 @@ Important changes:
 - The primary data format is Hugging Face-style JSONL, not HIPE TSV.
 - Entity spans must support both token-level BIO labels and character offsets in paragraph text.
 
-The practical consequence is that annotators should spend less time deciding full-article usability and more time making precise paragraph-level source/negative decisions.
+The practical consequence is that annotators should spend less time deciding whether a mention is a source attribution and more time making precise paragraph-level mention, boundary, and canonical-label decisions.
 
 ## Examples
 
 | Text | Decision | Span | Label |
 | --- | --- | --- | --- |
 | `Selon Reuters, la situation reste confuse.` | annotate | `Reuters` | `org.ent.pressagency.reuters` |
-| `Reuters ouvre un nouveau bureau.` | do not annotate | none | all `O` |
+| `Reuters ouvre un nouveau bureau.` | annotate | `Reuters` | `org.ent.pressagency.reuters` |
 | `D.N.B. meldet aus Berlin ...` | annotate | `D.N.B.` | `org.ent.pressagency.dnb` |
 | `Nach einer Sendung der BBC ...` | annotate | `BBC` | `org.ent.radiostation.bbc` |
-| `La BBC modifie son programme.` | do not annotate | none | all `O` |
+| `La BBC modifie son programme.` | annotate | `BBC` | `org.ent.radiostation.bbc` |
 | `ag. meldet ...` | do not label as agency | none | all `O`, possible review |
 | `sn` as a signature | do not annotate | none | all `O` |
