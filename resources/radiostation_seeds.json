@@ -1,0 +1,72 @@
+[
+  {
+    "canonical_id": "bbc",
+    "label": "org.ent.radiostation.bbc",
+    "display_name": "BBC",
+    "aliases": ["BBC", "Radio Londres", "Radio London"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/BBC",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "seed_from_sampler"
+  },
+  {
+    "canonical_id": "radio-paris",
+    "label": "org.ent.radiostation.radio-paris",
+    "display_name": "Radio Paris",
+    "aliases": ["Radio Paris"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Paris",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "seed_from_sampler"
+  },
+  {
+    "canonical_id": "radio-moscow",
+    "label": "org.ent.radiostation.radio-moscow",
+    "display_name": "Radio Moscow",
+    "aliases": ["Radio Moscow", "Radio Moscou"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Moscow",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "seed_from_sampler"
+  },
+  {
+    "canonical_id": "voice-of-america",
+    "label": "org.ent.radiostation.voice-of-america",
+    "display_name": "Voice of America",
+    "aliases": ["Voice of America", "Voix de l'Amerique"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Voice_of_America",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "seed_from_sampler"
+  },
+  {
+    "canonical_id": "radio-free-europe",
+    "label": "org.ent.radiostation.radio-free-europe",
+    "display_name": "Radio Free Europe",
+    "aliases": ["Radio Free Europe"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "seed_from_sampler"
+  },
+  {
+    "canonical_id": "deutsche-welle",
+    "label": "org.ent.radiostation.deutsche-welle",
+    "display_name": "Deutsche Welle",
+    "aliases": ["Deutsche Welle"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Deutsche_Welle",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "seed_from_sampler"
+  },
+  {
+    "canonical_id": "radio-prague",
+    "label": "org.ent.radiostation.radio-prague",
+    "display_name": "Radio Prague",
+    "aliases": ["Radio Prague", "Radio Prag"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Prague_International",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "seed_from_sampler"
+  }
+]

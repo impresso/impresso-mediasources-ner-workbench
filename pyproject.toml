@@ -1,0 +1,31 @@
+[project]
+name = "impresso-mediasources-ner-workbench"
+version = "0.1.0"
+description = "Workbench for Impresso news-agency and radio-station training material and model publication"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+sampling = [
+  "playwright",
+]
+hf = [
+  "accelerate>=1.1.0",
+  "datasets",
+  "huggingface-hub",
+  "transformers",
+  "torch",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["lib*"]

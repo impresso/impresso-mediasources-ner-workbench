@@ -1,0 +1,593 @@
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import random
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from .data import labels_to_entities, load_jsonl, load_label_map, make_windows, write_json, write_jsonl
+from .metrics import entity_metrics, entity_metrics_by_label, token_metrics
+
+
+IGNORE_INDEX = -100
+
+
+@dataclass
+class Runtime:
+    torch: Any
+    Adafactor: Any
+    AutoModelForTokenClassification: Any
+    AutoTokenizer: Any
+
+
+class WindowDataset:
+    def __init__(self, windows: list[Any], tokenizer: Any, max_length: int):
+        self.windows = windows
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self) -> int:
+        return len(self.windows)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        window = self.windows[index]
+        encoding = self.tokenizer(
+            window.tokens,
+            is_split_into_words=True,
+            truncation=True,
+            max_length=self.max_length,
+            return_offsets_mapping=False,
+        )
+        labels: list[int] = []
+        word_ids = encoding.word_ids()
+        previous_word_id = None
+        for word_id in word_ids:
+            if word_id is None:
+                labels.append(IGNORE_INDEX)
+            elif word_id != previous_word_id:
+                labels.append(window.label_ids[word_id])
+            else:
+                labels.append(IGNORE_INDEX)
+            previous_word_id = word_id
+        encoding["labels"] = labels
+        encoding["doc_index"] = window.doc_index
+        encoding["start_word"] = window.start_word
+        encoding["word_ids_for_eval"] = [-1 if word_id is None else int(word_id) for word_id in word_ids]
+        return encoding
+
+
+class Collator:
+    def __init__(self, tokenizer: Any, torch: Any):
+        self.tokenizer = tokenizer
+        self.torch = torch
+
+    def __call__(self, features: list[dict[str, Any]]) -> dict[str, Any]:
+        meta = {
+            "doc_index": [feature.pop("doc_index") for feature in features],
+            "start_word": [feature.pop("start_word") for feature in features],
+            "word_ids_for_eval": [feature.pop("word_ids_for_eval") for feature in features],
+        }
+        batch = self.tokenizer.pad(features, padding=True, return_tensors="pt")
+        batch.update(meta)
+        return batch
+
+
+def import_runtime() -> Runtime:
+    try:
+        import torch
+        from transformers import Adafactor, AutoModelForTokenClassification, AutoTokenizer
+    except ImportError as exc:
+        raise SystemExit(
+            "Training requires torch and transformers. Install with: "
+            'python -m pip install -e ".[hf]" && '
+            "python -m pip install -e training/newsagency-radiostation-modernbert-classifier"
+        ) from exc
+    return Runtime(torch=torch, Adafactor=Adafactor, AutoModelForTokenClassification=AutoModelForTokenClassification, AutoTokenizer=AutoTokenizer)
+
+
+def set_seed(seed: int, torch: Any) -> None:
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def device_for(name: str, torch: Any) -> Any:
+    if name == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
+
+
+def resolve_model_ref(value: str) -> str:
+    if value.startswith("hf://"):
+        return value[len("hf://") :]
+    return value
+
+
+def load_model_and_tokenizer(args: argparse.Namespace, label_map: dict[str, Any], runtime: Runtime) -> tuple[Any, Any]:
+    source = resolve_model_ref(args.checkpoint or args.model_name_or_path)
+    tokenizer = runtime.AutoTokenizer.from_pretrained(source)
+    id2label = {int(idx): label for idx, label in label_map["id2label"].items()}
+    label2id = {label: int(idx) for label, idx in label_map["label2id"].items()}
+    model = runtime.AutoModelForTokenClassification.from_pretrained(
+        source,
+        num_labels=len(label2id),
+        id2label=id2label,
+        label2id=label2id,
+        ignore_mismatched_sizes=bool(args.checkpoint),
+    )
+    if args.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
+    if args.freeze_base_model:
+        freeze_base_model(model, args.unfreeze_top_layers)
+    return model, tokenizer
+
+
+def freeze_base_model(model: Any, unfreeze_top_layers: int) -> None:
+    layer_indices = []
+    for name, _parameter in model.named_parameters():
+        match = re.match(r"model\.layers\.(\d+)\.", name)
+        if match:
+            layer_indices.append(int(match.group(1)))
+    unfreeze_from = None
+    if unfreeze_top_layers > 0 and layer_indices:
+        unfreeze_from = max(layer_indices) - unfreeze_top_layers + 1
+
+    trainable = 0
+    frozen = 0
+    for name, parameter in model.named_parameters():
+        is_top_layer = False
+        match = re.match(r"model\.layers\.(\d+)\.", name)
+        if match and unfreeze_from is not None:
+            is_top_layer = int(match.group(1)) >= unfreeze_from
+        if name.startswith("classifier.") or is_top_layer:
+            parameter.requires_grad = True
+            trainable += parameter.numel()
+        else:
+            parameter.requires_grad = False
+            frozen += parameter.numel()
+    print(
+        json.dumps(
+            {
+                "freeze_base_model": True,
+                "unfreeze_top_layers": unfreeze_top_layers,
+                "unfreeze_from_layer": unfreeze_from,
+                "trainable_parameters": trainable,
+                "frozen_parameters": frozen,
+            }
+        )
+    )
+
+
+def make_optimizer(model: Any, args: argparse.Namespace, runtime: Runtime) -> Any:
+    parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    if args.optimizer == "adafactor":
+        return runtime.Adafactor(
+            parameters,
+            lr=args.learning_rate,
+            relative_step=False,
+            scale_parameter=False,
+            warmup_init=False,
+            weight_decay=args.weight_decay,
+        )
+    if args.optimizer == "adamw":
+        return runtime.torch.optim.AdamW(parameters, lr=args.learning_rate, weight_decay=args.weight_decay)
+    raise ValueError(f"unsupported optimizer: {args.optimizer}")
+
+
+def make_dataloader(rows: list[dict[str, Any]], tokenizer: Any, args: argparse.Namespace, runtime: Runtime, shuffle: bool) -> tuple[Any, list[Any]]:
+    windows = make_windows(rows, max_words=args.max_words_per_window, stride_words=args.stride_words)
+    dataset = WindowDataset(windows, tokenizer, args.max_sequence_len)
+    return runtime.torch.utils.data.DataLoader(
+        dataset,
+        batch_size=args.train_batch_size if shuffle else args.eval_batch_size,
+        shuffle=shuffle,
+        collate_fn=Collator(tokenizer, runtime.torch),
+    ), windows
+
+
+def count_parameters(model: Any) -> dict[str, int]:
+    trainable = 0
+    frozen = 0
+    for parameter in model.parameters():
+        if parameter.requires_grad:
+            trainable += parameter.numel()
+        else:
+            frozen += parameter.numel()
+    return {"trainable_parameters": trainable, "frozen_parameters": frozen, "total_parameters": trainable + frozen}
+
+
+def dataset_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    entity_count = 0
+    docs_with_entities = 0
+    label_counts: dict[str, int] = {}
+    language_counts: dict[str, int] = {}
+    token_count = 0
+    for row in rows:
+        labels = row["token_labels"]
+        token_count += len(labels)
+        language = row.get("language") or ""
+        language_counts[language] = language_counts.get(language, 0) + 1
+        entities = labels_to_entities(labels)
+        if entities:
+            docs_with_entities += 1
+        for _start, _stop, label in entities:
+            entity_count += 1
+            label_counts[label] = label_counts.get(label, 0) + 1
+    return {
+        "documents": len(rows),
+        "tokens": token_count,
+        "gold_entities": entity_count,
+        "documents_with_entities": docs_with_entities,
+        "languages": dict(sorted(language_counts.items())),
+        "labels": dict(sorted(label_counts.items())),
+    }
+
+
+def ner_eval_summary(metrics: dict[str, Any], *, top_k: int = 8) -> dict[str, Any]:
+    by_label = metrics.get("entity_by_label", {})
+    labels = [
+        {"label": label, **values}
+        for label, values in by_label.items()
+        if values.get("gold", 0) or values.get("pred", 0)
+    ]
+    labels_by_gold = sorted(labels, key=lambda item: (-int(item.get("gold", 0)), item["label"]))[:top_k]
+    labels_by_pred = sorted(labels, key=lambda item: (-int(item.get("pred", 0)), item["label"]))[:top_k]
+    return {
+        "split": metrics.get("split"),
+        "documents": metrics.get("documents"),
+        "entity_exact_match": {
+            "precision": metrics.get("entity_precision"),
+            "recall": metrics.get("entity_recall"),
+            "f1": metrics.get("entity_f1"),
+            "gold": metrics.get("entity_gold"),
+            "pred": metrics.get("entity_pred"),
+            "correct": metrics.get("entity_correct"),
+        },
+        "token_non_o": {
+            "precision": metrics.get("token_non_o_precision"),
+            "recall": metrics.get("token_non_o_recall"),
+            "f1": metrics.get("token_non_o_f1"),
+            "gold": metrics.get("token_non_o_gold"),
+            "pred": metrics.get("token_non_o_pred"),
+        },
+        "token_accuracy": metrics.get("token_accuracy"),
+        "top_entity_labels_by_gold": labels_by_gold,
+        "top_entity_labels_by_pred": labels_by_pred,
+    }
+
+
+def metric_is_better(value: float, best: float | None, mode: str, min_delta: float) -> bool:
+    if best is None:
+        return True
+    if mode == "max":
+        return value > best + min_delta
+    if mode == "min":
+        return value < best - min_delta
+    raise ValueError(f"unsupported early stopping mode: {mode}")
+
+
+def train(args: argparse.Namespace, runtime: Runtime) -> None:
+    label_map = load_label_map(args.label_map)
+    train_rows = load_jsonl(args.train_jsonl)
+    validation_rows = load_jsonl(args.validation_jsonl) if args.validation_jsonl else []
+    model, tokenizer = load_model_and_tokenizer(args, label_map, runtime)
+    device = device_for(args.device, runtime.torch)
+    model.to(device)
+    set_seed(args.seed, runtime.torch)
+
+    train_loader, train_windows = make_dataloader(train_rows, tokenizer, args, runtime, shuffle=True)
+    validation_windows = []
+    if validation_rows:
+        _validation_loader, validation_windows = make_dataloader(validation_rows, tokenizer, args, runtime, shuffle=False)
+    optimizer = make_optimizer(model, args, runtime)
+    total_steps = args.max_steps if args.max_steps > 0 else args.epochs * max(1, len(train_loader))
+    warmup_steps = args.warmup_steps
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_json(output_dir / "training_args.json", vars(args))
+    write_json(output_dir / "label_map.json", label_map)
+    startup_report = {
+        "event": "training_start",
+        "model_source": resolve_model_ref(args.model_name_or_path),
+        "checkpoint": resolve_model_ref(args.checkpoint) if args.checkpoint else "",
+        "output_dir": str(output_dir),
+        "device": str(device),
+        "optimizer": args.optimizer,
+        "parameters": count_parameters(model),
+        "epochs": args.epochs,
+        "max_steps": args.max_steps,
+        "estimated_optimizer_steps": total_steps,
+        "batch": {
+            "train_batch_size": args.train_batch_size,
+            "eval_batch_size": args.eval_batch_size,
+            "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        },
+        "windows": {
+            "train": len(train_windows),
+            "validation": len(validation_windows),
+            "max_sequence_len": args.max_sequence_len,
+            "max_words_per_window": args.max_words_per_window,
+            "stride_words": args.stride_words,
+        },
+        "freezing": {
+            "freeze_base_model": args.freeze_base_model,
+            "unfreeze_top_layers": args.unfreeze_top_layers,
+            "gradient_checkpointing": args.gradient_checkpointing,
+        },
+        "early_stopping": {
+            "enabled": args.early_stopping_patience >= 0,
+            "metric": args.early_stopping_metric,
+            "mode": args.early_stopping_mode,
+            "patience": args.early_stopping_patience,
+            "min_delta": args.early_stopping_min_delta,
+            "best_checkpoint_dir": str(output_dir / "best"),
+        },
+        "data": {
+            "train": dataset_summary(train_rows),
+            "validation": dataset_summary(validation_rows) if validation_rows else None,
+        },
+    }
+    write_json(output_dir / "training_start_report.json", startup_report)
+    print(json.dumps(startup_report, sort_keys=True))
+
+    global_step = 0
+    best_metric: float | None = None
+    best_epoch: int | None = None
+    epochs_without_improvement = 0
+    stopped_early = False
+    model.train()
+    for epoch in range(args.epochs):
+        running_loss = 0.0
+        for step, batch in enumerate(train_loader, start=1):
+            tensor_batch = batch_to_device(batch, device, runtime.torch)
+            outputs = model(**tensor_batch)
+            loss = outputs.loss / args.gradient_accumulation_steps
+            loss.backward()
+            running_loss += float(loss.detach().cpu()) * args.gradient_accumulation_steps
+            if step % args.gradient_accumulation_steps == 0:
+                if warmup_steps and global_step < warmup_steps:
+                    scale = float(global_step + 1) / float(max(1, warmup_steps))
+                    for group in optimizer.param_groups:
+                        group["lr"] = args.learning_rate * scale
+                optimizer.step()
+                optimizer.zero_grad()
+                global_step += 1
+                if args.logging_steps and global_step % args.logging_steps == 0:
+                    print(json.dumps({"epoch": epoch + 1, "step": global_step, "loss": running_loss / max(1, step)}))
+                if args.max_steps > 0 and global_step >= args.max_steps:
+                    break
+        print(json.dumps({"epoch": epoch + 1, "train_loss": running_loss / max(1, len(train_loader)), "windows": len(train_windows)}))
+        if (args.evaluate_during_training or args.early_stopping_patience >= 0) and validation_rows:
+            metrics = evaluate_rows(validation_rows, model, tokenizer, label_map, args, runtime, split_name="validation")
+            write_json(output_dir / f"validation_metrics_epoch_{epoch + 1}.json", metrics)
+            print(json.dumps({"event": "validation_epoch", "epoch": epoch + 1, "ner": ner_eval_summary(metrics)}, sort_keys=True))
+            metric_value = metrics.get(args.early_stopping_metric)
+            if metric_value is None:
+                raise KeyError(f"early stopping metric not found: {args.early_stopping_metric}")
+            metric_value = float(metric_value)
+            summary = {
+                "epoch": epoch + 1,
+                "validation_metric": args.early_stopping_metric,
+                "validation_value": metric_value,
+            }
+            if args.early_stopping_patience >= 0:
+                if metric_is_better(metric_value, best_metric, args.early_stopping_mode, args.early_stopping_min_delta):
+                    best_metric = metric_value
+                    best_epoch = epoch + 1
+                    epochs_without_improvement = 0
+                    model.save_pretrained(output_dir / "best")
+                    tokenizer.save_pretrained(output_dir / "best")
+                    write_json(output_dir / "best_validation_metrics.json", metrics)
+                    summary["best"] = True
+                else:
+                    epochs_without_improvement += 1
+                    summary["best"] = False
+                    summary["epochs_without_improvement"] = epochs_without_improvement
+                    if epochs_without_improvement > args.early_stopping_patience:
+                        stopped_early = True
+                summary["best_epoch"] = best_epoch
+                summary["best_metric"] = best_metric
+            print(json.dumps(summary))
+            model.train()
+        if args.max_steps > 0 and global_step >= args.max_steps:
+            break
+        if stopped_early:
+            print(json.dumps({"early_stopping": True, "epoch": epoch + 1, "best_epoch": best_epoch, "best_metric": best_metric}))
+            break
+
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
+    if validation_rows:
+        metrics, predictions = evaluate_rows(
+            validation_rows,
+            model,
+            tokenizer,
+            label_map,
+            args,
+            runtime,
+            split_name="validation",
+            return_predictions=True,
+        )
+        write_json(output_dir / "validation_metrics.json", metrics)
+        write_jsonl(output_dir / "validation_predictions.jsonl", predictions)
+        print(json.dumps({"event": "validation_final", "ner": ner_eval_summary(metrics)}, sort_keys=True))
+
+
+def batch_to_device(batch: dict[str, Any], device: Any, torch: Any) -> dict[str, Any]:
+    tensor_batch = {}
+    for key, value in batch.items():
+        if key in {"doc_index", "start_word", "word_ids_for_eval"}:
+            continue
+        if key == "token_type_ids":
+            continue
+        tensor_batch[key] = value.to(device)
+    return tensor_batch
+
+
+def evaluate_rows(
+    rows: list[dict[str, Any]],
+    model: Any,
+    tokenizer: Any,
+    label_map: dict[str, Any],
+    args: argparse.Namespace,
+    runtime: Runtime,
+    *,
+    split_name: str,
+    return_predictions: bool = False,
+) -> Any:
+    id2label = {int(idx): label for idx, label in label_map["id2label"].items()}
+    device = next(model.parameters()).device
+    loader, _windows = make_dataloader(rows, tokenizer, args, runtime, shuffle=False)
+    pred_ids_by_doc = [[0 for _ in row["tokens"]] for row in rows]
+    seen_by_doc = [[False for _ in row["tokens"]] for row in rows]
+    model.eval()
+    with runtime.torch.no_grad():
+        for batch in loader:
+            meta_doc_indices = batch["doc_index"]
+            meta_starts = batch["start_word"]
+            meta_word_ids = batch["word_ids_for_eval"]
+            tensor_batch = batch_to_device(batch, device, runtime.torch)
+            outputs = model(**tensor_batch)
+            pred_ids = runtime.torch.argmax(outputs.logits, dim=-1).detach().cpu().tolist()
+            for item_i, sequence_preds in enumerate(pred_ids):
+                doc_index = meta_doc_indices[item_i]
+                start_word = meta_starts[item_i]
+                word_ids = meta_word_ids[item_i]
+                previous_word = -1
+                for token_i, word_id in enumerate(word_ids):
+                    if word_id < 0 or word_id == previous_word:
+                        previous_word = word_id
+                        continue
+                    absolute_word = start_word + word_id
+                    if absolute_word < len(pred_ids_by_doc[doc_index]) and not seen_by_doc[doc_index][absolute_word]:
+                        pred_ids_by_doc[doc_index][absolute_word] = sequence_preds[token_i]
+                        seen_by_doc[doc_index][absolute_word] = True
+                    previous_word = word_id
+
+    gold_by_doc: dict[str, list[str]] = {}
+    pred_by_doc: dict[str, list[str]] = {}
+    all_gold: list[str] = []
+    all_pred: list[str] = []
+    predictions: list[dict[str, Any]] = []
+    for row, pred_ids in zip(rows, pred_ids_by_doc, strict=True):
+        gold_labels = row["token_labels"]
+        pred_labels = [id2label[int(label_id)] for label_id in pred_ids]
+        gold_by_doc[row["id"]] = gold_labels
+        pred_by_doc[row["id"]] = pred_labels
+        all_gold.extend(gold_labels)
+        all_pred.extend(pred_labels)
+        if return_predictions:
+            predictions.append(
+                {
+                    "id": row["id"],
+                    "split": split_name,
+                    "language": row.get("language", ""),
+                    "date": row.get("date", ""),
+                    "newspaper": row.get("newspaper", ""),
+                    "tokens": row["tokens"],
+                    "gold_labels": gold_labels,
+                    "pred_labels": pred_labels,
+                }
+            )
+    metrics = {}
+    metrics.update(token_metrics(all_gold, all_pred))
+    metrics.update(entity_metrics(gold_by_doc, pred_by_doc))
+    metrics["entity_by_label"] = entity_metrics_by_label(gold_by_doc, pred_by_doc)
+    metrics["documents"] = len(rows)
+    metrics["split"] = split_name
+    if return_predictions:
+        return metrics, predictions
+    return metrics
+
+
+def evaluate(args: argparse.Namespace, runtime: Runtime) -> None:
+    label_map = load_label_map(args.label_map)
+    rows = load_jsonl(args.eval_jsonl)
+    model, tokenizer = load_model_and_tokenizer(args, label_map, runtime)
+    device = device_for(args.device, runtime.torch)
+    model.to(device)
+    metrics, predictions = evaluate_rows(
+        rows,
+        model,
+        tokenizer,
+        label_map,
+        args,
+        runtime,
+        split_name=args.split_name,
+        return_predictions=True,
+    )
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_json(output_dir / f"{args.split_name}_metrics.json", metrics)
+    write_jsonl(output_dir / f"{args.split_name}_predictions.jsonl", predictions)
+    print(json.dumps({"event": "evaluation", "ner": ner_eval_summary(metrics)}, indent=2, sort_keys=True))
+    print(json.dumps(metrics, indent=2, sort_keys=True))
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Train or evaluate a ModernBERT token classifier.")
+    parser.add_argument("--model-name-or-path", default="answerdotai/ModernBERT-base")
+    parser.add_argument("--checkpoint", default="")
+    parser.add_argument("--train-jsonl")
+    parser.add_argument("--validation-jsonl")
+    parser.add_argument("--eval-jsonl")
+    parser.add_argument("--label-map", required=True)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--split-name", default="validation")
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--max-steps", type=int, default=-1)
+    parser.add_argument("--train-batch-size", type=int, default=4)
+    parser.add_argument("--eval-batch-size", type=int, default=8)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=1)
+    parser.add_argument("--gradient-checkpointing", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--freeze-base-model", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--unfreeze-top-layers", type=int, default=0, help="When freezing the base model, keep this many top encoder layers trainable.")
+    parser.add_argument("--optimizer", choices=["adafactor", "adamw"], default="adafactor")
+    parser.add_argument("--learning-rate", type=float, default=5e-5)
+    parser.add_argument("--weight-decay", type=float, default=0.0)
+    parser.add_argument("--warmup-steps", type=int, default=0)
+    parser.add_argument("--max-sequence-len", type=int, default=512)
+    parser.add_argument("--max-words-per-window", type=int, default=256)
+    parser.add_argument("--stride-words", type=int, default=32)
+    parser.add_argument("--logging-steps", type=int, default=50)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--evaluate-during-training", action="store_true")
+    parser.add_argument("--early-stopping-patience", type=int, default=1, help="Epochs without improvement before stopping. Use -1 to disable.")
+    parser.add_argument("--early-stopping-metric", default="entity_f1")
+    parser.add_argument("--early-stopping-mode", choices=["max", "min"], default="max")
+    parser.add_argument("--early-stopping-min-delta", type=float, default=0.0)
+    parser.add_argument("--do-train", action="store_true")
+    parser.add_argument("--do-eval", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_arg_parser()
+    args = parser.parse_args(argv)
+    runtime = import_runtime()
+    if args.do_train:
+        if not args.train_jsonl:
+            parser.error("--do-train requires --train-jsonl")
+        train(args, runtime)
+    if args.do_eval:
+        if not args.eval_jsonl:
+            parser.error("--do-eval requires --eval-jsonl")
+        evaluate(args, runtime)
+    if not args.do_train and not args.do_eval:
+        parser.error("choose --do-train and/or --do-eval")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

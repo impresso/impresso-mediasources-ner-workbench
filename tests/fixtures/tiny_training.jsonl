@@ -1,0 +1,2 @@
+{"id":"doc-1","text":"Selon Reuters, la nouvelle est confirmee.","language":"fr","source":{"mediaId":"demo","date":"1946-01-01","impresso_id":"doc-1"},"entities":[{"start":6,"stop":13,"surface":"Reuters","label":"org.ent.pressagency.reuters"}]}
+{"id":"doc-2","text":"La BBC annonce la nouvelle a Londres.","language":"fr","source":{"mediaId":"demo","date":"1941-01-01","impresso_id":"doc-2"},"entities":[{"start":3,"stop":6,"surface":"BBC","label":"org.ent.radiostation.bbc"}]}

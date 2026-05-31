@@ -1,0 +1,232 @@
+[
+  {
+    "canonical_id": "reuters",
+    "label": "org.ent.pressagency.reuters",
+    "display_name": "Reuters",
+    "aliases": ["Reuters", "Reuter", "Reutermeldung"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Reuters",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q130879",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "stefani",
+    "label": "org.ent.pressagency.stefani",
+    "display_name": "Agenzia Stefani",
+    "aliases": ["Stefani", "Agence Stefani"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Agenzia_Stefani",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1415690",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "extel",
+    "label": "org.ent.pressagency.extel",
+    "display_name": "Exchange Telegraph Company",
+    "aliases": ["Extel", "Exchange Telegraph", "Agence Extel"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Exchange_Telegraph_Company",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q3520792",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "havas",
+    "label": "org.ent.pressagency.havas",
+    "display_name": "Havas",
+    "aliases": ["Havas", "Agence Havas"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Havas",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q2826560",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "xinhua",
+    "label": "org.ent.pressagency.xinhua",
+    "display_name": "Xinhua News Agency",
+    "aliases": ["Xinhua", "Chine Nouvelle", "New China News Agency"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Xinhua_News_Agency",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "domei",
+    "label": "org.ent.pressagency.domei",
+    "display_name": "Domei Tsushin",
+    "aliases": ["Domei", "Domei News Agency"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Domei_Tsushin",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q2913752",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "belga",
+    "label": "org.ent.pressagency.belga",
+    "display_name": "Belga News Agency",
+    "aliases": ["Belga", "Agence Belga"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Belga_(news_agency)",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q815453",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "ctk",
+    "label": "org.ent.pressagency.ctk",
+    "display_name": "Czech News Agency",
+    "aliases": ["CTK", "CTK", "Ceteka", "Agence Ceteka"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Czech_News_Agency",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q341118",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "ansa",
+    "label": "org.ent.pressagency.ansa",
+    "display_name": "Agenzia Nazionale Stampa Associata",
+    "aliases": ["ANSA"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Agenzia_Nazionale_Stampa_Associata",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q392934",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "dnb",
+    "label": "org.ent.pressagency.dnb",
+    "display_name": "Deutsches Nachrichtenburo",
+    "aliases": ["DNB", "D.N.B.", "Deutsches Nachrichtenbuero"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Deutsches_Nachrichtenb%C3%BCro",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1205856",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "wolff",
+    "label": "org.ent.pressagency.wolff",
+    "display_name": "Wolffs Telegraphisches Bureau",
+    "aliases": ["Wolff", "Wolffsburo", "Wolffsbureau", "Wolffagentur"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Wolffs_Telegraphisches_Bureau",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q552226",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "afp",
+    "label": "org.ent.pressagency.afp",
+    "display_name": "Agence France-Presse",
+    "aliases": ["AFP", "A.F.P.", "Agence France Presse"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Agence_France-Presse",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q40464",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "up-upi",
+    "label": "org.ent.pressagency.up-upi",
+    "display_name": "United Press International",
+    "aliases": ["UP", "UPI", "United Press", "United Press International"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/United_Press_International",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q493845",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "ats-sda",
+    "label": "org.ent.pressagency.ats-sda",
+    "display_name": "Agence Telegraphique Suisse / Schweizerische Depeschenagentur",
+    "aliases": ["ATS", "SDA", "ATS-SDA", "Agence telegraphique suisse", "Schweizerische Depeschenagentur"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Swiss_Telegraphic_Agency",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q430109",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "dpa",
+    "label": "org.ent.pressagency.dpa",
+    "display_name": "Deutsche Presse-Agentur",
+    "aliases": ["DPA", "dpa", "Deutsche Presse Agentur"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Deutsche_Presse-Agentur",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q312653",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "kipa",
+    "label": "org.ent.pressagency.kipa",
+    "display_name": "Katholische Internationale Presseagentur",
+    "aliases": ["Kipa", "Apic", "Kipa/Apic"],
+    "wikipedia_url": "https://de.wikipedia.org/wiki/Katholische_Internationale_Presseagentur",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "ag",
+    "label": null,
+    "display_name": "Generic agency source marker",
+    "aliases": ["ag.", "agence", "Agentur"],
+    "wikipedia_url": null,
+    "wikidata_url": null,
+    "trainable": false,
+    "status": "ambiguous_generic_marker"
+  },
+  {
+    "canonical_id": "ap",
+    "label": "org.ent.pressagency.ap",
+    "display_name": "Associated Press",
+    "aliases": ["AP", "Associated Press", "Assoc. Press"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Associated_Press",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q40469",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "apa",
+    "label": "org.ent.pressagency.apa",
+    "display_name": "Austria Presse Agentur",
+    "aliases": ["APA", "Austria Press Agentur", "Austria Presse Agentur"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Austria_Presse_Agentur",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q680662",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "ddp-dapd",
+    "label": "org.ent.pressagency.ddp-dapd",
+    "display_name": "Deutscher Depeschendienst / Deutscher Auslands-Depeschendienst",
+    "aliases": ["DDP", "DAPD", "DDP-DAPD", "Deutscher Depeschendienst"],
+    "wikipedia_url": "https://de.wikipedia.org/wiki/Deutscher_Depeschendienst",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q265330",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "tass",
+    "label": "org.ent.pressagency.tass",
+    "display_name": "TASS",
+    "aliases": ["TASS", "ITAR-TASS", "Tasz", "Telegraphen-Agentur der Sowietunion"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/TASS",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q223799",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "europapress",
+    "label": "org.ent.pressagency.europapress",
+    "display_name": "Europapress",
+    "aliases": ["Europapress", "Europapresz", "Europapr."],
+    "wikipedia_url": "https://de.wikipedia.org/wiki/Europapress",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q3060712",
+    "trainable": true,
+    "status": "needs_link_review"
+  },
+  {
+    "canonical_id": "spk-smp",
+    "label": "org.ent.pressagency.spk-smp",
+    "display_name": "Schweizerische Politische Korrespondenz / Schweizer Mittelpresse",
+    "aliases": ["SPK", "SMP", "SPK-SMP", "Schweizer Mittelpresse", "Schweizerische Politische Korrespondenz"],
+    "wikipedia_url": "https://de.wikipedia.org/wiki/Schweizerische_Politische_Korrespondenz",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q2256560",
+    "trainable": true,
+    "status": "needs_link_review"
+  }
+]
