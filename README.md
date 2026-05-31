@@ -164,6 +164,15 @@ The review files are written below `data/curated/legacy-eval-curation/review/`, 
 
 For iterative or multi-reviewer curation, store decisions in `data/curated/legacy-eval-curation/review/decisions.jsonl` and regenerate the review files. Rows with a matching `review_id` are marked with the saved decision, and remaining items are written to `todo_disagreements.jsonl`.
 
+Before committing curation decisions, validate that every current disagreement has exactly one completed decision:
+
+```bash
+make curation-review PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
+make validate-curation PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
+```
+
+Use `ARGS=--no-require-complete` only for in-progress review snapshots.
+
 The fine-tuned Hugging Face model repository is configured as `HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner`. The v0.1 label space covers news agencies and radio stations; the repository name leaves room for future cited media-source families such as newspaper citations.
 
 ```bash
