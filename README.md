@@ -164,6 +164,16 @@ The review files are written below `data/curated/legacy-eval-curation/review/`, 
 
 For iterative or multi-reviewer curation, store decisions in `data/curated/legacy-eval-curation/review/decisions.jsonl` and regenerate the review files. Rows with a matching `review_id` are marked with the saved decision, and remaining items are written to `todo_disagreements.jsonl`.
 
+To test a short terminal curation session:
+
+```bash
+make review-curation PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk REVIEWER="$USER" ARGS="--limit 1"
+make curation-review PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
+make validate-curation PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk ARGS=--no-require-complete
+```
+
+The reviewer appends to `decisions.jsonl`; it does not modify the generated disagreement files.
+
 Before committing curation decisions, validate that every current disagreement has exactly one completed decision:
 
 ```bash

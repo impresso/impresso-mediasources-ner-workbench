@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help smoke validate-labels sample-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-review curate-legacy-eval validate-curation push-model
+.PHONY: help smoke validate-labels sample-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-review curate-legacy-eval review-curation validate-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -31,6 +31,7 @@ help:
 	@echo "  make test CFG=...                  Evaluate via training submodule"
 	@echo "  make test-official CFG=...         Evaluate and record official metrics"
 	@echo "  make curate-legacy-eval CFG=...    Evaluate dev/test and build curation review JSONL"
+	@echo "  make review-curation REVIEWER=...  Review pending curation disagreements in terminal"
 	@echo "  make validate-curation CFG=...     Validate reviewed curation decisions"
 	@echo "  make push-model CFG=...            Push model payload to Hugging Face"
 
@@ -93,6 +94,9 @@ curation-review:
 	$(PYTHON) -m lib.build_curation_review --validation-jsonl "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" $(ARGS)
 
 curate-legacy-eval: curation-eval curation-review
+
+review-curation:
+	$(PYTHON) -m lib.review_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/todo_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --reviewer "$(REVIEWER)" $(ARGS)
 
 validate-curation:
 	$(PYTHON) -m lib.validate_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --require-complete $(ARGS)
