@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,17 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def load_decisions(path: Path | None) -> dict[str, dict[str, Any]]:
+    if path is None or not path.is_file():
+        return {}
+    decisions: dict[str, dict[str, Any]] = {}
+    for row in load_jsonl(path):
+        review_id = row.get("review_id")
+        if review_id:
+            decisions[review_id] = row
+    return decisions
 
 
 def strip_bio(label: str) -> str:
@@ -110,10 +122,11 @@ def build_disagreements(
     *,
     languages: set[str],
     context_radius: int,
+    decisions: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     source_by_id = {row["id"]: row for row in source_rows}
     out: list[dict[str, Any]] = []
-    sequence = 0
+    decisions = decisions or {}
     for pred_row in prediction_rows:
         source = source_by_id[pred_row["id"]]
         language = source.get("language", pred_row.get("language", ""))
@@ -135,29 +148,29 @@ def build_disagreements(
             else:
                 pred = None
                 issue_type = "missing_prediction"
-            sequence += 1
-            out.append(review_item(sequence, split, issue_type, source, gold, pred, context_radius))
+            out.append(review_item(split, issue_type, source, gold, pred, context_radius, decisions))
 
         for pred in remaining_pred:
             if pred in matched_pred:
                 continue
-            sequence += 1
-            out.append(review_item(sequence, split, "extra_prediction", source, None, pred, context_radius))
+            out.append(review_item(split, "extra_prediction", source, None, pred, context_radius, decisions))
     return out
 
 
 def review_item(
-    sequence: int,
     split: str,
     issue_type: str,
     source: dict[str, Any],
     gold: Entity | None,
     pred: Entity | None,
     context_radius: int,
+    decisions: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     entities = [entity for entity in (gold, pred) if entity is not None]
+    review_id = stable_review_id(split, issue_type, source["id"], gold, pred)
+    decision = decisions.get(review_id, {})
     return {
-        "review_id": f"{split}:{sequence:05d}",
+        "review_id": review_id,
         "split": split,
         "language": source.get("language", ""),
         "document": {
@@ -171,19 +184,45 @@ def review_item(
         "prediction": entity_record(pred, source),
         "context": context(source["tokens"], entities, context_radius),
         "decision": {
-            "status": "todo",
-            "choice": "",
-            "correct_label": "",
-            "notes": "",
+            "status": decision.get("status", "todo"),
+            "choice": decision.get("choice", ""),
+            "correct_label": decision.get("correct_label", ""),
+            "notes": decision.get("notes", ""),
+            "reviewer": decision.get("reviewer", ""),
+            "reviewed_at": decision.get("reviewed_at", ""),
         },
     }
 
 
+def stable_review_id(split: str, issue_type: str, doc_id: str, gold: Entity | None, pred: Entity | None) -> str:
+    payload = {
+        "split": split,
+        "doc_id": doc_id,
+        "issue_type": issue_type,
+        "gold": entity_key(gold),
+        "prediction": entity_key(pred),
+    }
+    digest = hashlib.sha1(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:16]
+    return f"{split}:{doc_id}:{digest}"
+
+
+def entity_key(entity: Entity | None) -> dict[str, Any] | None:
+    if entity is None:
+        return None
+    start, stop, label = entity
+    return {"token_start": start, "token_stop": stop, "label": label}
+
+
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    summary: dict[str, Any] = {"total": len(rows), "by_split": {}, "by_language": {}, "by_issue_type": {}}
+    summary: dict[str, Any] = {"total": len(rows), "by_split": {}, "by_language": {}, "by_issue_type": {}, "by_status": {}}
     for row in rows:
-        for key, field in [("by_split", "split"), ("by_language", "language"), ("by_issue_type", "issue_type")]:
-            value = row[field]
+        fields = [
+            ("by_split", row["split"]),
+            ("by_language", row["language"]),
+            ("by_issue_type", row["issue_type"]),
+            ("by_status", row["decision"]["status"]),
+        ]
+        for key, value in fields:
             summary[key][value] = summary[key].get(value, 0) + 1
     return summary
 
@@ -195,6 +234,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--test-jsonl", required=True)
     parser.add_argument("--test-predictions", required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--decisions-jsonl", default="")
     parser.add_argument("--languages", default="de fr")
     parser.add_argument("--context-radius", type=int, default=20)
     return parser.parse_args(argv)
@@ -204,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     output_dir = Path(args.output_dir)
     languages = set(args.languages.split())
+    decisions = load_decisions(Path(args.decisions_jsonl) if args.decisions_jsonl else None)
     all_rows: list[dict[str, Any]] = []
     for split, source_path, prediction_path in [
         ("validation", Path(args.validation_jsonl), Path(args.validation_predictions)),
@@ -215,6 +256,7 @@ def main(argv: list[str] | None = None) -> int:
             load_jsonl(prediction_path),
             languages=languages,
             context_radius=args.context_radius,
+            decisions=decisions,
         )
         write_jsonl(output_dir / f"{split}_disagreements.jsonl", rows)
         for language in sorted(languages):
@@ -222,6 +264,7 @@ def main(argv: list[str] | None = None) -> int:
         all_rows.extend(rows)
 
     write_jsonl(output_dir / "all_disagreements.jsonl", all_rows)
+    write_jsonl(output_dir / "todo_disagreements.jsonl", [row for row in all_rows if row["decision"]["status"] != "done"])
     write_json(output_dir / "summary.json", summarize(all_rows))
     print(json.dumps(summarize(all_rows), ensure_ascii=False, sort_keys=True))
     return 0

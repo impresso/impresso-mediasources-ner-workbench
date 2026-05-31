@@ -160,7 +160,9 @@ For basic curation of the existing French/German dev and test folds, run the sel
 make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
-The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains the document metadata, gold entity, predicted entity, token context, and an empty `decision` block for manual curation.
+The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains a deterministic `review_id`, document metadata, gold entity, predicted entity, token context, and a `decision` block for manual curation.
+
+For iterative or multi-reviewer curation, store decisions in `data/curated/legacy-eval-curation/review/decisions.jsonl` and regenerate the review files. Rows with a matching `review_id` are marked with the saved decision, and remaining items are written to `todo_disagreements.jsonl`.
 
 The fine-tuned Hugging Face model repository is configured as `HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner`. The v0.1 label space covers news agencies and radio stations; the repository name leaves room for future cited media-source families such as newspaper citations.
 
