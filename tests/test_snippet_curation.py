@@ -406,6 +406,31 @@ def test_sample_expands_match_to_full_content_context() -> None:
     assert rows[0]["match_text"] == "tendrement à l'oreille (selon Radio-Moscou) : « Pour vous"
 
 
+def test_sample_full_content_context_randomizes_match_offset() -> None:
+    row = {
+        "id": "doc-1",
+        "candidate_label": "org.ent.pressagency.tanjug",
+        "label": "org.ent.pressagency.tanjug",
+        "query": "Tan Jug",
+        "matches": ["<em>Tan</em> <em>Jug</em>"],
+        "source": {"type": "impresso_search_result", "document_id": "doc-1"},
+    }
+    content = (
+        " ".join(f"before{i}" for i in range(40))
+        + " Tan Jug "
+        + " ".join(f"after{i}" for i in range(40))
+    )
+
+    first = expand_candidate_with_full_content(row, content, context_chars=80, rng=random.Random(1))[0]
+    second = expand_candidate_with_full_content(row, content, context_chars=80, rng=random.Random(5))[0]
+
+    assert "Tan Jug" in first["text"]
+    assert "Tan Jug" in second["text"]
+    assert first["context_start"] != second["context_start"]
+    assert first["context_stop"] - first["context_start"] - (first["match_stop"] - first["match_start"]) >= 100
+    assert second["context_stop"] - second["context_start"] - (second["match_stop"] - second["match_start"]) >= 100
+
+
 def test_sample_radiostations_loads_specific_label_alias_queries(tmp_path: Path) -> None:
     seeds = tmp_path / "radiostation_seeds.json"
     seeds.write_text(

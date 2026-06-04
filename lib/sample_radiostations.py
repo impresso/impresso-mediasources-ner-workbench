@@ -10,6 +10,7 @@ from typing import Any
 
 from .sample_newsagencies import (
     DEFAULT_CONTEXT_CHARS,
+    DEFAULT_CONTEXT_SOURCE,
     DEFAULT_MAX_EMPTY_PAGES,
     DEFAULT_MAX_PER_LABEL,
     DEFAULT_MAX_PAGES,
@@ -103,7 +104,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--pause", type=float, default=DEFAULT_PAUSE)
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
     parser.add_argument("--random-seed", type=int, default=DEFAULT_RANDOM_SEED)
-    parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default="match")
+    parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default=DEFAULT_CONTEXT_SOURCE)
     parser.add_argument(
         "--context-chars",
         type=int,
@@ -143,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.only_under_target:
         print("Under-target labels:", len(labels or []))
     print("Output:", args.out)
+    print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
     existing_sample_pairs = load_sample_pairs(existing_sample_paths)
     print("Existing issue/entity pairs:", len(existing_sample_pairs))
@@ -181,6 +183,7 @@ def main(argv: list[str] | None = None) -> int:
                 context_source=args.context_source,
                 context_chars=args.context_chars,
                 existing_sample_pairs=existing_sample_pairs,
+                rng=rng,
             )
             pools[bucket] = [normalize_radiostation_row(row) for row in pool]
             print(f"  collected pool: {len(pool)}")

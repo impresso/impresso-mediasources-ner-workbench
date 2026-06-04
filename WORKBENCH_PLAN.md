@@ -410,11 +410,11 @@ Text source policy:
 
 - Continue to call the short review/training units `snippets`. The name describes the curation unit, not the exact Impresso source field.
 - Do not rely on the generic Impresso search-result `snippet` as the primary annotation text. It is a search preview and may not contain the highlighted query term.
-- Prefer Solr `matches` fragments for normal sampling. Each highlighted match becomes its own snippet candidate row, with `<em>...</em>` markup stripped before scoring and review.
-- Keep the original `snippet` and raw `matches` fields as provenance, but score/review the normalized `text` field.
-- Support an optional full-content mode for short or insufficient match fragments. In this mode, fetch the full Impresso content item, locate the Solr match inside the article text, and cut a local context window around the match.
-- Use a configurable context radius for full-content mode. The current default is 256 characters on each side, chosen as a practical guess for review windows near 128 subtokens.
-- Treat full-content mode as more expensive because it performs extra content-item fetches; use it selectively or for focused resampling rounds.
+- Use Solr `matches` fragments to identify the hit that motivated the snippet.
+- Prefer full-content context windows for normal sampling: fetch the full Impresso content item, locate the Solr match inside the article text, and cut a local context window around the match.
+- Keep the original `snippet`, raw `matches`, `match_html`, and cleaned `match_text` fields as provenance, but score/review the normalized `text` field.
+- Use a configurable context radius for full-content mode. The current default is 256 characters, chosen as a practical guess for review windows near 128 subtokens. Randomize the total context length and the amount before the match, with a seeded RNG, so target mentions do not always appear in the same relative position and are not always followed by fixed-length right context. Keep at least 100 characters of context when enough article text is available.
+- Keep a lightweight `match` mode for cases where full-content fetches are too slow or unavailable. In that mode each highlighted match becomes its own snippet candidate row, with `<em>...</em>` markup stripped before scoring and review, but snippets may be short or truncated.
 
 #### News-Agency Snippets: Model-Assisted Active Learning
 

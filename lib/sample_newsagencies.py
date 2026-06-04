@@ -25,6 +25,7 @@ DEFAULT_MAX_EMPTY_PAGES = 12
 DEFAULT_PAUSE = 1.0
 DEFAULT_MAX_RETRIES = 5
 DEFAULT_RANDOM_SEED = 42
+DEFAULT_CONTEXT_SOURCE = "full-content"
 DEFAULT_CONTEXT_CHARS = 256
 DEFAULT_SEEDS = Path("resources/newsagency_seeds.json")
 DEFAULT_OUT = Path("data/candidates/newsagency_search_snippets.jsonl")
@@ -141,9 +142,21 @@ def find_match_span(content: str, match_html: str, query: str) -> tuple[int, int
     return None
 
 
-def context_window(content: str, start: int, stop: int, radius: int) -> tuple[str, int, int]:
-    left = max(0, start - radius)
-    right = min(len(content), stop + radius)
+def context_window(content: str, start: int, stop: int, radius: int, *, rng: random.Random | None = None) -> tuple[str, int, int]:
+    before = radius
+    after = radius
+    if rng is not None and radius > 1:
+        max_context = radius * 2
+        min_context = min(max_context, 100)
+        total_context = rng.randint(min_context, max_context)
+        min_before = max(0, min(radius // 2, total_context))
+        max_before = min(total_context, radius + radius // 2)
+        if min_before > max_before:
+            min_before = 0
+        before = rng.randint(min_before, max_before)
+        after = total_context - before
+    left = max(0, start - before)
+    right = min(len(content), stop + after)
     while left > 0 and not content[left - 1].isspace():
         left -= 1
     while right < len(content) and not content[right].isspace():
@@ -151,7 +164,13 @@ def context_window(content: str, start: int, stop: int, radius: int) -> tuple[st
     return content[left:right].strip(), left, right
 
 
-def expand_candidate_with_full_content(row: dict[str, Any], content: str, *, context_chars: int) -> list[dict[str, Any]]:
+def expand_candidate_with_full_content(
+    row: dict[str, Any],
+    content: str,
+    *,
+    context_chars: int,
+    rng: random.Random | None = None,
+) -> list[dict[str, Any]]:
     matches = row.get("matches")
     if not isinstance(matches, list) or not matches:
         return [row]
@@ -169,7 +188,7 @@ def expand_candidate_with_full_content(row: dict[str, Any], content: str, *, con
         revised["match_text"] = match_text
         if span:
             start, stop = span
-            text, context_start, context_stop = context_window(content, start, stop, context_chars)
+            text, context_start, context_stop = context_window(content, start, stop, context_chars, rng=rng)
             revised["text"] = text
             revised["text_source"] = "full_content_match"
             revised["context_start"] = context_start
@@ -393,6 +412,7 @@ def collect_pool_for_bucket(
     context_source: str = "match",
     context_chars: int = DEFAULT_CONTEXT_CHARS,
     existing_sample_pairs: set[tuple[str, str]] | None = None,
+    rng: random.Random | None = None,
 ) -> tuple[list[dict[str, Any]], Any]:
     pool: list[dict[str, Any]] = []
     seen = set()
@@ -438,7 +458,7 @@ def collect_pool_for_bucket(
                 try:
                     content = content_text_from_raw(client.content_items.get(row["id"]).raw)
                     if content:
-                        rows = expand_candidate_with_full_content(row, content, context_chars=context_chars)
+                        rows = expand_candidate_with_full_content(row, content, context_chars=context_chars, rng=rng)
                 except Exception as exc:
                     print(f"  full-content context failed for {row['id']}: {exc}")
             elif context_source == "match":
@@ -649,7 +669,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--pause", type=float, default=DEFAULT_PAUSE)
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
     parser.add_argument("--random-seed", type=int, default=DEFAULT_RANDOM_SEED)
-    parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default="match")
+    parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default=DEFAULT_CONTEXT_SOURCE)
     parser.add_argument(
         "--context-chars",
         type=int,
@@ -689,6 +709,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.only_under_target:
         print("Under-target labels:", len(labels or []))
     print("Output:", args.out)
+    print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
     existing_sample_pairs = load_sample_pairs(existing_sample_paths)
     print("Existing issue/entity pairs:", len(existing_sample_pairs))
@@ -727,6 +748,7 @@ def main(argv: list[str] | None = None) -> int:
                 context_source=args.context_source,
                 context_chars=args.context_chars,
                 existing_sample_pairs=existing_sample_pairs,
+                rng=rng,
             )
             pools[bucket] = pool
             print(f"  collected pool: {len(pool)}")
