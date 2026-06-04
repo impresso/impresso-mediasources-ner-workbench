@@ -526,8 +526,11 @@ Additional snippet-derived rows should not immediately replace the legacy datase
 ```text
 data/curated/snippets/
   newsagencies/train.jsonl
+  newsagencies/test.jsonl
   radiostations/triage.jsonl
   radiostations/span_annotated.jsonl
+  radiostations/train.jsonl
+  radiostations/test.jsonl
   audit/
 ```
 
@@ -541,6 +544,7 @@ The mixture command should:
 
 - preserve `source_component`, for example `legacy_hipe`, `newsagency_snippet_auto`, `newsagency_snippet_manual`, `radiostation_snippet_manual`
 - keep validation/test frozen unless explicitly creating a new development set
+- keep snippet-derived train/test splits separate and deterministic, grouped by source issue/document to avoid leakage
 - cap auto-accepted news-agency snippets per label/date/language so frequent agencies do not dominate
 - oversample manually reviewed radio-station positives when training, rather than duplicating rows in the dataset file
 - write a mixture summary with row counts by source component, language, label, decade, and curation status

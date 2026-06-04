@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +123,64 @@ def source_component(row: dict[str, Any]) -> str:
     return "newsagency_snippet_manual"
 
 
+def base_document_id(value: Any) -> str:
+    return str(value or "").split("#", 1)[0]
+
+
+def sample_issue_id(value: Any) -> str:
+    document_id = base_document_id(value)
+    if "-i" in document_id:
+        return document_id.rsplit("-i", 1)[0]
+    return document_id
+
+
+def source_split_group(row: dict[str, Any]) -> str:
+    if row.get("sample_issue_id"):
+        return str(row["sample_issue_id"])
+    if row.get("sample_document_id"):
+        return sample_issue_id(row["sample_document_id"])
+    source = row.get("source")
+    if isinstance(source, dict) and source.get("document_id"):
+        return sample_issue_id(source["document_id"])
+    return sample_issue_id(row.get("id"))
+
+
+def stable_digest(value: str, seed: int) -> str:
+    return hashlib.sha1(f"{seed}\t{value}".encode("utf-8")).hexdigest()
+
+
+def split_group_assignments(rows: list[dict[str, Any]], *, test_fraction: float, validation_fraction: float, seed: int) -> dict[str, str]:
+    if test_fraction < 0 or validation_fraction < 0 or test_fraction + validation_fraction >= 1:
+        raise ValueError("split fractions must be non-negative and sum to less than 1")
+    groups = sorted({str(row["split_group"]) for row in rows}, key=lambda group: stable_digest(group, seed))
+    if not groups:
+        return {}
+    if len(groups) == 1:
+        return {groups[0]: "train"}
+    test_count = math.ceil(len(groups) * test_fraction) if test_fraction else 0
+    validation_count = math.ceil(len(groups) * validation_fraction) if validation_fraction else 0
+    if test_fraction and len(groups) > 1:
+        test_count = max(1, min(test_count, len(groups) - validation_count))
+    remaining_after_test = len(groups) - test_count
+    if validation_fraction and remaining_after_test > 1:
+        validation_count = max(1, min(validation_count, remaining_after_test - 1))
+    assignments = {group: "train" for group in groups}
+    for group in groups[:test_count]:
+        assignments[group] = "test"
+    for group in groups[test_count : test_count + validation_count]:
+        assignments[group] = "validation"
+    return assignments
+
+
+def apply_split_assignments(rows: list[dict[str, Any]], *, test_fraction: float, validation_fraction: float, seed: int) -> list[dict[str, Any]]:
+    assignments = split_group_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=seed)
+    out = []
+    for row in rows:
+        split = assignments.get(str(row["split_group"]), "train")
+        out.append({**row, "split": split})
+    return out
+
+
 def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata: list[Path] | None = None) -> list[dict[str, Any]]:
     label_map = load_label_map(label_map_path)
     if extra_label_metadata:
@@ -142,6 +202,9 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         if unknown:
             raise ValueError(f"{row.get('id')}: labels missing from label map: {unknown}")
         row_id = str(row["id"])
+        split_group = source_split_group(row)
+        source = row.get("source") if isinstance(row.get("source"), dict) else {}
+        source_document_id = row.get("sample_document_id") or source.get("document_id") or ""
         exported.append(
             {
                 "schema_version": "mediaagencies-jsonl-v0.1",
@@ -161,9 +224,12 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
                 "entities": labels_to_entities(row_id, labels, tokens, starts, stops, text),
                 "quality_flags": [],
                 "source_component": source_component(row),
+                "split_group": split_group,
                 "legacy": {
                     "source_format": "sampled-snippet-jsonl",
                     "source_id": row.get("id", row_id),
+                    "source_document_id": source_document_id,
+                    "source_issue_id": split_group,
                     "query": row.get("query", ""),
                 },
             }
@@ -171,10 +237,27 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
     return exported
 
 
+def write_split_outputs(rows: list[dict[str, Any]], *, output: Path, validation_output: Path | None, test_output: Path | None) -> dict[str, int]:
+    paths = {"train": output, "validation": validation_output, "test": test_output}
+    counts: dict[str, int] = {}
+    for split, path in paths.items():
+        if path is None:
+            continue
+        split_rows = [{key: value for key, value in row.items() if key != "split_group"} for row in rows if row.get("split") == split]
+        write_jsonl(path, split_rows)
+        counts[split] = len(split_rows)
+    return counts
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export accepted snippet curation rows into training JSONL.")
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--validation-output")
+    parser.add_argument("--test-output")
+    parser.add_argument("--validation-fraction", type=float, default=0.0)
+    parser.add_argument("--test-fraction", type=float, default=0.2)
+    parser.add_argument("--split-seed", type=int, default=42)
     parser.add_argument("--label-map", required=True)
     parser.add_argument("--extra-label-metadata", action="append", default=[])
     return parser.parse_args(argv)
@@ -183,8 +266,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     rows = export_rows(Path(args.input), Path(args.label_map), extra_label_metadata=[Path(path) for path in args.extra_label_metadata])
-    write_jsonl(Path(args.output), rows)
-    print(json.dumps({"rows": len(rows), "output": args.output}, ensure_ascii=False, sort_keys=True))
+    test_fraction = args.test_fraction if args.test_output else 0.0
+    validation_fraction = args.validation_fraction if args.validation_output else 0.0
+    rows = apply_split_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=args.split_seed)
+    counts = write_split_outputs(
+        rows,
+        output=Path(args.output),
+        validation_output=Path(args.validation_output) if args.validation_output else None,
+        test_output=Path(args.test_output) if args.test_output else None,
+    )
+    print(json.dumps({"rows": len(rows), "outputs": counts}, ensure_ascii=False, sort_keys=True))
     return 0
 
 

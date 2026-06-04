@@ -4,7 +4,7 @@ from pathlib import Path
 
 from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
-from lib.export_snippet_training_data import export_rows
+from lib.export_snippet_training_data import apply_split_assignments, export_rows, write_split_outputs
 from lib.review_newsagency_snippets import (
     coverage_priority,
     parse_manual_span,
@@ -554,6 +554,80 @@ def test_export_snippet_training_data_writes_training_rows(tmp_path: Path) -> No
     assert rows[0]["token_labels"] == ["O", "B-org.ent.pressagency.havas", "O"]
     assert rows[0]["entities"][0]["surface"] == "Havas"
     assert rows[0]["source_component"] == "newsagency_snippet_manual"
+
+
+def test_export_snippet_training_data_splits_by_source_issue(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    train_path = tmp_path / "train.jsonl"
+    test_path = tmp_path / "test.jsonl"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.pressagency.havas": 1,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.pressagency.havas",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "issue-a-i0001#match-0",
+                "sample_issue_id": "issue-a",
+                "text": "Havas confirme.",
+                "tokens": ["Havas", "confirme", "."],
+                "token_start_offsets": [0, 6, 14],
+                "token_end_offsets": [5, 13, 15],
+                "candidate_label": "org.ent.pressagency.havas",
+                "curation": {"status": "accepted", "label": "org.ent.pressagency.havas"},
+                "accepted_spans": [{"token_start": 0, "token_stop": 1, "label": "org.ent.pressagency.havas"}],
+            },
+            {
+                "id": "issue-a-i0002#match-0",
+                "sample_issue_id": "issue-a",
+                "text": "Havas annonce.",
+                "tokens": ["Havas", "annonce", "."],
+                "token_start_offsets": [0, 6, 13],
+                "token_end_offsets": [5, 12, 14],
+                "candidate_label": "org.ent.pressagency.havas",
+                "curation": {"status": "accepted", "label": "org.ent.pressagency.havas"},
+                "accepted_spans": [{"token_start": 0, "token_stop": 1, "label": "org.ent.pressagency.havas"}],
+            },
+            {
+                "id": "issue-b-i0001#match-0",
+                "sample_issue_id": "issue-b",
+                "text": "Havas publie.",
+                "tokens": ["Havas", "publie", "."],
+                "token_start_offsets": [0, 6, 12],
+                "token_end_offsets": [5, 11, 13],
+                "candidate_label": "org.ent.pressagency.havas",
+                "curation": {"status": "accepted", "label": "org.ent.pressagency.havas"},
+                "accepted_spans": [{"token_start": 0, "token_stop": 1, "label": "org.ent.pressagency.havas"}],
+            },
+        ],
+    )
+
+    rows = apply_split_assignments(export_rows(input_path, label_map_path), test_fraction=0.5, validation_fraction=0.0, seed=42)
+    counts = write_split_outputs(rows, output=train_path, validation_output=None, test_output=test_path)
+    train_rows = [json.loads(line) for line in train_path.read_text(encoding="utf-8").splitlines()]
+    test_rows = [json.loads(line) for line in test_path.read_text(encoding="utf-8").splitlines()]
+
+    assert counts == {"train": len(train_rows), "test": len(test_rows)}
+    assert train_rows
+    assert test_rows
+    split_by_issue = {}
+    for row in [*train_rows, *test_rows]:
+        split_by_issue.setdefault(row["legacy"]["source_issue_id"], row["split"])
+        assert split_by_issue[row["legacy"]["source_issue_id"]] == row["split"]
+        assert "split_group" not in row
 
 
 def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> None:

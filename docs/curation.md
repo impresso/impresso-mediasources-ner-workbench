@@ -246,7 +246,7 @@ make export-newsagency-snippets \
   CFG=configs/model-v0.1.0.mk
 ```
 
-The output is `data/curated/snippets/newsagencies/train.jsonl`. It uses the same token-label/entity schema as the legacy training dataset and preserves `source_component` so snippet-derived examples can be mixed deterministically later.
+The default outputs are `data/curated/snippets/newsagencies/train.jsonl` and `data/curated/snippets/newsagencies/test.jsonl`. They use the same token-label/entity schema as the legacy dataset and preserve `source_component` so snippet-derived examples can be mixed deterministically later. The split is deterministic and grouped by source issue/document so snippets from the same source issue do not leak across train and test. Override the holdout size with `SNIPPET_TEST_FRACTION=...`.
 
 Useful overrides:
 
@@ -285,7 +285,7 @@ make export-radiostation-snippets \
   CFG=configs/model-v0.1.0.mk
 ```
 
-This writes `data/curated/snippets/radiostations/train.jsonl`. The exporter extends the legacy label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels.
+This writes `data/curated/snippets/radiostations/train.jsonl` and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the legacy label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The split is deterministic and grouped by source issue/document.
 
 For a lighter yes/no-only triage pass, use:
 
