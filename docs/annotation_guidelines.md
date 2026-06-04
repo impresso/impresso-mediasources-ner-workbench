@@ -85,12 +85,15 @@ Examples:
 - TASS
 - Tanjug / Tan Jug.
 - Telegraphen-Union / T.U. / contextual `(UTA)`
+- CTK / ČTK / tschechoslowakische Nachrichtenagentur
 - Wolff
 - Agence Radio
 
 Only labels backed by canonical metadata in `resources/newsagency_seeds.json` are trainable labels.
 
 Use `org.ent.pressagency.telegraphen-union` for `Telegraphen-Union`, `T.U.`, and contextual Weimar-period source formulas such as `Berlin, 7. Januar. (UTA)`. For `UTA`, require source-formula context; do not treat arbitrary `UTA` in running text as a press-agency mention, and do not map it to `org.ent.pressagency.ats-sda`.
+
+Use `org.ent.pressagency.ctk` for CTK/ČTK, Ceteka, the Czech/Czechoslovak News Agency, `Československá tisková kancelář`, `tschechoslowakische Nachrichtenagentur`, `tschechoslowakischen Nachrichtenagentur`, `Tschechoslowakisches Nachrichtenbüro`, and comparable language-specific renderings of the Czechoslovak/Czech press agency. In phrases such as `Meldung der tschechoslowakischen Nachrichtenagentur`, annotate only the visible agency phrase (`tschechoslowakischen Nachrichtenagentur`) and exclude surrounding evidence words such as `Meldung der`.
 
 ### Radio Stations
 

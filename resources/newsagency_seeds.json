@@ -376,15 +376,26 @@
     "display_name": "Czech News Agency",
     "aliases": [
       "CTK",
-      "CTK",
+      "ČTK",
       "Ceteka",
-      "Agence Ceteka"
+      "Agence Ceteka",
+      "Czech News Agency",
+      "Czech Press Agency",
+      "Czechoslovak News Agency",
+      "Czechoslovak Press Agency",
+      "Česká tisková kancelář",
+      "Československá tisková kancelář",
+      "Tschechoslowakische Nachrichtenagentur",
+      "tschechoslowakische Nachrichtenagentur",
+      "tschechoslowakischen Nachrichtenagentur",
+      "Tschechoslowakisches Nachrichtenbüro",
+      "Tschechoslowakische Presseagentur"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Czech_News_Agency",
     "wikidata_url": "https://www.wikidata.org/wiki/Q341118",
     "trainable": true,
     "status": "metadata_enriched",
-    "description": "Czech/Czechoslovak public-service news agency originally founded in 1918 as Česká tisková kancelář. For historical material, CTK/ČTK may refer to the Czechoslovak agency; the modern Czech News Agency continues after 1992.",
+    "description": "Czech/Czechoslovak public-service news agency originally founded in 1918 as Česká tisková kancelář. For historical material, CTK/ČTK may refer to the Czechoslovak agency, commonly rendered in German as Tschechoslowakische Nachrichtenagentur or Tschechoslowakisches Nachrichtenbüro; the modern Czech News Agency continues after 1992.",
     "active_period": {
       "start": "1918",
       "end": null,
@@ -394,12 +405,20 @@
       "en": [
         "Czech News Agency",
         "Czech Press Agency",
+        "Czechoslovak News Agency",
+        "Czechoslovak Press Agency",
         "CTK"
       ],
       "de": [
         "Tschechische Presseagentur",
+        "Tschechoslowakische Nachrichtenagentur",
+        "tschechoslowakische Nachrichtenagentur",
+        "tschechoslowakischen Nachrichtenagentur",
+        "Tschechoslowakisches Nachrichtenbüro",
+        "Tschechoslowakische Presseagentur",
         "ČTK",
-        "Česká tisková kancelář"
+        "Česká tisková kancelář",
+        "Československá tisková kancelář"
       ],
       "fr": [
         "Agence de presse tchèque",

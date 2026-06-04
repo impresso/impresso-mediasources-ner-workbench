@@ -747,6 +747,12 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                     "label": "org.ent.radiostation.bbc",
                     "display_name": "BBC",
                     "aliases": ["BBC", "Radio London"],
+                },
+                {
+                    "canonical_id": "radio-prague",
+                    "label": "org.ent.radiostation.radio-prague",
+                    "display_name": "Radio Prague",
+                    "aliases": ["Radio Prague", "Radio Prag"],
                 }
             ]
         ),
@@ -773,6 +779,17 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                     "display_name": "Telegraphen-Union",
                     "aliases": ["Telegraphen-Union", "T.U."],
                     "contextual_aliases": [{"alias": "UTA", "use": "dispatch_source_formula"}],
+                },
+                {
+                    "canonical_id": "ctk",
+                    "label": "org.ent.pressagency.ctk",
+                    "display_name": "Czech News Agency",
+                    "aliases": [
+                        "CTK",
+                        "ČTK",
+                        "tschechoslowakischen Nachrichtenagentur",
+                        "Tschechoslowakische Nachrichtenagentur",
+                    ],
                 }
             ]
         ),
@@ -804,6 +821,14 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                 "query": "Deutsche Welle",
                 "language": "de",
                 "snippet": "Berlin, 7. Januar. (UTA) Reichspräsident v. Hindenburg sprach im Radio.",
+            },
+            {
+                "id": "radio-prague-with-ctk",
+                "label": "org.ent.radiostation",
+                "station": "radio_prague",
+                "query": "Radio Prag",
+                "language": "de",
+                "snippet": "Nach einer von Radio Prag verbreiteten Meldung der tschechoslowakischen Nachrichtenagentur hat die Regierung berichtet.",
             }
         ],
     )
@@ -829,9 +854,11 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
     london_scored = next(row for row in scored_rows if row["id"] == "radio-london-with-sda")
     tanjug_scored = next(row for row in scored_rows if row["id"] == "radio-vatican-with-tanjug")
     uta_scored = next(row for row in scored_rows if row["id"] == "deutsche-welle-with-uta")
+    ctk_scored = next(row for row in scored_rows if row["id"] == "radio-prague-with-ctk")
     london_spans = london_scored["model"]["predicted_spans"]
     tanjug_spans = tanjug_scored["model"]["predicted_spans"]
     uta_spans = uta_scored["model"]["predicted_spans"]
+    ctk_spans = ctk_scored["model"]["predicted_spans"]
     assert any(
         span["surface"] == "Schweizer Depeschenagentur" and span["label"] == "org.ent.pressagency.ats-sda"
         for span in london_spans
@@ -843,6 +870,15 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
         and span["label"] == "org.ent.pressagency.telegraphen-union"
         and span["matcher"] == "contextual_dispatch_source_formula"
         for span in uta_spans
+    )
+    assert any(
+        span["surface"] == "Radio Prag" and span["label"] == "org.ent.radiostation.radio-prague"
+        for span in ctk_spans
+    )
+    assert any(
+        span["surface"] == "tschechoslowakischen Nachrichtenagentur"
+        and span["label"] == "org.ent.pressagency.ctk"
+        for span in ctk_spans
     )
 
 
