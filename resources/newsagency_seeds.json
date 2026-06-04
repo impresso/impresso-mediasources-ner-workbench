@@ -665,7 +665,8 @@
       "SDA",
       "ATS-SDA",
       "Agence telegraphique suisse",
-      "Schweizerische Depeschenagentur"
+      "Schweizerische Depeschenagentur",
+      "Schweizer Depeschenagentur"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Swiss_Telegraphic_Agency",
     "wikidata_url": "https://www.wikidata.org/wiki/Q430109",
@@ -684,6 +685,7 @@
       ],
       "de": [
         "Schweizerische Depeschenagentur",
+        "Schweizer Depeschenagentur",
         "SDA",
         "Keystone-SDA"
       ],

@@ -356,6 +356,73 @@ def test_radiostation_scoring_matches_other_station_aliases_in_snippet(tmp_path:
     )
 
 
+def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_candidates.jsonl"
+    scored_path = tmp_path / "radio_scored.jsonl"
+    radio_seeds_path = tmp_path / "radiostation_seeds.json"
+    agency_seeds_path = tmp_path / "newsagency_seeds.json"
+    radio_seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "bbc",
+                    "label": "org.ent.radiostation.bbc",
+                    "display_name": "BBC",
+                    "aliases": ["BBC", "Radio London"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    agency_seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "ats-sda",
+                    "label": "org.ent.pressagency.ats-sda",
+                    "display_name": "Schweizerische Depeschenagentur",
+                    "aliases": ["Schweizerische Depeschenagentur", "Schweizer Depeschenagentur", "SDA"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "radio-london-with-sda",
+                "label": "org.ent.radiostation",
+                "station": "radio_londres",
+                "query": "Radio London",
+                "language": "de",
+                "snippet": "Wie die Schweizer Depeschenagentur aus London berichtet, gab Radio London bekannt.",
+            }
+        ],
+    )
+
+    score_radiostation_rows(
+        type(
+            "Args",
+            (),
+            {
+                "input": str(input_path),
+                "output": str(scored_path),
+                "radiostations": str(radio_seeds_path),
+                "newsagencies": str(agency_seeds_path),
+            },
+        )
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    spans = scored["model"]["predicted_spans"]
+    assert any(
+        span["surface"] == "Schweizer Depeschenagentur" and span["label"] == "org.ent.pressagency.ats-sda"
+        for span in spans
+    )
+    assert any(span["surface"] == "Radio London" and span["label"] == "org.ent.radiostation.bbc" for span in spans)
+
+
 def test_radiostation_scoring_does_not_emit_generic_label(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_candidates.jsonl"
     scored_path = tmp_path / "radio_scored.jsonl"

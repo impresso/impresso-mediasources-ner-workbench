@@ -32,6 +32,19 @@ def load_station_metadata(path: Path) -> dict[str, dict[str, Any]]:
     return metadata
 
 
+def load_pressagency_metadata(path: Path) -> dict[str, dict[str, Any]]:
+    if not path.is_file():
+        return {}
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    metadata: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        label = str(row.get("label", ""))
+        canonical_id = str(row.get("canonical_id") or label.rsplit(".", 1)[-1])
+        if canonical_id and label.startswith("org.ent.pressagency."):
+            metadata[canonical_id] = row
+    return metadata
+
+
 def seed_aliases(seed: dict[str, Any]) -> list[str]:
     aliases = []
     for alias in seed.get("aliases") or []:
@@ -148,6 +161,17 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
     return spans
 
 
+def high_precision_press_aliases(seed: dict[str, Any]) -> list[str]:
+    aliases = []
+    for alias in seed_aliases(seed):
+        compact_alias = compact(alias)
+        # Avoid noisy global matches for very short acronyms such as AP or ATS.
+        if len(compact_alias) < 4 and not any(char in alias for char in ".-/"):
+            continue
+        aliases.append(alias)
+    return aliases
+
+
 def find_all_seed_alias_spans(tokens: list[str], metadata: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     spans: list[dict[str, Any]] = []
     for seed in metadata.values():
@@ -155,6 +179,16 @@ def find_all_seed_alias_spans(tokens: list[str], metadata: dict[str, dict[str, A
         if not label:
             continue
         spans.extend(find_alias_spans(tokens, seed_aliases(seed), label))
+    return spans
+
+
+def find_all_press_alias_spans(tokens: list[str], metadata: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    spans: list[dict[str, Any]] = []
+    for seed in metadata.values():
+        label = str(seed.get("label") or "")
+        if not label:
+            continue
+        spans.extend(find_alias_spans(tokens, high_precision_press_aliases(seed), label))
     return spans
 
 
@@ -200,6 +234,7 @@ def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, An
 
 def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     metadata = load_station_metadata(Path(args.radiostations))
+    press_metadata = load_pressagency_metadata(Path(getattr(args, "newsagencies", "resources/newsagency_seeds.json")))
     alias_index = build_alias_index(metadata)
     model_runtime = load_model_runtime(args)
     rows = []
@@ -209,7 +244,8 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         label, aliases = aliases_for_row(row, metadata, alias_index)
         candidate_alias_spans = find_alias_spans(tokens, aliases, label) if label else []
         all_alias_spans = find_all_seed_alias_spans(tokens, metadata)
-        alias_spans = attach_offsets(dedupe_spans(candidate_alias_spans + all_alias_spans), starts, stops, text)
+        press_alias_spans = find_all_press_alias_spans(tokens, press_metadata)
+        alias_spans = attach_offsets(dedupe_spans(candidate_alias_spans + all_alias_spans + press_alias_spans), starts, stops, text)
         model_spans: list[dict[str, Any]] = []
         if model_runtime is not None:
             torch, tokenizer, model, device, _model_name = model_runtime
@@ -226,7 +262,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         out["token_end_offsets"] = stops
         out["model"] = {
             "repo_id": str(getattr(args, "model", "") or "alias-matcher"),
-            "scorers": ["radiostation_alias_matcher"] + (["token_classifier"] if model_runtime is not None else []),
+            "scorers": ["radiostation_alias_matcher", "pressagency_alias_matcher"] + (["token_classifier"] if model_runtime is not None else []),
             "predicted_spans": spans,
         }
         reasons = []
@@ -261,6 +297,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--radiostations", default="resources/radiostation_seeds.json")
+    parser.add_argument("--newsagencies", default="resources/newsagency_seeds.json")
     parser.add_argument("--model", default="")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)
