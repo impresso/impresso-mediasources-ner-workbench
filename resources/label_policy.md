@@ -87,7 +87,7 @@ Exclude:
 - generic words unless they are part of the proper name
 - article titles or sentence context outside the name
 
-In `(A. F. P.).`, annotate `A. F. P.`. The final period after `P` is an acronym period, not sentence punctuation.
+Punctuation belongs inside the span when it is part of the visible agency abbreviation or name, even sentence-finally. In `(A. F. P.).`, annotate `A. F. P.`. The final period after `P` is an acronym period, not sentence punctuation. For undotted names or plain acronyms such as `Havas.` or `AFP.`, the final period is ordinary sentence punctuation and stays outside.
 
 ## `Agence` Boundary Rule
 
@@ -140,9 +140,9 @@ Boundary rules:
 
 Do not use `org.ent.pressagency.agence-radio` for generic radio medium references or for broadcaster/station names such as `Radio Paris`, `Radio Londres`, `Radio Moscou`, `Radio Vatican`, or `Radio Luxembourg`.
 
-## OCR And Normalization
+## OCR And Identifiability
 
-Keep the observed surface form in offsets and spans. Store normalized/corrected surfaces in metadata when available.
+Keep the observed OCR surface form in offsets and spans. Do not require or invent normalized/corrected surfaces during annotation; learning reasonable OCR variants is the model's responsibility.
 
 Rules:
 

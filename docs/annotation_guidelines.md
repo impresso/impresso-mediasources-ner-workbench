@@ -22,7 +22,7 @@ Annotators work on sampled search results and short paragraph-sized contexts, no
   - [Annotate](#annotate)
   - [Do Not Annotate](#do-not-annotate)
 - [Boundaries](#boundaries)
-- [OCR And Normalization](#ocr-and-normalization)
+- [OCR And Identifiability](#ocr-and-identifiability)
 - [Labels And Exclusions](#labels-and-exclusions)
 - [Paragraph-Level Sampling Workflow](#paragraph-level-sampling-workflow)
 - [Quality Statuses](#quality-statuses)
@@ -196,7 +196,7 @@ Exclude:
 - generic words unless they are part of the proper name
 - article titles or sentence context outside the name
 
-For dotted agency acronyms, the closing acronym period is part of the mention even in source formulas with additional punctuation. In `(A. F. P.).`, annotate `A. F. P.` and exclude only the parentheses and the sentence period after the closing parenthesis.
+Punctuation belongs inside the span when it is part of the visible agency abbreviation or name. This remains true at the end of a sentence. In `(A. F. P.).`, annotate `A. F. P.`: the period after `P` is part of the abbreviation, while the parentheses and the sentence period after the closing parenthesis stay outside. For undotted names or plain acronyms such as `Havas.` or `AFP.`, the final period is ordinary sentence punctuation and stays outside.
 
 News-agency names with `Agence`:
 
@@ -207,7 +207,7 @@ News-agency names with `Agence`:
 - If `agence` is lowercase or syntactically generic but immediately names the organization, include it when the phrase is still the proper-name surface: `l'agence Havas` -> `agence Havas`.
 - Do not include generic descriptors that are not part of the name: in `une agence de presse Havas` or `l'agence télégraphique Reuter`, annotate `Havas` or `Reuter` unless the source clearly uses `Agence Havas` or `Agence Reuter` as the name.
 - Do not include corrupted tokens merely because they might stand for `Agence`. If OCR gives `A qgcncc Reuter`, annotate the clean identifiable name `Reuter` and add a correction note if useful.
-- If `Agence` is readable but the following agency token is OCR-noisy and identifiable, include the readable `Agence` plus the noisy agency token, and record the normalized form in notes.
+- If `Agence` is readable but the following agency token is OCR-noisy and identifiable, include the readable `Agence` plus the noisy agency token.
 
 Examples:
 
@@ -254,22 +254,21 @@ Examples:
 | `le poste de Moscou diffuse ...` | `poste de Moscou` | review or canonical radio-station label if mapped | historical station expression |
 | `Nach einer Sendung der BBC ...` | `BBC`             | `org.ent.radiostation.bbc`                        | source-like use               |
 
-## OCR And Normalization
+## OCR And Identifiability
 
-Historical OCR is noisy. Keep the surface form as printed/OCRed, but record corrections when the mention is identifiable.
+Historical OCR is noisy. Annotate the visible OCR surface when a canonical media-source mention is reasonably identifiable from the surface and local context. Do not require or invent a corrected surface form during annotation; learning reasonable OCR variants is the model's responsibility.
 
 Rules:
 
 - Annotate noisy but identifiable mentions.
-- Store the corrected form in the annotation metadata when available.
 - Do not create a new label for an OCR variant.
 - If OCR noise makes the organization impossible to identify, do not assign a canonical label.
 - If the mention boundary is uncertain but the organization is clear, select the best surface span and flag the row for review.
 
 Examples:
 
-- `Reutei` may be annotated as Reuters with normalized surface `Reuter` or `Reuters`.
-- `D . N . B .` should normalize to `D.N.B.` if offsets can still be preserved.
+- `Reutei` may be annotated as Reuters when local context makes it reasonably identifiable.
+- `D . N . B .` remains the visible span when it is the OCR/tokenized form of `D.N.B.`.
 - `B. N.` should not be guessed as a real agency unless the context makes it clear.
 
 ## Labels And Exclusions
@@ -334,9 +333,8 @@ The new guidelines change the central semantic rule from the MA thesis. The MA t
 
 Important continuities:
 
-- OCR-noisy but identifiable mentions should be retained with correction metadata.
-- Abbreviation-internal periods remain part of the mention.
-- Sentence-final punctuation remains outside the mention.
+- OCR-noisy but identifiable mentions should be retained as visible OCR spans.
+- Periods that are part of an agency abbreviation or visible name remain part of the mention, even sentence-finally.
 - Generic words like `agence` or `Agentur` are excluded unless part of a proper name.
 - Compounds containing recognizable canonical agency names should be annotated as full compound tokens or hyphenated compounds.
 - Author attributions are not target entities.
@@ -383,8 +381,8 @@ The practical consequence is that annotators should spend less time deciding whe
 | `Radio Paris annonce ...`                    | annotate                                             | `Radio Paris`     | `org.ent.radiostation.radio_paris`                           |
 | `la station BBC annonce ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
 | `le poste de Moscou diffuse ...`             | review or annotate if canonical mapping is available | `poste de Moscou` | `org.ent.radiostation.<canonical_id>` or review              |
-| `Reutei annonce ...`                         | annotate if identifiable                             | `Reutei`          | `org.ent.pressagency.reuters`; normalized surface `Reuter` or `Reuters` |
-| `D . N . B . meldet ...`                     | annotate if offsets are preserved                    | `D . N . B .`     | `org.ent.pressagency.dnb`; normalized surface `D.N.B.`       |
+| `Reutei annonce ...`                         | annotate if identifiable                             | `Reutei`          | `org.ent.pressagency.reuters`; visible OCR span              |
+| `D . N . B . meldet ...`                     | annotate if offsets are preserved                    | `D . N . B .`     | `org.ent.pressagency.dnb`; visible dotted abbreviation       |
 | `AP bat son record ...`                      | do not annotate or mark review                       | none              | all `O`, unless context clearly means Associated Press       |
 | `(AP) Washington ...`                        | annotate if source context is clear                  | `AP`              | `org.ent.pressagency.ap`                                     |
 | `ag. meldet ...`                             | do not label as agency                               | none              | all `O`, possible review                                     |
