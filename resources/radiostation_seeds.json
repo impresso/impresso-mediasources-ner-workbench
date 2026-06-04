@@ -67,9 +67,28 @@
     "canonical_id": "voice-of-america",
     "label": "org.ent.radiostation.voice-of-america",
     "display_name": "Voice of America",
-    "aliases": ["Voice of America", "Voix de l'Amerique"],
+    "aliases": [
+      "Voice of America",
+      "Voix de l'Amerique",
+      "Voix de l’Amérique",
+      "Stimme Amerikas"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Voice_of_America",
     "wikidata_url": null,
+    "aliases_by_language": {
+      "de": [
+        "Voice of America",
+        "Stimme Amerikas"
+      ],
+      "fr": [
+        "Voice of America",
+        "Voix de l'Amerique",
+        "Voix de l’Amérique"
+      ],
+      "en": [
+        "Voice of America"
+      ]
+    },
     "trainable": true,
     "status": "seed_from_sampler"
   },

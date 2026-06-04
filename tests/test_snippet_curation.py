@@ -408,6 +408,48 @@ def test_radiostation_scoring_resolves_query_alias_to_canonical_label(tmp_path: 
     assert scored["model"]["predicted_spans"][0]["surface"] == "Radio Londres"
 
 
+def test_radiostation_scoring_matches_voice_of_america_german_alias(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_candidates.jsonl"
+    scored_path = tmp_path / "radio_scored.jsonl"
+    seeds_path = tmp_path / "radiostation_seeds.json"
+    seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "voice-of-america",
+                    "label": "org.ent.radiostation.voice-of-america",
+                    "display_name": "Voice of America",
+                    "aliases": ["Voice of America", "Stimme Amerikas"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "voice-of-america-de",
+                "label": "org.ent.radiostation",
+                "station": "voice_of_america",
+                "query": "Voice of America",
+                "language": "de",
+                "snippet": "Wurde die « Stimme Amerikas » von Amerikanern sabotiert?",
+            }
+        ],
+    )
+
+    score_radiostation_rows(
+        type("Args", (), {"input": str(input_path), "output": str(scored_path), "radiostations": str(seeds_path)})
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    assert scored["candidate_label"] == "org.ent.radiostation.voice-of-america"
+    assert scored["curation"]["reasons"] == []
+    assert scored["model"]["predicted_spans"][0]["surface"] == "Stimme Amerikas"
+    assert scored["model"]["predicted_spans"][0]["label"] == "org.ent.radiostation.voice-of-america"
+
+
 def test_radiostation_scoring_matches_other_station_aliases_in_snippet(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_candidates.jsonl"
     scored_path = tmp_path / "radio_scored.jsonl"
