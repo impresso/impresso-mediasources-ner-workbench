@@ -450,6 +450,69 @@ def test_radiostation_scoring_matches_voice_of_america_german_alias(tmp_path: Pa
     assert scored["model"]["predicted_spans"][0]["label"] == "org.ent.radiostation.voice-of-america"
 
 
+def test_radiostation_scoring_matches_vatican_radio_alias(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_candidates.jsonl"
+    scored_path = tmp_path / "radio_scored.jsonl"
+    seeds_path = tmp_path / "radiostation_seeds.json"
+    seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "vatican-radio",
+                    "label": "org.ent.radiostation.vatican-radio",
+                    "display_name": "Vatican Radio",
+                    "aliases": ["Vatican Radio", "Radio Vatican", "Radio Vatikan"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "radio-vatican-luxwort",
+                "label": "org.ent.radiostation",
+                "station": "radio_vatican",
+                "query": "Radio Vatican",
+                "language": "de",
+                "snippet": "Nach einer Meldung von Radio Vatican bietet das Hl. Jahr 1950 den Anlass.",
+            }
+        ],
+    )
+
+    score_radiostation_rows(
+        type("Args", (), {"input": str(input_path), "output": str(scored_path), "radiostations": str(seeds_path)})
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    assert scored["candidate_label"] == "org.ent.radiostation.vatican-radio"
+    assert scored["curation"]["reasons"] == []
+    assert scored["model"]["predicted_spans"][0]["surface"] == "Radio Vatican"
+    assert scored["model"]["predicted_spans"][0]["label"] == "org.ent.radiostation.vatican-radio"
+
+
+def test_radiostation_alias_matching_does_not_swallow_following_word() -> None:
+    spans = find_alias_spans(
+        ["Radio-Vatican", "a", "declare"],
+        ["Radio Vatican", "Radio Vaticana"],
+        "org.ent.radiostation.vatican-radio",
+    )
+
+    assert spans == [
+        {
+            "token_start": 0,
+            "token_stop": 1,
+            "label": "org.ent.radiostation.vatican-radio",
+            "surface": "Radio-Vatican",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "matcher": "alias_compact",
+            "alias": "Radio Vatican",
+        }
+    ]
+
+
 def test_radiostation_scoring_matches_other_station_aliases_in_snippet(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_candidates.jsonl"
     scored_path = tmp_path / "radio_scored.jsonl"

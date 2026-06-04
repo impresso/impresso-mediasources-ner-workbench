@@ -135,7 +135,7 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
     spans: list[dict[str, Any]] = []
     seen = set()
     alias_forms = [(alias, compact(alias)) for alias in aliases if compact(alias)]
-    max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) + 1 for alias in aliases), default=1)
+    max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) for alias in aliases), default=1)
     for start in range(len(tokens)):
         for stop in range(start + 1, min(len(tokens), start + max_len) + 1):
             if not has_word_char(tokens[start]) or not has_word_char(tokens[stop - 1]):
