@@ -99,6 +99,7 @@ Examples:
 - Radio Paris
 - Radio Moscou / Radio Moscow
 - Radio Bucarest / Radio Bucharest
+- Vatican Radio / Radio Vatican / Radio Vatikan
 - Voice of America
 - Radio Free Europe
 - Deutsche Welle
@@ -114,6 +115,8 @@ Use the publication date and surrounding programme/source context to disambiguat
 For earlier programme guides, especially 1920s material, `Radio-Londres` may identify the London broadcasting station by city rather than the later wartime French-language service. A wavelength such as `365 m` is a strong contextual clue for the London station 2LO/BBC London transmitter. Annotate the visible span as printed, for example `Radio-Londres`, and use `org.ent.radiostation.bbc` as the current canonical label. In notes or downstream entity-linking metadata this can be distinguished as a pre-war London station/BBC-related service, but do not create a separate training label unless the canonical metadata is explicitly extended.
 
 Use `org.ent.radiostation.radio-bucharest` for `Radio Bucarest`, `Radio-Bucarest`, or `Radio Bucharest` when the context presents broadcasts or announcements from Bucharest as a media source. A sentence such as `Radio-Bucarest annonce ...` is positive. In 1948 newspaper material this is compatible with Romanian foreign-language broadcasts from Bucharest, the service later known as Radio Romania International.
+
+Use `org.ent.radiostation.vatican-radio` for `Vatican Radio`, `Radio Vatican`, `Radio-Vatican`, `Radio Vatikan`, `Radio Vaticano`, or `Radio Vaticana` when the context refers to the broadcaster, a broadcast, a programme, or a source attribution. Example: `Nach einer Meldung von Radio Vatican ...` is positive.
 
 For radio-station names and acronyms, do not annotate every string match. If the same acronym/name is used for a sports club, local association, team, or other non-media organization, keep it negative/O.
 

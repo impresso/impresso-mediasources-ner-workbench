@@ -177,6 +177,65 @@
     ]
   },
   {
+    "canonical_id": "vatican-radio",
+    "label": "org.ent.radiostation.vatican-radio",
+    "display_name": "Vatican Radio",
+    "aliases": [
+      "Vatican Radio",
+      "Radio Vatican",
+      "Radio-Vatican",
+      "Radio Vatikan",
+      "Radio-Vatikan",
+      "Radio Vaticano",
+      "Radio Vaticana"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Vatican_Radio",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q680634",
+    "description": "International radio service of the Holy See and Vatican City, inaugurated in 1931. Historical newspapers may refer to it by translated station names such as Radio Vatican, Radio Vatikan, Radio Vaticano, or Radio Vaticana in news/source and programme contexts.",
+    "annotation_note": "Annotate translated forms such as Radio Vatican, Radio Vatikan, Radio Vaticano, and Radio Vaticana as Vatican Radio when the context refers to the broadcaster, a broadcast, a programme, or a source attribution.",
+    "active_period": {
+      "start": "1931",
+      "end": null,
+      "note": "Vatican Radio began regular broadcasting in 1931 and continues as part of Vatican media services."
+    },
+    "aliases_by_language": {
+      "de": [
+        "Radio Vatikan",
+        "Radio-Vatikan",
+        "Vatican Radio"
+      ],
+      "fr": [
+        "Radio Vatican",
+        "Radio-Vatican",
+        "Vatican Radio"
+      ],
+      "en": [
+        "Vatican Radio",
+        "Radio Vatican"
+      ],
+      "it": [
+        "Radio Vaticano",
+        "Radio Vaticana"
+      ]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q680634"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Vatican_Radio"
+      },
+      {
+        "type": "official_history",
+        "url": "https://www.vaticannews.va/en/vatican-city/news/2021-02/vatican-radio-turns-90-carrying-the-pope-s-voice-to-the-world.html"
+      }
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "rtl",
     "label": "org.ent.radiostation.rtl",
     "display_name": "RTL / Radio Luxembourg",
