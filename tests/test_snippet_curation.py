@@ -6,7 +6,11 @@ from lib.export_snippet_training_data import export_rows
 from lib.review_newsagency_snippets import parse_manual_span, prompt_manual_spans, review_loop
 from lib.review_radiostation_snippets import materialize_views
 from lib.sample_newsagencies import extract_candidate, load_seed_queries
-from lib.score_radiostation_snippets import find_alias_spans, score_rows as score_radiostation_rows
+from lib.score_radiostation_snippets import (
+    find_alias_spans,
+    score_rows as score_radiostation_rows,
+    suppress_model_spans_covered_by_aliases,
+)
 from lib.score_newsagency_snippets import (
     attach_surfaces,
     curation_status,
@@ -153,6 +157,22 @@ def test_alias_matcher_keeps_final_period_for_dotted_ats_alias() -> None:
             "alias": "A.T.S.",
         }
     ]
+
+
+def test_alias_spans_take_precedence_over_model_spans_at_same_boundary() -> None:
+    model_spans = [
+        {"token_start": 17, "token_stop": 18, "label": "org.ent.pressagency.ats-sda", "surface": "UTA"}
+    ]
+    alias_spans = [
+        {
+            "token_start": 17,
+            "token_stop": 18,
+            "label": "org.ent.pressagency.telegraphen-union",
+            "surface": "UTA",
+        }
+    ]
+
+    assert suppress_model_spans_covered_by_aliases(model_spans, alias_spans) == []
 
 
 def test_suppress_contained_same_label_spans_keeps_full_acronym_span() -> None:
@@ -746,6 +766,13 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                     "label": "org.ent.pressagency.tanjug",
                     "display_name": "Tanjug",
                     "aliases": ["Tanjug", "Tan Jug."],
+                },
+                {
+                    "canonical_id": "telegraphen-union",
+                    "label": "org.ent.pressagency.telegraphen-union",
+                    "display_name": "Telegraphen-Union",
+                    "aliases": ["Telegraphen-Union", "T.U."],
+                    "contextual_aliases": [{"alias": "UTA", "use": "dispatch_source_formula"}],
                 }
             ]
         ),
@@ -769,6 +796,14 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                 "query": "Radio Vatican",
                 "language": "fr",
                 "snippet": "Belgrade, 7 juillet. (Tan Jug.) — Le journal communiste publie la nouvelle.",
+            },
+            {
+                "id": "deutsche-welle-with-uta",
+                "label": "org.ent.radiostation",
+                "station": "deutsche_welle",
+                "query": "Deutsche Welle",
+                "language": "de",
+                "snippet": "Berlin, 7. Januar. (UTA) Reichspräsident v. Hindenburg sprach im Radio.",
             }
         ],
     )
@@ -793,14 +828,22 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
     ]
     london_scored = next(row for row in scored_rows if row["id"] == "radio-london-with-sda")
     tanjug_scored = next(row for row in scored_rows if row["id"] == "radio-vatican-with-tanjug")
+    uta_scored = next(row for row in scored_rows if row["id"] == "deutsche-welle-with-uta")
     london_spans = london_scored["model"]["predicted_spans"]
     tanjug_spans = tanjug_scored["model"]["predicted_spans"]
+    uta_spans = uta_scored["model"]["predicted_spans"]
     assert any(
         span["surface"] == "Schweizer Depeschenagentur" and span["label"] == "org.ent.pressagency.ats-sda"
         for span in london_spans
     )
     assert any(span["surface"] == "Radio London" and span["label"] == "org.ent.radiostation.bbc" for span in london_spans)
     assert any(span["surface"] == "Tan Jug." and span["label"] == "org.ent.pressagency.tanjug" for span in tanjug_spans)
+    assert any(
+        span["surface"] == "UTA"
+        and span["label"] == "org.ent.pressagency.telegraphen-union"
+        and span["matcher"] == "contextual_dispatch_source_formula"
+        for span in uta_spans
+    )
 
 
 def test_radiostation_scoring_does_not_emit_generic_label(tmp_path: Path) -> None:

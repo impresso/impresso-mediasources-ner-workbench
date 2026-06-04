@@ -84,10 +84,13 @@ Examples:
 - Deutsche Presse-Agentur / DPA
 - TASS
 - Tanjug / Tan Jug.
+- Telegraphen-Union / T.U. / contextual `(UTA)`
 - Wolff
 - Agence Radio
 
 Only labels backed by canonical metadata in `resources/newsagency_seeds.json` are trainable labels.
+
+Use `org.ent.pressagency.telegraphen-union` for `Telegraphen-Union`, `T.U.`, and contextual Weimar-period source formulas such as `Berlin, 7. Januar. (UTA)`. For `UTA`, require source-formula context; do not treat arbitrary `UTA` in running text as a press-agency mention, and do not map it to `org.ent.pressagency.ats-sda`.
 
 ### Radio Stations
 

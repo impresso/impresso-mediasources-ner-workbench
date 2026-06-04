@@ -113,6 +113,10 @@ Examples:
 
 Use review only when the embedded agency name is not clearly identifiable or the compound may refer to something else.
 
+## Telegraphen-Union / UTA
+
+Use `org.ent.pressagency.telegraphen-union` for `Telegraphen-Union`, `T.U.`, and contextual Weimar-period source formulas such as `Berlin, 7. Januar. (UTA)`. For `UTA`, require parenthesized or formulaic dispatch-source context and a plausible German/Swiss newspaper date/location context. Do not map `UTA` to `org.ent.pressagency.ats-sda`.
+
 ## Radio Stations
 
 Annotate specific canonical radio-station mentions when the context is connected to broadcasting, media production, media organizations, programme schedules, news/source attribution, or institutional broadcaster activity.

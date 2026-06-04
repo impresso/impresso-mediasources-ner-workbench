@@ -1183,5 +1183,70 @@
       }
     ],
     "annotation_note": "Use for source attributions such as (Tan Jug.) or Belgrade dateline formulas where the context matches a news-agency dispatch. Do not treat Jugoslav place or nationality words alone as agency mentions."
+  },
+  {
+    "canonical_id": "telegraphen-union",
+    "label": "org.ent.pressagency.telegraphen-union",
+    "display_name": "Telegraphen-Union",
+    "aliases": [
+      "Telegraphen-Union",
+      "Telegraphen Union",
+      "T.U.",
+      "T. U.",
+      "TU"
+    ],
+    "wikipedia_url": "https://de.wikipedia.org/wiki/Telegraphen-Union",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "German news agency founded in 1913 in Berlin and later associated with Alfred Hugenberg's media group. The Telegraphen-Union was one of the main German news agencies of the Weimar period and was merged with Wolffs Telegraphisches Bureau into the Deutsches Nachrichtenbüro under National Socialist control at the end of 1933 / beginning of 1934.",
+    "active_period": {
+      "start": "1913",
+      "end": "1933",
+      "note": "Founded in 1913; merged into the Deutsches Nachrichtenbüro in late 1933 / early 1934."
+    },
+    "aliases_by_language": {
+      "en": [
+        "Telegraphen-Union",
+        "Telegraphen Union"
+      ],
+      "de": [
+        "Telegraphen-Union",
+        "Telegraphen Union",
+        "T.U.",
+        "T. U.",
+        "TU"
+      ],
+      "fr": [
+        "Telegraphen-Union",
+        "Telegraphen Union",
+        "T.U.",
+        "T. U.",
+        "TU"
+      ]
+    },
+    "contextual_aliases": [
+      {
+        "alias": "UTA",
+        "use": "dispatch_source_formula",
+        "note": "Use only for parenthesized or formulaic German/Swiss newspaper source attributions such as Berlin, 7. Januar. (UTA) when the date and context fit the Weimar-period Telegraphen-Union. Treat this as a contextual source abbreviation, not as a general alias in running text."
+      },
+      {
+        "alias": "U.T.A.",
+        "use": "dispatch_source_formula",
+        "note": "Dotted variant of the contextual UTA source formula."
+      }
+    ],
+    "metadata_sources": [
+      {
+        "type": "wikipedia",
+        "url": "https://de.wikipedia.org/wiki/Telegraphen-Union"
+      },
+      {
+        "type": "archival_description",
+        "url": "https://www.deutsche-digitale-bibliothek.de/item/CRJBOH2SS3GGI4OUJRWYT7DKHNCSETQW"
+      }
+    ],
+    "annotation_note": "Use for Telegraphen-Union / T.U. references and for contextual source formulas such as (UTA) in Weimar-period German political dispatches. Do not map UTA to ATS/SDA."
   }
 ]

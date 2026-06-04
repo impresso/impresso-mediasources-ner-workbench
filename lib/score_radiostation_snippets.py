@@ -250,6 +250,25 @@ def find_all_press_alias_spans(tokens: list[str], metadata: dict[str, dict[str, 
         if not label:
             continue
         spans.extend(find_alias_spans(tokens, high_precision_press_aliases(seed), label))
+        spans.extend(find_contextual_source_formula_spans(tokens, seed, label))
+    return spans
+
+
+def find_contextual_source_formula_spans(tokens: list[str], seed: dict[str, Any], label: str) -> list[dict[str, Any]]:
+    spans: list[dict[str, Any]] = []
+    for item in seed.get("contextual_aliases") or []:
+        if not isinstance(item, dict) or item.get("use") != "dispatch_source_formula":
+            continue
+        alias = str(item.get("alias") or "").strip()
+        if not alias:
+            continue
+        for span in find_alias_spans(tokens, [alias], label):
+            start = int(span["token_start"])
+            stop = int(span["token_stop"])
+            if start > 0 and stop < len(tokens) and tokens[start - 1] == "(" and tokens[stop] == ")":
+                contextual = dict(span)
+                contextual["matcher"] = "contextual_dispatch_source_formula"
+                spans.append(contextual)
     return spans
 
 
@@ -278,6 +297,20 @@ def dedupe_spans(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(key)
         out.append(span)
     return out
+
+
+def suppress_model_spans_covered_by_aliases(
+    model_spans: list[dict[str, Any]], alias_spans: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    alias_boundaries = {
+        (int(span["token_start"]), int(span["token_stop"]))
+        for span in alias_spans
+    }
+    return [
+        span
+        for span in model_spans
+        if (int(span["token_start"]), int(span["token_stop"])) not in alias_boundaries
+    ]
 
 
 def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, Any] | None:
@@ -318,6 +351,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
                 stops,
                 text,
             )
+            model_spans = suppress_model_spans_covered_by_aliases(model_spans, alias_spans)
         spans = suppress_contained_same_label_spans(dedupe_spans(alias_spans + model_spans))
         out = dict(row)
         out["id"] = candidate_id(row, index)
