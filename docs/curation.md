@@ -164,6 +164,10 @@ The TSV groups changes by review item and uses the HIPE `NoSpaceAfter` render me
 
 Sampled snippets use a lighter workflow than the legacy dev/test correction pass. Candidate rows should be JSONL and contain at least `id` plus either `text` or `snippet`. The tools also accept rows with `matches` and optional pre-tokenized `tokens`, `token_start_offsets`, and `token_end_offsets`.
 
+The workflow still calls these short review units `snippets`, independent of which Impresso field produced the review text. Internally, sampling moved away from relying on the generic Impresso `snippet` field as the main annotation text. Those search-result previews are useful, but they can miss the highlighted query term or show a lead paragraph instead of the actual Solr hit context. The default `NEWSAGENCY_SAMPLE_CONTEXT_SOURCE` and `RADIOSTATION_SAMPLE_CONTEXT_SOURCE` is now `match`, which turns each Solr `matches` fragment into its own snippet row and removes the `<em>...</em>` markup before scoring/review. This usually gives the annotator the text that actually matched the query.
+
+For cases where the match fragment is too short, the samplers also support `NEWSAGENCY_SAMPLE_CONTEXT_SOURCE=full-content` or `RADIOSTATION_SAMPLE_CONTEXT_SOURCE=full-content`. In that mode the sampler fetches the full Impresso content item, finds the highlighted match in the article text, and cuts a larger local context around it. `*_SAMPLE_CONTEXT_CHARS` controls the character radius on each side; the default `256` is a practical guess for staying near 128 subtokens in typical review examples. Full-content mode is more expensive because it performs an additional content fetch per candidate, so `match` remains the default for normal sampling rounds.
+
 ### News-Agency Snippets
 
 There are two different local data situations:
@@ -178,11 +182,12 @@ Sample real Impresso search snippets:
 make sample-newsagencies \
   PYTHON=.venv/bin/python \
   CFG=configs/model-v0.1.0.mk \
-  NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=10 \
+  NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 \
+  NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 \
   NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
 ```
 
-This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases.
+This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
 
 Build a local bootstrap snippet file from the curated legacy JSONL only when you explicitly want legacy-derived test material:
 
@@ -249,7 +254,7 @@ Useful overrides:
 
 ### Radio-Station Snippets
 
-The default radio-station input is the already sampled parent search-result file `../resources/radiostation_candidates_balanced_v2.jsonl`. These rows contain `id`, `station`, `query`, `search_language`, `language`, `matches`, `snippet`, date/media metadata, and optional IIIF fields.
+The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radiostations`. These rows contain `id`, `station`, `query`, `search_language`, `language`, `matches`, `snippet`, date/media metadata, and optional IIIF fields. The sampler uses the same `data/candidates/sample_entity_pairs.jsonl` issue/entity registry as news-agency sampling and defaults to at most five selected samples per entity in one round.
 
 Because the current NER model was trained from legacy news-agency annotations and the legacy label map does not contain radio-station labels yet, radio-station scoring combines two sources of span suggestions: deterministic radio-station seed-alias matching and the current NER model's media-agency predictions. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
 

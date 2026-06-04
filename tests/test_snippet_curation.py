@@ -1,11 +1,23 @@
 import json
+import random
 from pathlib import Path
 
 from lib.build_newsagency_snippets import build_snippets
+from lib.annotation_stats import build_stats, fill_defaults, parse_args
 from lib.export_snippet_training_data import export_rows
-from lib.review_newsagency_snippets import parse_manual_span, prompt_manual_spans, review_loop
+from lib.review_newsagency_snippets import coverage_priority, parse_manual_span, prompt_manual_spans, review_loop, row_needs_coverage
 from lib.review_radiostation_snippets import materialize_views
-from lib.sample_newsagencies import extract_candidate, load_seed_queries
+from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
+from lib.sample_newsagencies import (
+    balanced_select,
+    expand_candidate_with_full_content,
+    extract_candidate,
+    load_sample_pairs,
+    load_seed_queries,
+    load_undercovered_labels,
+    sample_pair_key,
+    write_sample_registry,
+)
 from lib.score_radiostation_snippets import (
     find_alias_spans,
     score_rows as score_radiostation_rows,
@@ -18,7 +30,7 @@ from lib.score_newsagency_snippets import (
     normalize_dotted_acronym_spans,
     suppress_contained_same_label_spans,
 )
-from lib.snippet_data import tokenize_with_offsets, write_jsonl
+from lib.snippet_data import row_text, tokenize_with_offsets, write_jsonl
 
 
 def test_tokenize_with_offsets_keeps_character_spans() -> None:
@@ -28,6 +40,16 @@ def test_tokenize_with_offsets_keeps_character_spans() -> None:
 
     assert tokens == ["Selon", "l'Agence", "Havas", "."]
     assert [text[start:stop] for start, stop in zip(starts, stops, strict=True)] == tokens
+
+
+def test_candidate_text_prefers_cleaned_matches_over_generic_snippet() -> None:
+    row = {
+        "id": "doc-1",
+        "snippet": "Generic article lead without the search term.",
+        "matches": ["selon <em>Radio</em>-<em>Moscou</em> : le communiqué"],
+    }
+
+    assert row_text(row) == "selon Radio-Moscou : le communiqué"
 
 
 def test_newsagency_curation_status_auto_accepts_matching_confident_span() -> None:
@@ -246,6 +268,24 @@ def test_sample_newsagencies_loads_label_alias_queries(tmp_path: Path) -> None:
     assert {query["label"] for query in queries} == {"org.ent.pressagency.reuters"}
 
 
+def test_sample_newsagencies_loads_undercovered_labels_from_stats(tmp_path: Path) -> None:
+    coverage = tmp_path / "coverage.json"
+    coverage.write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {"label": "org.ent.pressagency.ata", "family": "pressagency", "missing_to_target": 20},
+                    {"label": "org.ent.pressagency.havas", "family": "pressagency", "missing_to_target": 0},
+                    {"label": "org.ent.radiostation.bbc", "family": "radiostation", "missing_to_target": 20},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_undercovered_labels(coverage) == {"org.ent.pressagency.ata"}
+
+
 def test_sample_newsagencies_extracts_search_candidate() -> None:
     row = extract_candidate(
         {
@@ -278,6 +318,120 @@ def test_sample_newsagencies_extracts_search_candidate() -> None:
     assert row["snippet"] == "Die Agentur Reuter meldet."
     assert row["matches"] == ["Die Agentur <em>Reuter</em> meldet."]
     assert row["source"] == {"type": "impresso_search_result", "document_id": "DTT-1959-12-01-a-i0079"}
+    assert row["sample_document_id"] == "DTT-1959-12-01-a-i0079"
+    assert row["sample_issue_id"] == "DTT-1959-12-01-a"
+
+
+def test_sample_registry_and_selection_use_issue_entity_pairs(tmp_path: Path) -> None:
+    registry = tmp_path / "sample_entity_pairs.jsonl"
+    existing_rows = [
+        {
+            "id": "DTT-1959-12-01-a-i0079#match-0",
+            "candidate_label": "org.ent.pressagency.reuters",
+            "source": {"document_id": "DTT-1959-12-01-a-i0079"},
+        }
+    ]
+    write_jsonl(tmp_path / "existing.jsonl", existing_rows)
+    pairs = load_sample_pairs([tmp_path / "existing.jsonl"])
+
+    assert pairs == {("DTT-1959-12-01-a", "org.ent.pressagency.reuters")}
+
+    pools = {
+        ("org.ent.pressagency.reuters", "Reuter", "de"): [
+            {
+                "id": "DTT-1959-12-01-a-i0080#match-0",
+                "candidate_label": "org.ent.pressagency.reuters",
+                "source": {"document_id": "DTT-1959-12-01-a-i0080"},
+            },
+            {
+                "id": "DTT-1959-12-02-a-i0001#match-0",
+                "candidate_label": "org.ent.pressagency.reuters",
+                "source": {"document_id": "DTT-1959-12-02-a-i0001"},
+            },
+            {
+                "id": "DTT-1959-12-03-a-i0001#match-0",
+                "candidate_label": "org.ent.pressagency.reuters",
+                "source": {"document_id": "DTT-1959-12-03-a-i0001"},
+            },
+        ]
+    }
+    selected, summary = balanced_select(
+        pools,
+        target_per_bucket=5,
+        rng=random.Random(42),
+        max_per_label=2,
+        existing_sample_pairs=pairs,
+    )
+    written = write_sample_registry(registry, selected, pairs)
+
+    assert [row["sample_issue_id"] for row in selected] == ["DTT-1959-12-02-a", "DTT-1959-12-03-a"]
+    assert [sample_pair_key(row) for row in selected] == [
+        ("DTT-1959-12-02-a", "org.ent.pressagency.reuters"),
+        ("DTT-1959-12-03-a", "org.ent.pressagency.reuters"),
+    ]
+    assert summary["counts_by_label_selected"] == {"org.ent.pressagency.reuters": 2}
+    assert written == 2
+
+
+def test_sample_expands_match_to_full_content_context() -> None:
+    row = {
+        "id": "EXP-1953-01-08-a-i0004",
+        "candidate_label": "org.ent.radiostation.radio-moscow",
+        "label": "org.ent.radiostation.radio-moscow",
+        "query": "Radio Moscou",
+        "matches": ["tendrement à l'oreille (selon <em>Radio</em>-<em>Moscou</em>) : « Pour vous"],
+        "snippet": "Déclaration d'amour La scène se passe à Moscou.",
+        "source": {"type": "impresso_search_result", "document_id": "EXP-1953-01-08-a-i0004"},
+    }
+    content = (
+        "Déclaration d'amour La scène se passe à Moscou, dans un bal costumé. "
+        "Il est en Pierrot, elle en Pierrette. Et lui, tendrement à l'oreille "
+        "(selon Radio-Moscou) : « Pour vous prouver mon amour, je serais capable "
+        "de construire une fusée. »"
+    )
+
+    rows = expand_candidate_with_full_content(row, content, context_chars=80)
+
+    assert rows[0]["id"] == "EXP-1953-01-08-a-i0004#match-0"
+    assert rows[0]["text_source"] == "full_content_match"
+    assert "selon Radio-Moscou" in rows[0]["text"]
+    assert "je serais capable" in rows[0]["text"]
+    assert rows[0]["match_text"] == "tendrement à l'oreille (selon Radio-Moscou) : « Pour vous"
+
+
+def test_sample_radiostations_loads_specific_label_alias_queries(tmp_path: Path) -> None:
+    seeds = tmp_path / "radiostation_seeds.json"
+    seeds.write_text(
+        json.dumps(
+            [
+                {
+                    "label": "org.ent.radiostation.bbc",
+                    "canonical_id": "bbc",
+                    "display_name": "BBC",
+                    "aliases": ["BBC", "Radio Londres"],
+                    "aliases_by_language": {"de": ["Londoner Rundfunk"]},
+                    "trainable": True,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    queries = load_radiostation_seed_queries(seeds, languages=["de", "fr"], labels=None, max_queries_per_label=0)
+    row = normalize_radiostation_row(
+        {
+            "id": "doc-1",
+            "label": "org.ent.radiostation.bbc",
+            "candidate_label": "org.ent.radiostation.bbc",
+            "agency": "bbc",
+            "agency_name": "BBC",
+        }
+    )
+
+    assert {query["query"] for query in queries} == {"BBC", "Radio Londres", "Londoner Rundfunk"}
+    assert {query["label"] for query in queries} == {"org.ent.radiostation.bbc"}
+    assert row["station"] == "bbc"
+    assert row["station_name"] == "BBC"
 
 
 def test_build_newsagency_snippets_from_legacy_jsonl(tmp_path: Path) -> None:
@@ -370,6 +524,117 @@ def test_export_snippet_training_data_writes_training_rows(tmp_path: Path) -> No
     assert rows[0]["source_component"] == "newsagency_snippet_manual"
 
 
+def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> None:
+    news_meta = tmp_path / "newsagency_seeds.json"
+    radio_meta = tmp_path / "radiostation_seeds.json"
+    legacy = tmp_path / "legacy.jsonl"
+    news = tmp_path / "news.jsonl"
+    radio = tmp_path / "radio.jsonl"
+    news_reviewed = tmp_path / "news_reviewed.jsonl"
+    radio_reviewed = tmp_path / "radio_reviewed.jsonl"
+    news_meta.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "havas",
+                    "label": "org.ent.pressagency.havas",
+                    "display_name": "Havas",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    radio_meta.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "bbc",
+                    "label": "org.ent.radiostation.bbc",
+                    "display_name": "BBC",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        legacy,
+        [
+            {"id": "legacy-1", "entities": [{"label": "org.ent.pressagency.havas"}]},
+            {"id": "legacy-2", "entities": [{"label": "org.ent.pressagency.havas"}]},
+        ],
+    )
+    write_jsonl(news, [{"id": "news-1", "entities": [{"label": "org.ent.pressagency.havas"}]}])
+    write_jsonl(radio, [{"id": "radio-1", "entities": [{"label": "org.ent.radiostation.bbc"}]}])
+    write_jsonl(
+        news_reviewed,
+        [
+            {
+                "id": "news-pending",
+                "candidate_label": "org.ent.pressagency.havas",
+                "curation": {"status": "needs_review", "label": "org.ent.pressagency.havas"},
+            }
+        ],
+    )
+    write_jsonl(radio_reviewed, [])
+
+    args = fill_defaults(
+        parse_args(
+            [
+                "--target-per-label",
+                "4",
+                "--label-metadata",
+                str(news_meta),
+                "--label-metadata",
+                str(radio_meta),
+                "--legacy-jsonl",
+                str(legacy),
+                "--newsagency-snippet-jsonl",
+                str(news),
+                "--radiostation-snippet-jsonl",
+                str(radio),
+                "--newsagency-reviewed-jsonl",
+                str(news_reviewed),
+                "--radiostation-reviewed-jsonl",
+                str(radio_reviewed),
+            ]
+        )
+    )
+
+    stats = build_stats(args)
+    rows = {row["label"]: row for row in stats["rows"]}
+
+    assert rows["org.ent.pressagency.havas"]["legacy"] == 2
+    assert rows["org.ent.pressagency.havas"]["newsagency_snippets"] == 1
+    assert rows["org.ent.pressagency.havas"]["total"] == 3
+    assert rows["org.ent.pressagency.havas"]["missing_to_target"] == 1
+    assert rows["org.ent.pressagency.havas"]["pending_review"] == 1
+    assert rows["org.ent.radiostation.bbc"]["radiostation_snippets"] == 1
+    assert rows["org.ent.radiostation.bbc"]["missing_to_target"] == 3
+
+
+def test_review_coverage_priority_prefers_undercovered_labels() -> None:
+    coverage = {
+        "org.ent.pressagency.ata": {
+            "label": "org.ent.pressagency.ata",
+            "missing_to_target": 20,
+            "total": 0,
+            "pending_review": 0,
+        },
+        "org.ent.pressagency.havas": {
+            "label": "org.ent.pressagency.havas",
+            "missing_to_target": 0,
+            "total": 610,
+            "pending_review": 134,
+        },
+    }
+    ata_row = {"id": "ata", "candidate_label": "org.ent.pressagency.ata", "curation": {"status": "needs_review"}}
+    havas_row = {"id": "havas", "candidate_label": "org.ent.pressagency.havas", "curation": {"status": "needs_review"}}
+
+    assert row_needs_coverage(ata_row, coverage)
+    assert not row_needs_coverage(havas_row, coverage)
+    assert sorted([havas_row, ata_row], key=lambda row: coverage_priority(row, coverage))[0] == ata_row
+
+
 def test_radiostation_alias_scoring_and_export(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_candidates.jsonl"
     scored_path = tmp_path / "radio_scored.jsonl"
@@ -421,6 +686,74 @@ def test_radiostation_alias_scoring_and_export(tmp_path: Path) -> None:
     assert rows[0]["token_labels"] == ["O", "O", "O", "B-org.ent.radiostation.bbc", "O"]
     assert rows[0]["entities"][0]["entity_family"] == "radiostation"
     assert rows[0]["source_component"] == "radiostation_snippet_manual"
+
+
+def test_radiostation_export_extends_label_map_for_mixed_pressagency_spans(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_reviewed.jsonl"
+    radio_seeds_path = tmp_path / "radiostation_seeds.json"
+    agency_seeds_path = tmp_path / "newsagency_seeds.json"
+    label_map_path = tmp_path / "label_map.json"
+    radio_seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "bbc",
+                    "label": "org.ent.radiostation.bbc",
+                    "display_name": "BBC",
+                    "aliases": ["BBC"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    agency_seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "tanjug",
+                    "label": "org.ent.pressagency.tanjug",
+                    "display_name": "Tanjug",
+                    "aliases": ["Tan Jug"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    label_map_path.write_text(json.dumps({"label2id": {"O": 0}, "id2label": {"0": "O"}}), encoding="utf-8")
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "radio-with-newsagency",
+                "text": "BBC cite Tan Jug.",
+                "tokens": ["BBC", "cite", "Tan", "Jug", "."],
+                "token_start_offsets": [0, 4, 9, 13, 16],
+                "token_end_offsets": [3, 8, 12, 16, 17],
+                "language": "fr",
+                "candidate_label": "org.ent.radiostation.bbc",
+                "entity_family": "radiostation",
+                "curation": {"status": "accepted", "label": "org.ent.radiostation.bbc"},
+                "accepted_spans": [
+                    {"token_start": 0, "token_stop": 1, "label": "org.ent.radiostation.bbc"},
+                    {"token_start": 2, "token_stop": 4, "label": "org.ent.pressagency.tanjug"},
+                ],
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path, extra_label_metadata=[radio_seeds_path, agency_seeds_path])
+
+    assert rows[0]["token_labels"] == [
+        "B-org.ent.radiostation.bbc",
+        "O",
+        "B-org.ent.pressagency.tanjug",
+        "I-org.ent.pressagency.tanjug",
+        "O",
+    ]
+    assert {entity["label"] for entity in rows[0]["entities"]} == {
+        "org.ent.radiostation.bbc",
+        "org.ent.pressagency.tanjug",
+    }
 
 
 def test_radiostation_scoring_resolves_query_alias_to_canonical_label(tmp_path: Path) -> None:

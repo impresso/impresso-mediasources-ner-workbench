@@ -7,7 +7,16 @@ import math
 from pathlib import Path
 
 
+def load_dotenv_if_available() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(Path(".env"))
+
+
 def import_runtime():
+    load_dotenv_if_available()
     try:
         import accelerate
         import torch

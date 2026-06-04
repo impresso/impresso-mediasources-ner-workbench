@@ -21,6 +21,52 @@ DEFAULT_LABEL_METADATA = Path("resources/newsagency_seeds.json")
 EXTRA_DEFAULT_LABEL_METADATA = [Path("resources/radiostation_seeds.json")]
 
 
+def load_coverage(path: Path | None) -> dict[str, dict[str, Any]]:
+    if path is None or not path.is_file():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return {}
+    return {str(row.get("label")): row for row in rows if isinstance(row, dict) and row.get("label")}
+
+
+def review_labels(row: dict[str, Any]) -> set[str]:
+    labels = set()
+    for value in (row.get("candidate_label"), row.get("curation", {}).get("label")):
+        if isinstance(value, str) and value.startswith("org.ent."):
+            labels.add(value)
+    for span in prediction_spans(row):
+        label = span.get("label")
+        if isinstance(label, str) and label.startswith("org.ent."):
+            labels.add(label)
+    return labels
+
+
+def coverage_missing(label: str, coverage: dict[str, dict[str, Any]]) -> int:
+    row = coverage.get(label)
+    if not row:
+        return 1
+    return int(row.get("missing_to_target") or 0)
+
+
+def row_needs_coverage(row: dict[str, Any], coverage: dict[str, dict[str, Any]]) -> bool:
+    labels = review_labels(row)
+    if not labels:
+        return False
+    return any(coverage_missing(label, coverage) > 0 for label in labels)
+
+
+def coverage_priority(row: dict[str, Any], coverage: dict[str, dict[str, Any]]) -> tuple[int, int, int, str]:
+    labels = sorted(review_labels(row))
+    if not coverage or not labels:
+        return (0, 0, 0, str(row.get("id", "")))
+    missing = max(coverage_missing(label, coverage) for label in labels)
+    totals = [int(coverage.get(label, {}).get("total") or 0) for label in labels]
+    pending = [int(coverage.get(label, {}).get("pending_review") or 0) for label in labels]
+    return (-missing, min(totals or [0]), -max(pending or [0]), str(row.get("id", "")))
+
+
 def clear_screen() -> None:
     if sys.stdout.isatty() and os.environ.get("TERM") not in {"", "dumb"}:
         print(CLEAR_SCREEN, end="")
@@ -360,15 +406,22 @@ def review_loop(
     label_metadata_path: Path = DEFAULT_LABEL_METADATA,
     input_path: Path | None = None,
     review_prefix: str = "newsagency-snippet",
+    coverage_json: Path | None = None,
+    only_under_target: bool = False,
 ) -> int:
     decisions = latest_decisions(decisions_path)
     label_metadata = load_label_metadata(label_metadata_path)
+    coverage = load_coverage(coverage_json)
     pending = [
         row
         for row in rows
         if row.get("curation", {}).get("status") == "needs_review"
         and decisions.get(review_id(row, prefix=review_prefix), {}).get("status") not in FINAL_STATUSES
     ]
+    if coverage and only_under_target:
+        pending = [row for row in pending if row_needs_coverage(row, coverage)]
+    if coverage:
+        pending.sort(key=lambda row: coverage_priority(row, coverage))
     reviewed = 0
     for index, row in enumerate(pending, start=1):
         if limit and reviewed >= limit:
@@ -463,6 +516,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--label-metadata", default=str(DEFAULT_LABEL_METADATA))
     parser.add_argument("--review-prefix", default="newsagency-snippet")
+    parser.add_argument("--coverage-json", type=Path)
+    parser.add_argument("--only-under-target", action="store_true")
     parser.add_argument("--materialize-only", action="store_true")
     return parser.parse_args(argv)
 
@@ -481,6 +536,8 @@ def main(argv: list[str] | None = None) -> int:
             label_metadata_path=Path(args.label_metadata),
             input_path=input_path,
             review_prefix=args.review_prefix,
+            coverage_json=args.coverage_json,
+            only_under_target=args.only_under_target,
         )
     revised = apply_decisions(rows, Path(args.decisions), review_prefix=args.review_prefix)
     write_jsonl(Path(args.output), revised)

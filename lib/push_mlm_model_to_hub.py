@@ -5,8 +5,11 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from .env import load_dotenv_if_available
+
 
 def import_runtime():
+    load_dotenv_if_available()
     try:
         from huggingface_hub import HfApi
     except ImportError as exc:

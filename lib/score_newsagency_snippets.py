@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .env import load_dotenv_if_available
 from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
 
 DEFAULT_SEARCH_SNIPPETS = Path("data/candidates/newsagency_search_snippets.jsonl")
@@ -27,6 +28,7 @@ def candidate_label(row: dict[str, Any]) -> str:
 
 
 def import_runtime() -> tuple[Any, Any, Any]:
+    load_dotenv_if_available()
     try:
         import torch
         from transformers import AutoModelForTokenClassification, AutoTokenizer

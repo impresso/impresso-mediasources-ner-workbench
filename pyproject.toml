@@ -13,6 +13,7 @@ dev = [
   "pytest",
 ]
 sampling = [
+  "impresso",
   "playwright",
 ]
 hf = [

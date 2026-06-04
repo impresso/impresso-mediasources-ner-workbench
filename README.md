@@ -55,8 +55,9 @@ HF_HOME=.hf
 ```
 
 Override `HF_HOME` on the command line if you want to reuse another cache.
+If `HF_TOKEN` is set in the workbench `.env`, Hugging Face scoring, training, and publishing commands load it automatically.
 
-For browser-assisted sampling workflows, install the sampling extras:
+For Impresso API sampling workflows, install the sampling extras:
 
 ```bash
 python -m pip install -e ".[dev,sampling]"
@@ -218,7 +219,7 @@ make help
 make smoke
 make validate-labels
 make sample-newsagencies ARGS="--dry-run --labels org.ent.pressagency.reuters --max-queries-per-label 1"
-make sample-radiostations ARGS="--dry-run --max-docs 10"
+make sample-radiostations ARGS="--dry-run --labels org.ent.radiostation.rtl --max-queries-per-label 1"
 make export-dataset
 make download-mlm-sources
 make build-mlm-data
@@ -238,6 +239,16 @@ make export-radiostation-snippets CFG=configs/model-v0.1.0.mk
 make review-radiostation-snippets CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
 make push-model CFG=configs/model-v0.1.0.mk
 ```
+
+For Impresso API sampling, the token is entered interactively when the sampler connects. Do not put the token in `.env`.
+
+You can create a local `.env` for non-secret Impresso API settings and optional Hugging Face authentication:
+
+```bash
+cp .env.example .env
+```
+
+By default `IMPRESSO_PERSISTED_TOKEN=false`, so the `impresso` client prompts for the Impresso API token and does not write it to `~/.impresso_py.yml`. Set it to `true` only if you intentionally want the client to reuse/store its persisted token outside this repository. `.env` is gitignored.
 
 ## Publish Dataset
 

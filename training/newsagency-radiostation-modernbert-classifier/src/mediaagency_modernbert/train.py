@@ -76,7 +76,16 @@ class Collator:
         return batch
 
 
+def load_dotenv_if_available() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(Path(".env"))
+
+
 def import_runtime() -> Runtime:
+    load_dotenv_if_available()
     try:
         import torch
         from transformers import Adafactor, AutoModelForTokenClassification, AutoTokenizer

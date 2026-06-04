@@ -9,6 +9,8 @@ from typing import Any, Iterable
 
 from huggingface_hub import CommitOperationAdd, HfApi
 
+from .env import load_dotenv_if_available
+
 
 SPLITS = ("train", "validation", "test")
 PRIMARY_FILES = tuple(f"{split}.jsonl" for split in SPLITS) + ("label_map.json",)
@@ -164,6 +166,7 @@ def dataset_summary(*, dataset_dir: Path, repo_id: str, audit_files: list[str]) 
 
 
 def upload_dataset(output_dir: Path, repo_id: str, *, create_pr: bool) -> None:
+    load_dotenv_if_available()
     operations = [
         CommitOperationAdd(path_in_repo=str(path.relative_to(output_dir)), path_or_fileobj=str(path))
         for path in sorted(output_dir.rglob("*"))

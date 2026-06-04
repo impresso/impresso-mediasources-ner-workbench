@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from html import unescape
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -35,14 +36,23 @@ def append_jsonl(path: Path, row: dict[str, Any]) -> None:
 
 
 def row_text(row: dict[str, Any]) -> str:
-    for field in ("text", "snippet"):
+    value = row.get("text")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    matches = row.get("match_texts") or row.get("matches")
+    if isinstance(matches, list) and matches:
+        text = " ... ".join(strip_html(str(item)).strip() for item in matches if strip_html(str(item)).strip())
+        if text:
+            return text
+    for field in ("match_text", "snippet"):
         value = row.get(field)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    matches = row.get("matches")
-    if isinstance(matches, list) and matches:
-        return " ... ".join(str(item).strip() for item in matches if str(item).strip())
     raise ValueError(f"candidate row {row.get('id', '<missing-id>')}: missing text/snippet/matches")
+
+
+def strip_html(value: str) -> str:
+    return unescape(re.sub(r"<[^>]+>", "", value))
 
 
 def tokenize_with_offsets(text: str) -> tuple[list[str], list[int], list[int]]:
