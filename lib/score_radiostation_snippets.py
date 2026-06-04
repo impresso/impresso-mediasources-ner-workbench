@@ -138,11 +138,13 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
     max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) for alias in aliases), default=1)
     for start in range(len(tokens)):
         for stop in range(start + 1, min(len(tokens), start + max_len) + 1):
-            if not has_word_char(tokens[start]) or not has_word_char(tokens[stop - 1]):
+            if not has_word_char(tokens[start]):
                 continue
             surface = token_window_surface(tokens, start, stop)
             surface_compact = compact(surface)
             for alias, alias_compact in alias_forms:
+                if not has_word_char(tokens[stop - 1]) and has_word_char(alias.rstrip()[-1:]):
+                    continue
                 if surface_compact != alias_compact:
                     continue
                 actual_stop = stop
