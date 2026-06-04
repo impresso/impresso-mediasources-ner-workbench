@@ -131,10 +131,28 @@ def has_word_char(value: str) -> bool:
     return bool(re.search(r"\w", value, flags=re.UNICODE))
 
 
+def alias_matches_hyphenated_suffix(tokens: list[str], start: int, stop: int, alias: str) -> bool:
+    alias_words = re.findall(r"\w+", alias, flags=re.UNICODE)
+    if not alias_words or stop - start != len(alias_words):
+        return False
+    for offset, alias_word in enumerate(alias_words[:-1]):
+        if compact(tokens[start + offset]) != compact(alias_word):
+            return False
+    final_token = tokens[stop - 1]
+    if "-" not in final_token:
+        return False
+    prefix = final_token.split("-", 1)[0]
+    return compact(prefix) == compact(alias_words[-1])
+
+
 def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[dict[str, Any]]:
     spans: list[dict[str, Any]] = []
     seen = set()
-    alias_forms = [(alias, compact(alias)) for alias in aliases if compact(alias)]
+    alias_forms = [
+        (alias, compact(alias), len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)))
+        for alias in aliases
+        if compact(alias)
+    ]
     max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) for alias in aliases), default=1)
     for start in range(len(tokens)):
         for stop in range(start + 1, min(len(tokens), start + max_len) + 1):
@@ -142,11 +160,25 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
                 continue
             surface = token_window_surface(tokens, start, stop)
             surface_compact = compact(surface)
-            for alias, alias_compact in alias_forms:
+            for alias, alias_compact, alias_token_len in alias_forms:
                 if not has_word_char(tokens[stop - 1]) and has_word_char(alias.rstrip()[-1:]):
                     continue
-                if surface_compact != alias_compact:
+                if not has_word_char(tokens[stop - 1]) and not has_word_char(alias.rstrip()[-1:]) and stop - start != alias_token_len:
                     continue
+                if (
+                    not has_word_char(tokens[stop - 1])
+                    and not has_word_char(alias.rstrip()[-1:])
+                    and re.search(r"\W", alias.rstrip()[:-1], flags=re.UNICODE)
+                    and not re.search(r"\W", token_window_surface(tokens, start, stop - 1), flags=re.UNICODE)
+                ):
+                    continue
+                matcher = "alias_compact"
+                if surface_compact != alias_compact:
+                    if not alias_matches_hyphenated_suffix(tokens, start, stop, alias):
+                        continue
+                    matcher = "alias_hyphenated_suffix"
+                else:
+                    matcher = "alias_compact"
                 actual_stop = stop
                 if alias.rstrip().endswith(".") and stop < len(tokens) and tokens[stop] == "." and is_unclosed_dotted_acronym(tokens, start, stop):
                     actual_stop = stop + 1
@@ -162,7 +194,7 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
                         "surface": token_window_surface(tokens, start, actual_stop),
                         "confidence": 1.0,
                         "margin": 1.0,
-                        "matcher": "alias_compact",
+                        "matcher": matcher,
                         "alias": alias,
                     }
                 )

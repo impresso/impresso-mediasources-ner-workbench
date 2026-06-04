@@ -127,6 +127,8 @@ Use `org.ent.radiostation.radio-bucharest` for `Radio Bucarest`, `Radio-Bucarest
 
 Use `org.ent.radiostation.vatican-radio` for `Vatican Radio`, `Radio Vatican`, `Radio-Vatican`, `Radio Vatikan`, `Radio Vaticano`, or `Radio Vaticana` in broadcaster, programme, broadcast, or source-attribution contexts such as `Nach einer Meldung von Radio Vatican ...`. Also use it for descriptive broadcaster phrases such as `radio vaticane` or `radio de la Cité du Vatican`; include the media head noun and exclude articles such as `la`. Do not collapse this to a generic `org.ent.radiostation` label.
 
+Use `org.ent.radiostation.deutsche-welle` for modern Deutsche Welle and historical 1920s/1930s programme-list references to Deutsche Welle GmbH/Deutschlandsender. Include attached station-location suffixes such as `Deutsche Welle-Königswusterhausen` when they are visibly part of the station listing.
+
 Do not annotate the same acronym/name when it denotes an unrelated sports club, local association, team, or other non-media organization.
 
 Boundary rules:

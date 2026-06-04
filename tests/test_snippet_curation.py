@@ -450,6 +450,49 @@ def test_radiostation_scoring_matches_voice_of_america_german_alias(tmp_path: Pa
     assert scored["model"]["predicted_spans"][0]["label"] == "org.ent.radiostation.voice-of-america"
 
 
+def test_radiostation_scoring_matches_deutsche_welle_hyphenated_station_suffix(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_candidates.jsonl"
+    scored_path = tmp_path / "radio_scored.jsonl"
+    seeds_path = tmp_path / "radiostation_seeds.json"
+    seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "deutsche-welle",
+                    "label": "org.ent.radiostation.deutsche-welle",
+                    "display_name": "Deutsche Welle",
+                    "aliases": ["Deutsche Welle"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "deutsche-welle-koenigswusterhausen",
+                "label": "org.ent.radiostation",
+                "station": "deutsche_welle",
+                "query": "Deutsche Welle",
+                "language": "fr",
+                "snippet": "au poste de diffusion du Deutschland Lender: Deutsche Welle-Kœnigsw",
+            }
+        ],
+    )
+
+    score_radiostation_rows(
+        type("Args", (), {"input": str(input_path), "output": str(scored_path), "radiostations": str(seeds_path)})
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    assert scored["candidate_label"] == "org.ent.radiostation.deutsche-welle"
+    assert scored["curation"]["reasons"] == []
+    assert scored["model"]["predicted_spans"][0]["surface"] == "Deutsche Welle-Kœnigsw"
+    assert scored["model"]["predicted_spans"][0]["label"] == "org.ent.radiostation.deutsche-welle"
+    assert scored["model"]["predicted_spans"][0]["matcher"] == "alias_hyphenated_suffix"
+
+
 def test_radiostation_scoring_matches_vatican_radio_alias(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_candidates.jsonl"
     scored_path = tmp_path / "radio_scored.jsonl"

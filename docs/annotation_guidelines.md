@@ -119,6 +119,8 @@ Use `org.ent.radiostation.radio-bucharest` for `Radio Bucarest`, `Radio-Bucarest
 
 Use `org.ent.radiostation.vatican-radio` for `Vatican Radio`, `Radio Vatican`, `Radio-Vatican`, `Radio Vatikan`, `Radio Vaticano`, or `Radio Vaticana` when the context refers to the broadcaster, a broadcast, a programme, or a source attribution. Descriptive forms such as `radio vaticane` and `radio de la Cité du Vatican` are also positive when the phrase refers to the broadcaster. Example: `Nach einer Meldung von Radio Vatican ...` is positive. In `la radio de la Cité du Vatican a diffusé ...`, annotate `radio de la Cité du Vatican` and exclude the article `la`.
 
+Use `org.ent.radiostation.deutsche-welle` for the modern Deutsche Welle broadcaster and for historical 1920s/1930s programme-list references to Deutsche Welle GmbH/Deutschlandsender. In forms such as `Deutsche Welle-Königswusterhausen`, include the attached hyphenated station-location suffix because it is part of the visible station listing.
+
 For radio-station names and acronyms, do not annotate every string match. If the same acronym/name is used for a sports club, local association, team, or other non-media organization, keep it negative/O.
 
 ## Positive And Negative Decisions

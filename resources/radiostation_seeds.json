@@ -106,11 +106,62 @@
     "canonical_id": "deutsche-welle",
     "label": "org.ent.radiostation.deutsche-welle",
     "display_name": "Deutsche Welle",
-    "aliases": ["Deutsche Welle"],
+    "aliases": [
+      "Deutsche Welle",
+      "Deutsche Welle-Königswusterhausen",
+      "Deutsche Welle-Koenigswusterhausen",
+      "Deutsche Welle-Kœnigswusterhausen",
+      "Deutsche Welle-Königs Wusterhausen",
+      "Deutsche Welle-Koenigs Wusterhausen",
+      "Deutsche Welle-Kœnigs Wusterhausen"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Deutsche_Welle",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q153770",
+    "description": "German broadcaster name covering both the modern international broadcaster founded in 1953 and its historical predecessor name Deutsche Welle GmbH, founded in 1924 and broadcasting from 1926 via the long-wave Deutschlandsender at Königs Wusterhausen. Historical programme listings from the 1920s and early 1930s may print station forms such as Deutsche Welle-Königswusterhausen.",
+    "annotation_note": "Annotate Deutsche Welle in modern international-broadcasting contexts and in 1920s/1930s programme listings referring to the earlier Deutsche Welle GmbH/Deutschlandsender service. Include hyphenated station-location suffixes such as Deutsche Welle-Königswusterhausen when visibly attached.",
+    "active_period": {
+      "start": "1924",
+      "end": null,
+      "note": "Historical Deutsche Welle GmbH was founded in 1924, began regular broadcasting in 1926, and was renamed Deutschlandsender GmbH in 1933. Modern Deutsche Welle was founded in 1953."
+    },
+    "aliases_by_language": {
+      "de": [
+        "Deutsche Welle",
+        "Deutsche Welle-Königswusterhausen",
+        "Deutsche Welle-Koenigswusterhausen",
+        "Deutsche Welle-Königs Wusterhausen"
+      ],
+      "fr": [
+        "Deutsche Welle",
+        "Deutsche Welle-Kœnigswusterhausen",
+        "Deutsche Welle-Koenigswusterhausen",
+        "Onde allemande"
+      ],
+      "en": [
+        "Deutsche Welle",
+        "German Wave"
+      ]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q153770"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Deutsche_Welle"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Deutsche_Welle_GmbH"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Deutschlandsender"
+      }
+    ],
     "trainable": true,
-    "status": "seed_from_sampler"
+    "status": "metadata_enriched"
   },
   {
     "canonical_id": "radio-prague",
