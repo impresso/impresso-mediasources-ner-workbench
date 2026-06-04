@@ -967,6 +967,23 @@ def test_manual_span_accepts_pasted_numbered_tokens() -> None:
     assert span["surface"] == "B. B. C."
 
 
+def test_manual_span_uses_candidate_label_for_pasted_numbered_token_without_label() -> None:
+    row = {
+        "text": "angefahren sda. Der Mann",
+        "tokens": ["angefahren", "sda", ".", "Der", "Mann"],
+        "token_start_offsets": [0, 11, 14, 16, 20],
+        "token_end_offsets": [10, 14, 15, 19, 24],
+        "candidate_label": "org.ent.pressagency.ats-sda",
+    }
+
+    span = parse_manual_span("1:sda", row)
+
+    assert span["token_start"] == 1
+    assert span["token_stop"] == 2
+    assert span["label"] == "org.ent.pressagency.ats-sda"
+    assert span["surface"] == "sda"
+
+
 def test_manual_span_accepts_canonical_id_label() -> None:
     row = {
         "text": "Londres, 15 janvier. (Radio.)",
@@ -1006,7 +1023,7 @@ def test_prompt_manual_spans_prints_interpretation(monkeypatch, capsys) -> None:
             "label": "org.ent.pressagency.agence-radio",
         }
     }
-    answers = iter(["6:Radio 7:. agence-radio", "n"])
+    answers = iter(["6:Radio 7:. agence-radio", "y"])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     spans = prompt_manual_spans(row, metadata)
@@ -1024,7 +1041,7 @@ def test_prompt_manual_spans_accepts_commands_inside_span_prompt(monkeypatch, ca
         "token_end_offsets": [1, 2, 4, 5, 7, 8],
         "candidate_label": "org.ent.pressagency.afp",
     }
-    answers = iter(["N", "0:A 1:. 2:F 3:. 4:P 5:. afp", "y", "q"])
+    answers = iter(["N", "0:A 1:. 2:F 3:. 4:P 5:. afp", "y"])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     spans = prompt_manual_spans(row, {})
@@ -1035,6 +1052,28 @@ def test_prompt_manual_spans_accepts_commands_inside_span_prompt(monkeypatch, ca
     assert spans[0]["surface"] == "A. F. P."
     assert spans[0]["label"] == "org.ent.pressagency.afp"
     assert captured.out.count("numbered tokens:") == 2
+
+
+def test_prompt_manual_spans_can_revise_last_span(monkeypatch, capsys) -> None:
+    row = {
+        "text": "angefahren sda. Der Mann",
+        "tokens": ["angefahren", "sda", ".", "Der", "Mann"],
+        "token_start_offsets": [0, 11, 14, 16, 20],
+        "token_end_offsets": [10, 14, 15, 19, 24],
+        "candidate_label": "org.ent.pressagency.ats-sda",
+    }
+    answers = iter(["1:sda 2:.", "v", "1:sda", "y"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    spans = prompt_manual_spans(row, {})
+
+    captured = capsys.readouterr()
+    assert spans is not None
+    assert len(spans) == 1
+    assert spans[0]["token_start"] == 1
+    assert spans[0]["token_stop"] == 2
+    assert spans[0]["label"] == "org.ent.pressagency.ats-sda"
+    assert "removed last manual span; enter the revised span" in captured.out
 
 
 def test_prompt_manual_spans_can_cancel_without_saving(monkeypatch) -> None:
@@ -1084,7 +1123,7 @@ def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeyp
         "token_end_offsets": [5, 11, 12],
         "model": {"predicted_spans": []},
     }
-    answers = iter(["i", "", "m", "1:2 org.ent.pressagency.havas", "n", "manual boundary"])
+    answers = iter(["i", "", "m", "1:2 org.ent.pressagency.havas", "y", "manual boundary"])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     input_path = tmp_path / "scored.jsonl"

@@ -287,6 +287,7 @@ def prompt_manual_spans(
     print(numbered_tokens(row))
     print('manual correction syntax: 12:13 reuters or 12:13 org.ent.pressagency.reuters')
     print('or paste numbered tokens, e.g. 9:B 10:. 11:B 12:. 13:C 14:. bbc')
+    print('if no label is supplied, the current candidate label is used')
     print('manual commands: N = show numbered tokens, q = cancel/finish manual entry')
     while True:
         raw_span = input("span> ").strip()
@@ -303,9 +304,18 @@ def prompt_manual_spans(
             continue
         accepted_spans.append(span)
         print(interpreted_span_line(span))
-        raw = input("add another span? [y/N] ").strip().lower()
-        if raw not in {"y", "yes"}:
-            return accepted_spans
+        while True:
+            raw = input("finished? [Y/n/v] ").strip().lower()
+            if raw in {"", "y", "yes"}:
+                return accepted_spans
+            if raw in {"n", "no"}:
+                break
+            if raw in {"v", "revise"}:
+                accepted_spans.pop()
+                print("removed last manual span; enter the revised span")
+                break
+            print("Invalid choice; use y to finish, n to add another span, or v to revise.")
+        continue
 
 
 def prompt_prediction_spans(
