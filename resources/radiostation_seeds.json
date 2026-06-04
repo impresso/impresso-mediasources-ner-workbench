@@ -32,6 +32,38 @@
     "status": "seed_from_sampler"
   },
   {
+    "canonical_id": "radio-bucharest",
+    "label": "org.ent.radiostation.radio-bucharest",
+    "display_name": "Radio Bucharest",
+    "aliases": ["Radio Bucharest", "Radio Bucarest", "Radio-Bucharest", "Radio-Bucarest"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Romania_International",
+    "wikidata_url": null,
+    "description": "Romanian international/state broadcaster from Bucharest. In French and German historical newspaper snippets, Radio Bucarest or Radio-Bucarest is used as a broadcast-source name for announcements from Bucharest. Radio Romania International documents that in 1948 broadcasts in French, English, Russian, Serbian, and German were aired from Bucharest, and that Radio Bucharest later became Radio Romania International.",
+    "annotation_note": "Annotate Radio Bucarest/Radio-Bucarest as a radio-station or broadcaster mention when it introduces, reports, announces, schedules, or otherwise refers to a broadcast/media-source function.",
+    "active_period": {
+      "start": "1932",
+      "end": null,
+      "note": "Foreign-language programming from Bucharest began in 1932; Radio Bucharest became Radio Romania International after 1989."
+    },
+    "aliases_by_language": {
+      "de": ["Radio Bukarest", "Radio-Bukarest", "Radio Bucharest"],
+      "fr": ["Radio Bucarest", "Radio-Bucarest"],
+      "en": ["Radio Bucharest"]
+    },
+    "metadata_sources": [
+      {
+        "type": "official_history",
+        "url": "https://www.rri.ro/en/the-history-of-rri"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Radio_Romania_International"
+      }
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "voice-of-america",
     "label": "org.ent.radiostation.voice-of-america",
     "display_name": "Voice of America",

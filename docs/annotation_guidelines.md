@@ -98,6 +98,7 @@ Examples:
 - Radio Londres
 - Radio Paris
 - Radio Moscou / Radio Moscow
+- Radio Bucarest / Radio Bucharest
 - Voice of America
 - Radio Free Europe
 - Deutsche Welle
@@ -111,6 +112,8 @@ Treat broad broadcasters such as the BBC as media outlets/broadcasters for this 
 Use the publication date and surrounding programme/source context to disambiguate BBC-related London radio names. For World War II and occupation-era material, normalize popular foreign-language names for BBC broadcasts from London to `org.ent.radiostation.bbc`. This includes `Radio Londres`, `Radio London`, `Radio Londra`, and `Londoner Rundfunk` when the context is a broadcast, source attribution, programme, or broadcaster mention. These names were often listener/newspaper labels for BBC foreign-language services rather than separate station names. The broadcast content may involve Free French, exile-government, resistance, or allied contributors, but for this dataset the media outlet label is still BBC.
 
 For earlier programme guides, especially 1920s material, `Radio-Londres` may identify the London broadcasting station by city rather than the later wartime French-language service. A wavelength such as `365 m` is a strong contextual clue for the London station 2LO/BBC London transmitter. Annotate the visible span as printed, for example `Radio-Londres`, and use `org.ent.radiostation.bbc` as the current canonical label. In notes or downstream entity-linking metadata this can be distinguished as a pre-war London station/BBC-related service, but do not create a separate training label unless the canonical metadata is explicitly extended.
+
+Use `org.ent.radiostation.radio-bucharest` for `Radio Bucarest`, `Radio-Bucarest`, or `Radio Bucharest` when the context presents broadcasts or announcements from Bucharest as a media source. A sentence such as `Radio-Bucarest annonce ...` is positive. In 1948 newspaper material this is compatible with Romanian foreign-language broadcasts from Bucharest, the service later known as Radio Romania International.
 
 For radio-station names and acronyms, do not annotate every string match. If the same acronym/name is used for a sports club, local association, team, or other non-media organization, keep it negative/O.
 
@@ -172,7 +175,7 @@ Annotate the shortest span that preserves the full visible organization-name sur
 
 Include:
 
-- abbreviation-internal periods: `D.N.B.`, `A.F.P.`
+- abbreviation periods, including the final period of dotted acronyms: `D.N.B.`, `A.F.P.`
 - abbreviation-internal hyphens or slashes when part of the name: `ATS-SDA`, `Kipa/Apic`
 - words that are part of the official name: `Agence France Presse`, `United Press`
 - generic type words when they are used as part of the proper-name surface: `Agence Havas`, `Agence Wolff`, `Agence Reuter`
@@ -181,10 +184,12 @@ Include:
 
 Exclude:
 
-- sentence-final periods after a name: annotate `Havas`, not `Havas.`
+- sentence-final periods after an undotted name or plain acronym: annotate `Havas`, not `Havas.`, and `AFP`, not `AFP.`
 - surrounding parentheses, brackets, quotation marks, commas, dashes, or colons
 - generic words unless they are part of the proper name
 - article titles or sentence context outside the name
+
+For dotted agency acronyms, the closing acronym period is part of the mention even in source formulas with additional punctuation. In `(A. F. P.).`, annotate `A. F. P.` and exclude only the parentheses and the sentence period after the closing parenthesis.
 
 News-agency names with `Agence`:
 
@@ -204,6 +209,7 @@ Examples:
 | `l' Agence Wolff`        | `Agence Wolff` | `l' Agence Wolff`, `Wolff`  |
 | `Agence Havas`           | `Agence Havas` | `Havas`                     |
 | `presse , Havas .`       | `Havas`        | `presse , Havas`, `Havas .` |
+| `( A . F . P . ) .`      | `A . F . P .`  | `A . F . P`, `( A . F . P . )` |
 | `l'agence Havas annonce` | `agence Havas` | `l'agence`, `Havas`         |
 | `A qgcncc Reuter`        | `Reuter`       | `A qgcncc Reuter`           |
 

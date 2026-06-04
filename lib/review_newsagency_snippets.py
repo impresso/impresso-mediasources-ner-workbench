@@ -281,15 +281,23 @@ def interpreted_span_line(span: dict[str, Any]) -> str:
 def prompt_manual_spans(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, Any]] | None:
     accepted_spans = []
     print("numbered tokens:")
     print(numbered_tokens(row))
     print('manual correction syntax: 12:13 reuters or 12:13 org.ent.pressagency.reuters')
     print('or paste numbered tokens, e.g. 9:B 10:. 11:B 12:. 13:C 14:. bbc')
+    print('manual commands: N = show numbered tokens, q = cancel/finish manual entry')
     while True:
+        raw_span = input("span> ").strip()
+        if raw_span == "N":
+            print("numbered tokens:")
+            print(numbered_tokens(row))
+            continue
+        if raw_span.lower() in {"q", "quit", "done"}:
+            return accepted_spans or None
         try:
-            span = parse_manual_span(input("span> "), row, label_metadata)
+            span = parse_manual_span(raw_span, row, label_metadata)
         except ValueError as exc:
             print(exc)
             continue
@@ -322,7 +330,10 @@ def prompt_prediction_spans(
                 accepted_spans.append(span)
                 break
             if raw == "m":
-                accepted_spans.extend(prompt_manual_spans(row, label_metadata))
+                manual_spans = prompt_manual_spans(row, label_metadata)
+                if manual_spans is None:
+                    continue
+                accepted_spans.extend(manual_spans)
                 break
             if raw == "r":
                 break
@@ -352,46 +363,51 @@ def review_loop(
     for index, row in enumerate(pending, start=1):
         if limit and reviewed >= limit:
             break
-        clear_screen()
-        print_review_item(row, index, len(pending), review_prefix=review_prefix)
-        spans = prediction_spans(row)
         while True:
-            raw = input("> ").strip()
-            if raw == "N":
-                print(numbered_tokens(row))
-                continue
-            if raw == "R":
-                raw = "remove"
+            clear_screen()
+            print_review_item(row, index, len(pending), review_prefix=review_prefix)
+            spans = prediction_spans(row)
+            while True:
+                raw = input("> ").strip()
+                if raw == "N":
+                    print(numbered_tokens(row))
+                    continue
+                if raw == "R":
+                    raw = "remove"
+                    break
+                if raw.lower() == "i":
+                    print_label_info(row, label_metadata_path, label_metadata, input_path=input_path)
+                    input("press Enter to return to curation > ")
+                    clear_screen()
+                    print_review_item(row, index, len(pending), review_prefix=review_prefix)
+                    continue
+                raw = raw.lower()
+                if raw == "q":
+                    return reviewed
+                if raw not in CHOICES:
+                    print("Invalid choice; item not saved.")
+                    continue
                 break
-            if raw.lower() == "i":
-                print_label_info(row, label_metadata_path, label_metadata, input_path=input_path)
-                input("press Enter to return to curation > ")
-                clear_screen()
-                print_review_item(row, index, len(pending), review_prefix=review_prefix)
-                continue
-            raw = raw.lower()
-            if raw == "q":
-                return reviewed
-            if raw not in CHOICES:
-                print("Invalid choice; item not saved.")
-                continue
+            accepted_spans: list[dict[str, Any]] = []
+            notes = ""
+            if raw == "a":
+                target = row.get("curation", {}).get("label") or row.get("candidate_label")
+                matching = [span for span in spans if span.get("label") == target]
+                spans_to_review = spans if len(spans) > 1 else matching or spans
+                accepted_spans = prompt_prediction_spans(row, spans_to_review, label_metadata)
+                if len(accepted_spans) > 1:
+                    notes = input("notes for accepted spans (optional): ").strip()
+            elif raw == "m":
+                manual_spans = prompt_manual_spans(row, label_metadata)
+                if manual_spans is None:
+                    continue
+                accepted_spans = manual_spans
+                notes = input("notes (optional): ").strip()
+            elif raw in {"r", "s"}:
+                notes = input("notes (optional): ").strip()
+            elif raw == "remove":
+                notes = input("removal reason (optional): ").strip()
             break
-        accepted_spans: list[dict[str, Any]] = []
-        notes = ""
-        if raw == "a":
-            target = row.get("curation", {}).get("label") or row.get("candidate_label")
-            matching = [span for span in spans if span.get("label") == target]
-            spans_to_review = spans if len(spans) > 1 else matching or spans
-            accepted_spans = prompt_prediction_spans(row, spans_to_review, label_metadata)
-            if len(accepted_spans) > 1:
-                notes = input("notes for accepted spans (optional): ").strip()
-        elif raw == "m":
-            accepted_spans = prompt_manual_spans(row, label_metadata)
-            notes = input("notes (optional): ").strip()
-        elif raw in {"r", "s"}:
-            notes = input("notes (optional): ").strip()
-        elif raw == "remove":
-            notes = input("removal reason (optional): ").strip()
         status = "removed" if raw == "remove" else CHOICES[raw]
         decision = {
             "review_id": review_id(row, prefix=review_prefix),

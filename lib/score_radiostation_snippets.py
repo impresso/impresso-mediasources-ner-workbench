@@ -11,9 +11,12 @@ from .score_newsagency_snippets import (
     attach_surfaces,
     device_for,
     import_runtime,
+    is_unclosed_dotted_acronym,
     labels_to_spans,
+    normalize_dotted_acronym_spans,
     resolve_model_ref,
     score_tokens,
+    suppress_contained_same_label_spans,
 )
 
 
@@ -132,7 +135,7 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
     spans: list[dict[str, Any]] = []
     seen = set()
     alias_forms = [(alias, compact(alias)) for alias in aliases if compact(alias)]
-    max_len = max((len(alias.split()) + 3 for alias in aliases), default=1)
+    max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) + 1 for alias in aliases), default=1)
     for start in range(len(tokens)):
         for stop in range(start + 1, min(len(tokens), start + max_len) + 1):
             if not has_word_char(tokens[start]) or not has_word_char(tokens[stop - 1]):
@@ -142,16 +145,19 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
             for alias, alias_compact in alias_forms:
                 if surface_compact != alias_compact:
                     continue
-                key = (start, stop, label)
+                actual_stop = stop
+                if alias.rstrip().endswith(".") and stop < len(tokens) and tokens[stop] == "." and is_unclosed_dotted_acronym(tokens, start, stop):
+                    actual_stop = stop + 1
+                key = (start, actual_stop, label)
                 if key in seen:
                     continue
                 seen.add(key)
                 spans.append(
                     {
                         "token_start": start,
-                        "token_stop": stop,
+                        "token_stop": actual_stop,
                         "label": label,
-                        "surface": surface,
+                        "surface": token_window_surface(tokens, start, actual_stop),
                         "confidence": 1.0,
                         "margin": 1.0,
                         "matcher": "alias_compact",
@@ -250,8 +256,14 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         if model_runtime is not None:
             torch, tokenizer, model, device, _model_name = model_runtime
             labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, int(getattr(args, "max_sequence_len", 512)))
-            model_spans = attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text)
-        spans = dedupe_spans(alias_spans + model_spans)
+            model_spans = normalize_dotted_acronym_spans(
+                attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text),
+                tokens,
+                starts,
+                stops,
+                text,
+            )
+        spans = suppress_contained_same_label_spans(dedupe_spans(alias_spans + model_spans))
         out = dict(row)
         out["id"] = candidate_id(row, index)
         out["candidate_label"] = label or None

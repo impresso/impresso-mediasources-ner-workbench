@@ -136,6 +136,64 @@ def attach_surfaces(spans: list[dict[str, Any]], tokens: list[str], starts: list
     return out
 
 
+def is_unclosed_dotted_acronym(tokens: list[str], start: int, stop: int) -> bool:
+    span_tokens = tokens[start:stop]
+    if len(span_tokens) < 3 or len(span_tokens) % 2 == 0:
+        return False
+    for offset, token in enumerate(span_tokens):
+        if offset % 2 == 0:
+            if len(token) != 1 or not token.isalpha():
+                return False
+        elif token != ".":
+            return False
+    return True
+
+
+def normalize_dotted_acronym_spans(
+    spans: list[dict[str, Any]],
+    tokens: list[str],
+    starts: list[int],
+    stops: list[int],
+    text: str,
+) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for span in spans:
+        start = int(span["token_start"])
+        stop = int(span["token_stop"])
+        item = dict(span)
+        if not any(char.isalnum() for char in str(item.get("surface", ""))):
+            continue
+        if stop < len(tokens) and tokens[stop] == "." and is_unclosed_dotted_acronym(tokens, start, stop):
+            stop += 1
+            item["token_stop"] = stop
+            item["stop"] = stops[stop - 1]
+            item["surface"] = text[starts[start] : stops[stop - 1]]
+            item["boundary_normalization"] = "include_final_dotted_acronym_period"
+        normalized.append(item)
+
+    return suppress_contained_same_label_spans(normalized)
+
+
+def suppress_contained_same_label_spans(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for index, span in enumerate(spans):
+        start = int(span["token_start"])
+        stop = int(span["token_stop"])
+        label = str(span.get("label", ""))
+        contained = False
+        for other_index, other in enumerate(spans):
+            if index == other_index or str(other.get("label", "")) != label:
+                continue
+            other_start = int(other["token_start"])
+            other_stop = int(other["token_stop"])
+            if other_start <= start and stop <= other_stop and (other_start, other_stop) != (start, stop):
+                contained = True
+                break
+        if not contained:
+            out.append(span)
+    return out
+
+
 def is_high_confidence_span(span: dict[str, Any], *, min_confidence: float, min_margin: float) -> bool:
     return float(span.get("confidence", 0.0)) >= min_confidence and float(span.get("margin", 0.0)) >= min_margin
 
@@ -187,7 +245,13 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     for index, row in enumerate(load_jsonl(Path(args.input)), start=1):
         text, tokens, starts, stops = candidate_tokens(row)
         labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, args.max_sequence_len)
-        spans = attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text)
+        spans = normalize_dotted_acronym_spans(
+            attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text),
+            tokens,
+            starts,
+            stops,
+            text,
+        )
         status, reasons = curation_status(
             row,
             spans,

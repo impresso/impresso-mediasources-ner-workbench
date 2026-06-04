@@ -64,7 +64,7 @@ Annotate the shortest span that preserves the full visible organization-name sur
 
 Include:
 
-- abbreviation-internal periods: `D.N.B.`, `A.F.P.`
+- abbreviation periods, including the final period of dotted acronyms: `D.N.B.`, `A.F.P.`
 - abbreviation-internal hyphens or slashes when part of the name: `ATS-SDA`, `Kipa/Apic`
 - words that are part of the official or visible name: `Agence France Presse`, `United Press`
 - generic type words when used as part of the proper-name surface: `Agence Havas`, `Agence Wolff`, `Agence Reuter`
@@ -73,11 +73,13 @@ Include:
 
 Exclude:
 
-- sentence-final periods after a name: `Havas`, not `Havas.`
+- sentence-final periods after an undotted name or plain acronym: `Havas`, not `Havas.`, and `AFP`, not `AFP.`
 - surrounding parentheses, brackets, quotation marks, commas, dashes, or colons
 - articles and elided articles before a name: `Agence Wolff`, not `l' Agence Wolff`
 - generic words unless they are part of the proper name
 - article titles or sentence context outside the name
+
+In `(A. F. P.).`, annotate `A. F. P.`. The final period after `P` is an acronym period, not sentence punctuation.
 
 ## `Agence` Boundary Rule
 
@@ -112,6 +114,8 @@ Treat broad broadcasters such as the BBC as media outlets/broadcasters for this 
 Use publication date and context to disambiguate BBC-related London radio names. Normalize wartime foreign-language names for BBC broadcasts from London to `org.ent.radiostation.bbc` when the context is a broadcast, source attribution, programme, or broadcaster mention. This includes `Radio Londres`, `Radio London`, `Radio Londra`, and `Londoner Rundfunk`. These forms are treated as BBC service names/listener labels in occupied-Europe contexts, not as separate trainable station labels.
 
 For pre-war programme guides, especially 1920s material, `Radio-Londres` may refer to the London broadcasting station by city name, for example the 2LO/BBC London transmitter. Wavelengths around `365 m` support that reading. Keep the observed span (`Radio-Londres`) and use `org.ent.radiostation.bbc` as the current canonical training label unless a separate canonical station label is explicitly added later.
+
+Use `org.ent.radiostation.radio-bucharest` for `Radio Bucarest`, `Radio-Bucarest`, or `Radio Bucharest` in broadcast/source contexts such as `Radio-Bucarest annonce ...`. Do not collapse this to a generic `org.ent.radiostation` label.
 
 Do not annotate the same acronym/name when it denotes an unrelated sports club, local association, team, or other non-media organization.
 

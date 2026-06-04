@@ -6,8 +6,13 @@ from lib.export_snippet_training_data import export_rows
 from lib.review_newsagency_snippets import parse_manual_span, prompt_manual_spans, review_loop
 from lib.review_radiostation_snippets import materialize_views
 from lib.sample_newsagencies import extract_candidate, load_seed_queries
-from lib.score_radiostation_snippets import score_rows as score_radiostation_rows
-from lib.score_newsagency_snippets import curation_status
+from lib.score_radiostation_snippets import find_alias_spans, score_rows as score_radiostation_rows
+from lib.score_newsagency_snippets import (
+    attach_surfaces,
+    curation_status,
+    normalize_dotted_acronym_spans,
+    suppress_contained_same_label_spans,
+)
 from lib.snippet_data import tokenize_with_offsets, write_jsonl
 
 
@@ -61,6 +66,84 @@ def test_newsagency_curation_status_auto_accepts_multiple_very_confident_spans()
         "auto_accepted",
         [],
     )
+
+
+def test_normalize_dotted_acronym_spans_includes_final_abbreviation_period() -> None:
+    text = "PARIS, 11 (A. F. P.)."
+    tokens = ["PARIS", ",", "11", "(", "A", ".", "F", ".", "P", ".", ")", "."]
+    starts = [0, 5, 7, 10, 11, 12, 14, 15, 17, 18, 19, 20]
+    stops = [5, 6, 9, 11, 12, 13, 15, 16, 18, 19, 20, 21]
+    raw_spans = [
+        {"token_start": 4, "token_stop": 9, "label": "org.ent.pressagency.afp", "confidence": 1.0, "margin": 1.0},
+        {"token_start": 4, "token_stop": 7, "label": "org.ent.pressagency.afp", "confidence": 0.5, "margin": 0.1},
+        {"token_start": 8, "token_stop": 9, "label": "org.ent.pressagency.afp", "confidence": 0.8, "margin": 0.6},
+    ]
+
+    spans = normalize_dotted_acronym_spans(attach_surfaces(raw_spans, tokens, starts, stops, text), tokens, starts, stops, text)
+
+    assert len(spans) == 1
+    assert spans[0]["token_start"] == 4
+    assert spans[0]["token_stop"] == 10
+    assert spans[0]["surface"] == "A. F. P."
+    assert spans[0]["boundary_normalization"] == "include_final_dotted_acronym_period"
+
+
+def test_normalize_dotted_acronym_spans_does_not_include_sentence_period_after_plain_acronym() -> None:
+    text = "La depêche vient de AFP."
+    tokens = ["La", "depêche", "vient", "de", "AFP", "."]
+    starts = [0, 3, 11, 17, 20, 23]
+    stops = [2, 10, 16, 19, 23, 24]
+    raw_spans = [
+        {"token_start": 4, "token_stop": 5, "label": "org.ent.pressagency.afp", "confidence": 1.0, "margin": 1.0}
+    ]
+
+    spans = normalize_dotted_acronym_spans(attach_surfaces(raw_spans, tokens, starts, stops, text), tokens, starts, stops, text)
+
+    assert spans[0]["token_stop"] == 5
+    assert spans[0]["surface"] == "AFP"
+
+
+def test_normalize_dotted_acronym_spans_drops_punctuation_only_predictions() -> None:
+    text = "A. F. P."
+    tokens = ["A", ".", "F", ".", "P", "."]
+    starts = [0, 1, 3, 4, 6, 7]
+    stops = [1, 2, 4, 5, 7, 8]
+    raw_spans = [
+        {"token_start": 5, "token_stop": 6, "label": "org.ent.pressagency.up-upi", "confidence": 0.8, "margin": 0.6}
+    ]
+
+    spans = normalize_dotted_acronym_spans(attach_surfaces(raw_spans, tokens, starts, stops, text), tokens, starts, stops, text)
+
+    assert spans == []
+
+
+def test_alias_matcher_keeps_final_period_for_dotted_acronym_alias() -> None:
+    tokens = ["(", "A", ".", "F", ".", "P", ".", ")", "."]
+
+    spans = find_alias_spans(tokens, ["A.F.P."], "org.ent.pressagency.afp")
+
+    assert spans == [
+        {
+            "token_start": 1,
+            "token_stop": 7,
+            "label": "org.ent.pressagency.afp",
+            "surface": "A . F . P .",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "matcher": "alias_compact",
+            "alias": "A.F.P.",
+        }
+    ]
+
+
+def test_suppress_contained_same_label_spans_keeps_full_acronym_span() -> None:
+    spans = [
+        {"token_start": 19, "token_stop": 25, "label": "org.ent.pressagency.afp", "surface": "A. F. P."},
+        {"token_start": 19, "token_stop": 23, "label": "org.ent.pressagency.afp", "surface": "A. F."},
+        {"token_start": 23, "token_stop": 24, "label": "org.ent.pressagency.afp", "surface": "P"},
+    ]
+
+    assert suppress_contained_same_label_spans(spans) == [spans[0]]
 
 
 def test_sample_newsagencies_loads_label_alias_queries(tmp_path: Path) -> None:
@@ -325,6 +408,12 @@ def test_radiostation_scoring_matches_other_station_aliases_in_snippet(tmp_path:
                     "display_name": "Radio Moscow",
                     "aliases": ["Radio Moscow", "Radio Moscou"],
                 },
+                {
+                    "canonical_id": "radio-bucharest",
+                    "label": "org.ent.radiostation.radio-bucharest",
+                    "display_name": "Radio Bucharest",
+                    "aliases": ["Radio Bucharest", "Radio Bucarest"],
+                },
             ]
         ),
         encoding="utf-8",
@@ -339,6 +428,14 @@ def test_radiostation_scoring_matches_other_station_aliases_in_snippet(tmp_path:
                 "query": "Radio Londres",
                 "language": "fr",
                 "snippet": "Moscou, 9. — Radio-Moscou annonce la protestation.",
+            },
+            {
+                "id": "radio-moscou-with-bucarest",
+                "label": "org.ent.radiostation",
+                "station": "radio_moscow",
+                "query": "Radio Moscou",
+                "language": "fr",
+                "snippet": "BUCAREST, 9 (Reuter). — Radio-Bucarest annonce la nouvelle.",
             }
         ],
     )
@@ -347,12 +444,22 @@ def test_radiostation_scoring_matches_other_station_aliases_in_snippet(tmp_path:
         type("Args", (), {"input": str(input_path), "output": str(scored_path), "radiostations": str(seeds_path)})
     )
 
-    scored = json.loads(scored_path.read_text(encoding="utf-8"))
-    spans = scored["model"]["predicted_spans"]
-    assert scored["candidate_label"] == "org.ent.radiostation.bbc"
+    scored_rows = [
+        json.loads(line)
+        for line in scored_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    london_scored = next(row for row in scored_rows if row["id"] == "radio-londres-with-moscow")
+    bucharest_scored = next(row for row in scored_rows if row["id"] == "radio-moscou-with-bucarest")
+
+    assert london_scored["candidate_label"] == "org.ent.radiostation.bbc"
     assert any(
         span["surface"] == "Radio-Moscou" and span["label"] == "org.ent.radiostation.radio-moscow"
-        for span in spans
+        for span in london_scored["model"]["predicted_spans"]
+    )
+    assert any(
+        span["surface"] == "Radio-Bucarest" and span["label"] == "org.ent.radiostation.radio-bucharest"
+        for span in bucharest_scored["model"]["predicted_spans"]
     )
 
 
@@ -518,6 +625,41 @@ def test_prompt_manual_spans_prints_interpretation(monkeypatch, capsys) -> None:
     captured = capsys.readouterr()
     assert spans[0]["label"] == "org.ent.pressagency.agence-radio"
     assert 'interpreted: 6:8 "Radio." [org.ent.pressagency.agence-radio]' in captured.out
+
+
+def test_prompt_manual_spans_accepts_commands_inside_span_prompt(monkeypatch, capsys) -> None:
+    row = {
+        "text": "A. F. P.",
+        "tokens": ["A", ".", "F", ".", "P", "."],
+        "token_start_offsets": [0, 1, 3, 4, 6, 7],
+        "token_end_offsets": [1, 2, 4, 5, 7, 8],
+        "candidate_label": "org.ent.pressagency.afp",
+    }
+    answers = iter(["N", "0:A 1:. 2:F 3:. 4:P 5:. afp", "y", "q"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    spans = prompt_manual_spans(row, {})
+
+    captured = capsys.readouterr()
+    assert spans is not None
+    assert len(spans) == 1
+    assert spans[0]["surface"] == "A. F. P."
+    assert spans[0]["label"] == "org.ent.pressagency.afp"
+    assert captured.out.count("numbered tokens:") == 2
+
+
+def test_prompt_manual_spans_can_cancel_without_saving(monkeypatch) -> None:
+    row = {
+        "text": "A. F. P.",
+        "tokens": ["A", ".", "F", ".", "P", "."],
+        "token_start_offsets": [0, 1, 3, 4, 6, 7],
+        "token_end_offsets": [1, 2, 4, 5, 7, 8],
+        "candidate_label": "org.ent.pressagency.afp",
+    }
+    answers = iter(["q"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    assert prompt_manual_spans(row, {}) is None
 
 
 def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeypatch, capsys) -> None:
