@@ -1087,14 +1087,14 @@
       "Telegraphen-Agentur der Sowietunion"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/TASS",
-    "wikidata_url": "https://www.wikidata.org/wiki/Q223799",
+    "wikidata_url": null,
     "trainable": true,
     "status": "metadata_enriched",
-    "description": "Russian/Soviet state news agency lineage founded in 1904 and known as TASS, Telegraph Agency of the Soviet Union, ITAR-TASS, and Russian News Agency TASS. Historical texts may use TASS/Tass or language-specific forms of the Soviet telegraph agency name.",
+    "description": "Soviet and Russian state news agency founded as the Telegraph Agency of the Soviet Union in 1925, later known as ITAR-TASS and Russian News Agency TASS. Historical texts may use TASS/Tass or language-specific forms of the Soviet telegraph agency name. Do not automatically collapse earlier Russian imperial or ROSTA predecessor agencies to this label unless the visible mention names TASS.",
     "active_period": {
-      "start": "1904",
+      "start": "1925",
       "end": null,
-      "note": "Russian/Soviet state agency lineage; still active as TASS."
+      "note": "Founded in 1925 as the Telegraph Agency of the Soviet Union; still active as TASS. Earlier Russian imperial and ROSTA agencies are predecessor organizations, not identical training labels."
     },
     "aliases_by_language": {
       "en": [
@@ -1116,8 +1116,95 @@
     },
     "metadata_sources": [
       {
+        "type": "related_wikidata_tass_successor",
+        "url": "https://www.wikidata.org/wiki/Q223799"
+      },
+      {
+        "type": "related_wikidata_rosta_successor",
+        "url": "https://www.wikidata.org/wiki/Q782067"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/TASS"
+      }
+    ]
+  },
+  {
+    "canonical_id": "st-petersburg-telegraph-agency",
+    "label": "org.ent.pressagency.st-petersburg-telegraph-agency",
+    "display_name": "St. Petersburg Telegraph Agency",
+    "aliases": [
+      "St. Petersburg Telegraph Agency",
+      "Petersburg Telegraph Agency",
+      "SPTA",
+      "PTA",
+      "Russische Telegraphen-Agentur",
+      "Russische Telegraphen Agentur",
+      "Russische Telegrafen-Agentur",
+      "Russische Telegrafen Agentur",
+      "Russische Telegraphenagentur",
+      "Russische Telegrafenagentur",
+      "russische Telegraphen-Agentur",
+      "russische Telegrafen-Agentur",
+      "Russische Telegraphische Agentur",
+      "Petersburger Telegraphen-Agentur",
+      "Petersburger Telegrafen-Agentur",
+      "St. Petersburger Telegraphen-Agentur",
+      "St. Petersburger Telegrafen-Agentur",
+      "Agence télégraphique de Saint-Pétersbourg",
+      "Agence télégraphique russe"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/TASS",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q223799",
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "Russian imperial state news agency founded in 1904 as the St. Petersburg Telegraph Agency, Russia's first official news agency. In German historical newspapers it may appear descriptively as Russische Telegraphen-Agentur. It is a predecessor in the later Russian/Soviet state news-agency chain, but should be kept distinct from ROSTA and from TASS for annotation.",
+    "active_period": {
+      "start": "1904",
+      "end": "1918",
+      "note": "Founded in 1904 as the St. Petersburg Telegraph Agency; later Petrograd Telegraph Agency. In 1918 the Soviet-period ROSTA agency followed in the succession chain."
+    },
+    "aliases_by_language": {
+      "en": [
+        "St. Petersburg Telegraph Agency",
+        "Petersburg Telegraph Agency",
+        "SPTA",
+        "PTA"
+      ],
+      "de": [
+        "Russische Telegraphen-Agentur",
+        "Russische Telegraphen Agentur",
+        "Russische Telegrafen-Agentur",
+        "Russische Telegrafen Agentur",
+        "Russische Telegraphenagentur",
+        "Russische Telegrafenagentur",
+        "Petersburger Telegraphen-Agentur",
+        "Petersburger Telegrafen-Agentur",
+        "St. Petersburger Telegraphen-Agentur",
+        "St. Petersburger Telegrafen-Agentur"
+      ],
+      "fr": [
+        "Agence télégraphique de Saint-Pétersbourg",
+        "Agence télégraphique russe"
+      ],
+      "ru": [
+        "Санкт-Петербургское телеграфное агентство",
+        "Петроградское телеграфное агентство"
+      ]
+    },
+    "annotation_note": "Use this label for 1904-1918 mentions of the Russian imperial/Petersburg telegraph agency, including German forms such as Russische Telegraphen-Agentur. Preserve the visible OCR surface in the span. Do not map these predecessor mentions to org.ent.pressagency.tass.",
+    "metadata_sources": [
+      {
         "type": "wikidata",
         "url": "https://www.wikidata.org/wiki/Q223799"
+      },
+      {
+        "type": "official_history",
+        "url": "https://tass.com/history"
+      },
+      {
+        "type": "encyclopedia",
+        "url": "https://www.britannica.com/topic/ITAR-TASS"
       },
       {
         "type": "wikipedia",

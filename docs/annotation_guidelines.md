@@ -87,6 +87,7 @@ Examples:
 - Telegraphen-Union / T.U. / contextual `(UTA)`
 - CTK / ČTK / tschechoslowakische Nachrichtenagentur
 - ATA / Albanian Telegraphic Agency / albanische Nachrichtenagentur ATA
+- Russische Telegraphen-Agentur / St. Petersburg Telegraph Agency
 - Wolff
 - Agence Radio
 
@@ -97,6 +98,10 @@ Use `org.ent.pressagency.telegraphen-union` for `Telegraphen-Union`, `T.U.`, and
 Use `org.ent.pressagency.ctk` for CTK/ČTK, Ceteka, the Czech/Czechoslovak News Agency, `Československá tisková kancelář`, `tschechoslowakische Nachrichtenagentur`, `tschechoslowakischen Nachrichtenagentur`, `Tschechoslowakisches Nachrichtenbüro`, and comparable language-specific renderings of the Czechoslovak/Czech press agency. In phrases such as `Meldung der tschechoslowakischen Nachrichtenagentur`, annotate only the visible agency phrase (`tschechoslowakischen Nachrichtenagentur`) and exclude surrounding evidence words such as `Meldung der`.
 
 Use `org.ent.pressagency.ata` for ATA/ATSH, the Albanian Telegraphic Agency, `Agjencia Telegrafike Shqiptare`, `albanische Nachrichtenagentur`, `Agence télégraphique albanaise`, and comparable language-specific renderings of the Albanian national news agency. In phrases such as `Die albanische Nachrichtenagentur ATA bestätigte ...`, prefer the full visible agency-name phrase (`albanische Nachrichtenagentur ATA`) when cleanly present. Annotate `ATA` alone when only the acronym is present or when the descriptive phrase is outside the selected span.
+
+Use `org.ent.pressagency.st-petersburg-telegraph-agency` for the Russian imperial St. Petersburg/Petrograd Telegraph Agency and German historical renderings such as `Russische Telegraphen-Agentur`, `Russische Telegrafen-Agentur`, or `Petersburger Telegraphen-Agentur`. In 1904-1918 contexts, do not automatically normalize these predecessor mentions to `org.ent.pressagency.tass`. Preserve the visible OCR surface in the span, for example `Russische Teleglllvhen-Agentur`, but assign the St. Petersburg Telegraph Agency label when the organization is identifiable.
+
+Use `org.ent.pressagency.tass` only for mentions that name TASS/Tass, ITAR-TASS, Russian News Agency TASS, or the Soviet Telegraph Agency of the Soviet Union. Earlier Russian imperial/Petersburg agency mentions and ROSTA are predecessor organizations and require their own canonical metadata rather than silent TASS normalization.
 
 ### Radio Stations
 

@@ -129,6 +129,14 @@ Use `org.ent.pressagency.ata` for ATA/ATSH, the Albanian Telegraphic Agency, `Ag
 
 In phrases such as `Die albanische Nachrichtenagentur ATA bestätigte ...`, annotate the resolved agency-name phrase. Prefer the full visible phrase `albanische Nachrichtenagentur ATA` when it is cleanly present; annotate `ATA` alone when only the acronym is present or when the descriptive phrase is outside the selected span.
 
+## Russian Imperial Telegraph Agency / TASS
+
+Use `org.ent.pressagency.st-petersburg-telegraph-agency` for the Russian imperial St. Petersburg/Petrograd Telegraph Agency and German renderings such as `Russische Telegraphen-Agentur`, `Russische Telegrafen-Agentur`, or `Petersburger Telegraphen-Agentur`, especially in 1904-1918 contexts.
+
+Do not automatically normalize these predecessor mentions to `org.ent.pressagency.tass`. Use `org.ent.pressagency.tass` only when the visible mention names TASS/Tass, ITAR-TASS, Russian News Agency TASS, or the Soviet Telegraph Agency of the Soviet Union.
+
+For OCR-noisy but identifiable examples such as `Russische Teleglllvhen-Agentur`, keep the observed OCR span and assign `org.ent.pressagency.st-petersburg-telegraph-agency`.
+
 ## Radio Stations
 
 Annotate specific canonical radio-station mentions when the context is connected to broadcasting, media production, media organizations, programme schedules, news/source attribution, or institutional broadcaster activity.

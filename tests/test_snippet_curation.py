@@ -837,6 +837,16 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                         "albanische Nachrichtenagentur ATA",
                         "Albanische Nachrichtenagentur ATA",
                     ],
+                },
+                {
+                    "canonical_id": "st-petersburg-telegraph-agency",
+                    "label": "org.ent.pressagency.st-petersburg-telegraph-agency",
+                    "display_name": "St. Petersburg Telegraph Agency",
+                    "aliases": [
+                        "Russische Telegraphen-Agentur",
+                        "Russische Telegrafen-Agentur",
+                        "Petersburger Telegraphen-Agentur",
+                    ],
                 }
             ]
         ),
@@ -884,6 +894,14 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                 "query": "Radio Prag",
                 "language": "de",
                 "snippet": "Die albanische Nachrichtenagentur ATA bestätigte die Meldung.",
+            },
+            {
+                "id": "radio-context-with-russian-imperial-agency",
+                "label": "org.ent.radiostation",
+                "station": "radio_prague",
+                "query": "Radio Prag",
+                "language": "de",
+                "snippet": "Die Russische Telegraphen-Agentur teilt mit, dass ein Telegramm eingetroffen ist.",
             }
         ],
     )
@@ -911,11 +929,13 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
     uta_scored = next(row for row in scored_rows if row["id"] == "deutsche-welle-with-uta")
     ctk_scored = next(row for row in scored_rows if row["id"] == "radio-prague-with-ctk")
     ata_scored = next(row for row in scored_rows if row["id"] == "radio-tirana-with-ata")
+    russian_imperial_scored = next(row for row in scored_rows if row["id"] == "radio-context-with-russian-imperial-agency")
     london_spans = london_scored["model"]["predicted_spans"]
     tanjug_spans = tanjug_scored["model"]["predicted_spans"]
     uta_spans = uta_scored["model"]["predicted_spans"]
     ctk_spans = ctk_scored["model"]["predicted_spans"]
     ata_spans = ata_scored["model"]["predicted_spans"]
+    russian_imperial_spans = russian_imperial_scored["model"]["predicted_spans"]
     assert any(
         span["surface"] == "Schweizer Depeschenagentur" and span["label"] == "org.ent.pressagency.ats-sda"
         for span in london_spans
@@ -941,6 +961,11 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
         span["surface"] == "albanische Nachrichtenagentur ATA"
         and span["label"] == "org.ent.pressagency.ata"
         for span in ata_spans
+    )
+    assert any(
+        span["surface"] == "Russische Telegraphen-Agentur"
+        and span["label"] == "org.ent.pressagency.st-petersburg-telegraph-agency"
+        for span in russian_imperial_spans
     )
 
 
