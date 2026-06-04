@@ -18,6 +18,7 @@ FINAL_STATUSES = {"accepted", "rejected", "removed"}
 SPAN_RE = re.compile(r"^(?P<start>\d+):(?P<stop>\d+)\s+(?P<label>\S+)$")
 NUMBERED_TOKEN_RE = re.compile(r"(?P<index>\d+):(?P<token>\S+)")
 DEFAULT_LABEL_METADATA = Path("resources/newsagency_seeds.json")
+EXTRA_DEFAULT_LABEL_METADATA = [Path("resources/radiostation_seeds.json")]
 
 
 def clear_screen() -> None:
@@ -49,10 +50,17 @@ def numbered_tokens(row: dict[str, Any]) -> str:
 
 
 def load_label_metadata(path: Path) -> dict[str, dict[str, Any]]:
-    if not path.is_file():
-        return {}
-    rows = json.loads(path.read_text(encoding="utf-8"))
-    return {str(row.get("label")): row for row in rows if row.get("label")}
+    paths = [path, DEFAULT_LABEL_METADATA, *EXTRA_DEFAULT_LABEL_METADATA]
+    metadata: dict[str, dict[str, Any]] = {}
+    for current_path in paths:
+        if not current_path.is_file():
+            continue
+        rows = json.loads(current_path.read_text(encoding="utf-8"))
+        for row in rows:
+            label = str(row.get("label") or "")
+            if label and label not in metadata:
+                metadata[label] = row
+    return metadata
 
 
 def impresso_article_id(row: dict[str, Any]) -> str:
@@ -165,7 +173,52 @@ def target_label(row: dict[str, Any]) -> str:
     return str(row.get("curation", {}).get("label") or row.get("candidate_label") or "")
 
 
-def parse_numbered_token_span(raw: str, row: dict[str, Any]) -> tuple[int, int, str] | None:
+def resolve_manual_label(raw_label: str, row: dict[str, Any], label_metadata: dict[str, dict[str, Any]] | None = None) -> str:
+    label = raw_label.strip()
+    if not label:
+        inferred = target_label(row)
+        if inferred:
+            return inferred
+        raise ValueError("cannot infer label; add a full label or canonical id, e.g. agence-radio")
+    if label.startswith(("org.ent.pressagency.", "org.ent.radiostation.")):
+        return label
+    label_metadata = label_metadata or {}
+    matches = []
+    for metadata_label, metadata_row in label_metadata.items():
+        canonical_id = str(metadata_row.get("canonical_id") or metadata_label.rsplit(".", 1)[-1])
+        if label == canonical_id or label == metadata_label.rsplit(".", 1)[-1]:
+            matches.append(metadata_label)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous canonical id {label}; use the full label")
+    target = target_label(row)
+    if target.startswith(("org.ent.pressagency.", "org.ent.radiostation.")):
+        family = ".".join(target.split(".")[:3])
+        return f"{family}.{label}"
+    raise ValueError(f"unknown canonical id {label}; use the full label")
+
+
+def split_trailing_manual_label(raw: str) -> tuple[str, str]:
+    stripped = raw.strip()
+    if not stripped:
+        return "", ""
+    parts = stripped.rsplit(maxsplit=1)
+    if len(parts) == 1:
+        return stripped, ""
+    body, possible_label = parts
+    if ":" not in possible_label:
+        return body, possible_label
+    return stripped, ""
+
+
+def parse_numbered_token_span(
+    raw: str,
+    row: dict[str, Any],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> tuple[int, int, str] | None:
+    body, raw_label = split_trailing_manual_label(raw)
+    raw = body or raw
     matches = list(NUMBERED_TOKEN_RE.finditer(raw.strip()))
     if not matches:
         return None
@@ -181,22 +234,24 @@ def parse_numbered_token_span(raw: str, row: dict[str, Any]) -> tuple[int, int, 
         pasted = match.group("token")
         if pasted != str(tokens[index]):
             raise ValueError(f"pasted token {index}:{pasted} does not match current token {index}:{tokens[index]}")
-    label = target_label(row)
-    if not label:
-        raise ValueError("cannot infer label; use: 12:13 org.ent.radiostation.bbc")
+    label = resolve_manual_label(raw_label, row, label_metadata)
     return indexes[0], indexes[-1] + 1, label
 
 
-def parse_manual_span(raw: str, row: dict[str, Any]) -> dict[str, Any]:
+def parse_manual_span(
+    raw: str,
+    row: dict[str, Any],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     match = SPAN_RE.match(raw.strip())
     if match:
         start = int(match.group("start"))
         stop = int(match.group("stop"))
-        label = match.group("label")
+        label = resolve_manual_label(match.group("label"), row, label_metadata)
     else:
-        parsed = parse_numbered_token_span(raw, row)
+        parsed = parse_numbered_token_span(raw, row, label_metadata)
         if parsed is None:
-            raise ValueError('expected: 12:13 org.ent.pressagency.reuters or pasted tokens like 9:B 10:. 11:B')
+            raise ValueError('expected: 12:13 reuters or pasted tokens like 9:B 10:. 11:B bbc')
         start, stop, label = parsed
     tokens = row["tokens"]
     starts = row["token_start_offsets"]
@@ -216,24 +271,40 @@ def parse_manual_span(raw: str, row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def prompt_manual_spans(row: dict[str, Any]) -> list[dict[str, Any]]:
+def interpreted_span_line(span: dict[str, Any]) -> str:
+    return (
+        f"interpreted: {span['token_start']}:{span['token_stop']} "
+        f"\"{span['surface']}\" [{span['label']}]"
+    )
+
+
+def prompt_manual_spans(
+    row: dict[str, Any],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     accepted_spans = []
     print("numbered tokens:")
     print(numbered_tokens(row))
-    print('manual correction syntax: 12:13 org.ent.pressagency.reuters')
-    print('or paste numbered tokens, e.g. 9:B 10:. 11:B 12:. 13:C 14:.')
+    print('manual correction syntax: 12:13 reuters or 12:13 org.ent.pressagency.reuters')
+    print('or paste numbered tokens, e.g. 9:B 10:. 11:B 12:. 13:C 14:. bbc')
     while True:
         try:
-            accepted_spans.append(parse_manual_span(input("span> "), row))
+            span = parse_manual_span(input("span> "), row, label_metadata)
         except ValueError as exc:
             print(exc)
             continue
+        accepted_spans.append(span)
+        print(interpreted_span_line(span))
         raw = input("add another span? [y/N] ").strip().lower()
         if raw not in {"y", "yes"}:
             return accepted_spans
 
 
-def prompt_prediction_spans(row: dict[str, Any], spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def prompt_prediction_spans(
+    row: dict[str, Any],
+    spans: list[dict[str, Any]],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     if len(spans) <= 1:
         return spans[:1]
 
@@ -251,7 +322,7 @@ def prompt_prediction_spans(row: dict[str, Any], spans: list[dict[str, Any]]) ->
                 accepted_spans.append(span)
                 break
             if raw == "m":
-                accepted_spans.extend(prompt_manual_spans(row))
+                accepted_spans.extend(prompt_manual_spans(row, label_metadata))
                 break
             if raw == "r":
                 break
@@ -311,11 +382,11 @@ def review_loop(
             target = row.get("curation", {}).get("label") or row.get("candidate_label")
             matching = [span for span in spans if span.get("label") == target]
             spans_to_review = spans if len(spans) > 1 else matching or spans
-            accepted_spans = prompt_prediction_spans(row, spans_to_review)
+            accepted_spans = prompt_prediction_spans(row, spans_to_review, label_metadata)
             if len(accepted_spans) > 1:
                 notes = input("notes for accepted spans (optional): ").strip()
         elif raw == "m":
-            accepted_spans = prompt_manual_spans(row)
+            accepted_spans = prompt_manual_spans(row, label_metadata)
             notes = input("notes (optional): ").strip()
         elif raw in {"r", "s"}:
             notes = input("notes (optional): ").strip()

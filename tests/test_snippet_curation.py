@@ -3,7 +3,7 @@ from pathlib import Path
 
 from lib.build_newsagency_snippets import build_snippets
 from lib.export_snippet_training_data import export_rows
-from lib.review_newsagency_snippets import parse_manual_span, review_loop
+from lib.review_newsagency_snippets import parse_manual_span, prompt_manual_spans, review_loop
 from lib.review_radiostation_snippets import materialize_views
 from lib.sample_newsagencies import extract_candidate, load_seed_queries
 from lib.score_radiostation_snippets import score_rows as score_radiostation_rows
@@ -306,6 +306,56 @@ def test_radiostation_scoring_resolves_query_alias_to_canonical_label(tmp_path: 
     assert scored["model"]["predicted_spans"][0]["surface"] == "Radio Londres"
 
 
+def test_radiostation_scoring_matches_other_station_aliases_in_snippet(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_candidates.jsonl"
+    scored_path = tmp_path / "radio_scored.jsonl"
+    seeds_path = tmp_path / "radiostation_seeds.json"
+    seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "bbc",
+                    "label": "org.ent.radiostation.bbc",
+                    "display_name": "BBC",
+                    "aliases": ["BBC", "Radio Londres"],
+                },
+                {
+                    "canonical_id": "radio-moscow",
+                    "label": "org.ent.radiostation.radio-moscow",
+                    "display_name": "Radio Moscow",
+                    "aliases": ["Radio Moscow", "Radio Moscou"],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "radio-londres-with-moscow",
+                "label": "org.ent.radiostation",
+                "station": "radio_londres",
+                "query": "Radio Londres",
+                "language": "fr",
+                "snippet": "Moscou, 9. — Radio-Moscou annonce la protestation.",
+            }
+        ],
+    )
+
+    score_radiostation_rows(
+        type("Args", (), {"input": str(input_path), "output": str(scored_path), "radiostations": str(seeds_path)})
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    spans = scored["model"]["predicted_spans"]
+    assert scored["candidate_label"] == "org.ent.radiostation.bbc"
+    assert any(
+        span["surface"] == "Radio-Moscou" and span["label"] == "org.ent.radiostation.radio-moscow"
+        for span in spans
+    )
+
+
 def test_radiostation_scoring_does_not_emit_generic_label(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_candidates.jsonl"
     scored_path = tmp_path / "radio_scored.jsonl"
@@ -352,6 +402,55 @@ def test_manual_span_accepts_pasted_numbered_tokens() -> None:
     assert span["token_stop"] == 6
     assert span["label"] == "org.ent.radiostation.bbc"
     assert span["surface"] == "B. B. C."
+
+
+def test_manual_span_accepts_canonical_id_label() -> None:
+    row = {
+        "text": "Londres, 15 janvier. (Radio.)",
+        "tokens": ["Londres", ",", "15", "janvier", ".", "(", "Radio", ".", ")"],
+        "token_start_offsets": [0, 7, 9, 12, 19, 21, 22, 27, 28],
+        "token_end_offsets": [7, 8, 11, 19, 20, 22, 27, 28, 29],
+        "candidate_label": None,
+    }
+    metadata = {
+        "org.ent.pressagency.agence-radio": {
+            "canonical_id": "agence-radio",
+            "label": "org.ent.pressagency.agence-radio",
+        }
+    }
+
+    offset_span = parse_manual_span("6:8 agence-radio", row, metadata)
+    pasted_span = parse_manual_span("6:Radio 7:. agence-radio", row, metadata)
+
+    assert offset_span["label"] == "org.ent.pressagency.agence-radio"
+    assert offset_span["surface"] == "Radio."
+    assert pasted_span["token_start"] == 6
+    assert pasted_span["token_stop"] == 8
+    assert pasted_span["label"] == "org.ent.pressagency.agence-radio"
+
+
+def test_prompt_manual_spans_prints_interpretation(monkeypatch, capsys) -> None:
+    row = {
+        "text": "Londres, 15 janvier. (Radio.)",
+        "tokens": ["Londres", ",", "15", "janvier", ".", "(", "Radio", ".", ")"],
+        "token_start_offsets": [0, 7, 9, 12, 19, 21, 22, 27, 28],
+        "token_end_offsets": [7, 8, 11, 19, 20, 22, 27, 28, 29],
+        "candidate_label": None,
+    }
+    metadata = {
+        "org.ent.pressagency.agence-radio": {
+            "canonical_id": "agence-radio",
+            "label": "org.ent.pressagency.agence-radio",
+        }
+    }
+    answers = iter(["6:Radio 7:. agence-radio", "n"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    spans = prompt_manual_spans(row, metadata)
+
+    captured = capsys.readouterr()
+    assert spans[0]["label"] == "org.ent.pressagency.agence-radio"
+    assert 'interpreted: 6:8 "Radio." [org.ent.pressagency.agence-radio]' in captured.out
 
 
 def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeypatch, capsys) -> None:

@@ -148,6 +148,16 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
     return spans
 
 
+def find_all_seed_alias_spans(tokens: list[str], metadata: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    spans: list[dict[str, Any]] = []
+    for seed in metadata.values():
+        label = str(seed.get("label") or "")
+        if not label:
+            continue
+        spans.extend(find_alias_spans(tokens, seed_aliases(seed), label))
+    return spans
+
+
 def attach_offsets(spans: list[dict[str, Any]], starts: list[int], stops: list[int], text: str) -> list[dict[str, Any]]:
     out = []
     for span in spans:
@@ -197,7 +207,9 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     for index, row in enumerate(load_jsonl(Path(args.input)), start=1):
         text, tokens, starts, stops = candidate_tokens(row)
         label, aliases = aliases_for_row(row, metadata, alias_index)
-        alias_spans = attach_offsets(find_alias_spans(tokens, aliases, label), starts, stops, text) if label else []
+        candidate_alias_spans = find_alias_spans(tokens, aliases, label) if label else []
+        all_alias_spans = find_all_seed_alias_spans(tokens, metadata)
+        alias_spans = attach_offsets(dedupe_spans(candidate_alias_spans + all_alias_spans), starts, stops, text)
         model_spans: list[dict[str, Any]] = []
         if model_runtime is not None:
             torch, tokenizer, model, device, _model_name = model_runtime
