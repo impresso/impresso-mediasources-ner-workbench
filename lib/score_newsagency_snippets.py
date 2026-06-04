@@ -7,6 +7,9 @@ from typing import Any
 
 from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
 
+DEFAULT_SEARCH_SNIPPETS = Path("data/candidates/newsagency_search_snippets.jsonl")
+DEFAULT_LEGACY_SNIPPETS = Path("data/candidates/newsagency_legacy_snippets.jsonl")
+
 
 def resolve_model_ref(value: str) -> str:
     return value[len("hf://") :] if value.startswith("hf://") else value
@@ -232,7 +235,49 @@ def curation_status(
     return ("auto_accepted" if not reasons else "needs_review"), reasons
 
 
+def nearby_jsonl_files(path: Path) -> list[Path]:
+    parent = path.parent
+    if not parent.is_dir():
+        return []
+    return sorted(item for item in parent.glob("*.jsonl") if item.is_file())
+
+
+def input_help(path: Path) -> str:
+    alternatives = nearby_jsonl_files(path)
+    existing_candidate = alternatives[0] if alternatives else path
+    lines = [
+        "Next steps:",
+        "  - Create real search snippets:",
+        "      make sample-newsagencies PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk",
+        "  - Or score an existing candidate file:",
+        f"      make score-newsagency-snippets NEWSAGENCY_SNIPPETS={existing_candidate}",
+        "  - Or build legacy-derived bootstrap snippets first:",
+        "      make build-newsagency-snippets-from-legacy PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk",
+        f"      make score-newsagency-snippets NEWSAGENCY_SNIPPETS={DEFAULT_LEGACY_SNIPPETS}",
+    ]
+    if alternatives:
+        lines.extend(["", f"JSONL files currently present in {path.parent}:"])
+        lines.extend(f"  - {candidate}" for candidate in alternatives)
+    return "\n".join(lines)
+
+
+def load_input_rows(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        raise SystemExit(f"Input JSONL does not exist: {path}\n\n{input_help(path)}")
+    if not path.is_file():
+        raise SystemExit(f"Input path is not a file: {path}\n\n{input_help(path)}")
+    if path.stat().st_size == 0:
+        raise SystemExit(f"Input JSONL is empty: {path}\n\n{input_help(path)}")
+    rows = load_jsonl(path)
+    if not rows:
+        raise SystemExit(f"Input JSONL has no non-empty rows: {path}\n\n{input_help(path)}")
+    return rows
+
+
 def score_rows(args: argparse.Namespace) -> dict[str, Any]:
+    input_path = Path(args.input)
+    rows_in = load_input_rows(input_path)
+
     torch, model_cls, tokenizer_cls = import_runtime()
     model_ref = resolve_model_ref(args.model)
     device = device_for(args.device, torch)
@@ -242,7 +287,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
 
     rows = []
     counts = {"auto_accepted": 0, "needs_review": 0}
-    for index, row in enumerate(load_jsonl(Path(args.input)), start=1):
+    for index, row in enumerate(rows_in, start=1):
         text, tokens, starts, stops = candidate_tokens(row)
         labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, args.max_sequence_len)
         spans = normalize_dotted_acronym_spans(

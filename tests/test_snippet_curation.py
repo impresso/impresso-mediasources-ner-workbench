@@ -14,6 +14,7 @@ from lib.score_radiostation_snippets import (
 from lib.score_newsagency_snippets import (
     attach_surfaces,
     curation_status,
+    load_input_rows,
     normalize_dotted_acronym_spans,
     suppress_contained_same_label_spans,
 )
@@ -43,6 +44,42 @@ def test_newsagency_curation_status_auto_accepts_matching_confident_span() -> No
     ]
 
     assert curation_status(row, spans, min_confidence=0.95, min_margin=0.30) == ("auto_accepted", [])
+
+
+def test_newsagency_scorer_missing_input_explains_next_steps(tmp_path: Path) -> None:
+    candidates = tmp_path / "data" / "candidates"
+    candidates.mkdir(parents=True)
+    existing = candidates / "newsagency_snippets.jsonl"
+    existing.write_text('{"id":"candidate-1","snippet":"Reuter meldet."}\n', encoding="utf-8")
+
+    try:
+        load_input_rows(candidates / "newsagency_search_snippets.jsonl")
+    except SystemExit as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("missing input should fail")
+
+    assert "Input JSONL does not exist" in message
+    assert "make sample-newsagencies" in message
+    assert f"NEWSAGENCY_SNIPPETS={existing}" in message
+    assert f"- {existing}" in message
+
+
+def test_newsagency_scorer_empty_input_explains_next_steps(tmp_path: Path) -> None:
+    input_path = tmp_path / "data" / "candidates" / "newsagency_search_snippets.jsonl"
+    input_path.parent.mkdir(parents=True)
+    input_path.write_text("", encoding="utf-8")
+
+    try:
+        load_input_rows(input_path)
+    except SystemExit as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("empty input should fail")
+
+    assert "Input JSONL is empty" in message
+    assert "make sample-newsagencies" in message
+    assert "make build-newsagency-snippets-from-legacy" in message
 
 
 def test_newsagency_curation_status_auto_accepts_multiple_very_confident_spans() -> None:
