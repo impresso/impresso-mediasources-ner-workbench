@@ -164,7 +164,28 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
                         "alias": alias,
                     }
                 )
-    return spans
+    return suppress_one_letter_alias_extensions(spans, tokens)
+
+
+def suppress_one_letter_alias_extensions(spans: list[dict[str, Any]], tokens: list[str]) -> list[dict[str, Any]]:
+    shorter_keys = {
+        (int(span["token_start"]), int(span["token_stop"]), str(span["label"]))
+        for span in spans
+    }
+    out = []
+    for span in spans:
+        start = int(span["token_start"])
+        stop = int(span["token_stop"])
+        label = str(span["label"])
+        if (
+            stop - start > 1
+            and (start, stop - 1, label) in shorter_keys
+            and tokens[stop - 1].isalpha()
+            and len(tokens[stop - 1]) == 1
+        ):
+            continue
+        out.append(span)
+    return out
 
 
 def high_precision_press_aliases(seed: dict[str, Any]) -> list[str]:

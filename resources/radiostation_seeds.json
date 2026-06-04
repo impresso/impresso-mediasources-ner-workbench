@@ -187,7 +187,11 @@
       "Radio Vatikan",
       "Radio-Vatikan",
       "Radio Vaticano",
-      "Radio Vaticana"
+      "Radio Vaticana",
+      "radio de la Cité du Vatican",
+      "Radio de la Cité du Vatican",
+      "radio de la Cite du Vatican",
+      "Radio de la Cite du Vatican"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Vatican_Radio",
     "wikidata_url": "https://www.wikidata.org/wiki/Q680634",
@@ -207,6 +211,9 @@
       "fr": [
         "Radio Vatican",
         "Radio-Vatican",
+        "radio de la Cité du Vatican",
+        "Radio de la Cité du Vatican",
+        "radio de la Cite du Vatican",
         "Vatican Radio"
       ],
       "en": [

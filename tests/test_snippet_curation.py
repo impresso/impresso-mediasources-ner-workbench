@@ -492,6 +492,48 @@ def test_radiostation_scoring_matches_vatican_radio_alias(tmp_path: Path) -> Non
     assert scored["model"]["predicted_spans"][0]["label"] == "org.ent.radiostation.vatican-radio"
 
 
+def test_radiostation_scoring_matches_vatican_radio_descriptive_alias(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_candidates.jsonl"
+    scored_path = tmp_path / "radio_scored.jsonl"
+    seeds_path = tmp_path / "radiostation_seeds.json"
+    seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "vatican-radio",
+                    "label": "org.ent.radiostation.vatican-radio",
+                    "display_name": "Vatican Radio",
+                    "aliases": ["Radio Vatican", "radio de la Cité du Vatican"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "radio-vatican-city",
+                "label": "org.ent.radiostation",
+                "station": "radio_vatican",
+                "query": "Radio Vatican",
+                "language": "fr",
+                "snippet": "La radio de la Cité du Vatican a diffusé une déclaration.",
+            }
+        ],
+    )
+
+    score_radiostation_rows(
+        type("Args", (), {"input": str(input_path), "output": str(scored_path), "radiostations": str(seeds_path)})
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    assert scored["candidate_label"] == "org.ent.radiostation.vatican-radio"
+    assert scored["curation"]["reasons"] == []
+    assert scored["model"]["predicted_spans"][0]["surface"] == "radio de la Cité du Vatican"
+    assert scored["model"]["predicted_spans"][0]["label"] == "org.ent.radiostation.vatican-radio"
+
+
 def test_radiostation_alias_matching_does_not_swallow_following_word() -> None:
     spans = find_alias_spans(
         ["Radio-Vatican", "a", "declare"],
