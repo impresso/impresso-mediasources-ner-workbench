@@ -374,16 +374,26 @@ def prompt_prediction_spans(
 
     accepted_spans = []
     print("multiple predicted spans; review them one after another")
+    expected_label = target_label(row)
     for span_index, span in enumerate(spans, start=1):
         print("  " + span_line(span, span_index))
+        if expected_label and span.get("label") != expected_label:
+            print(f"  label mismatch: prediction={span.get('label')} candidate={expected_label}")
+            print("  use c to keep this boundary with the candidate label, m for another correction, or r to reject this span")
         while True:
-            raw = input("this span: [a]ccept [m]anual correction [r]eject [N]umbered tokens > ").strip()
+            raw = input("this span: [a]ccept predicted label [c]andidate label [m]anual correction [r]eject [N]umbered tokens > ").strip()
             if raw == "N":
                 print(numbered_tokens(row))
                 continue
             raw = raw.lower()
             if raw == "a":
                 accepted_spans.append(span)
+                break
+            if raw == "c":
+                if not expected_label:
+                    print("No candidate label is available; use manual correction.")
+                    continue
+                accepted_spans.append({**span, "label": expected_label})
                 break
             if raw == "m":
                 manual_spans = prompt_manual_spans(row, label_metadata)

@@ -5,7 +5,14 @@ from pathlib import Path
 from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
 from lib.export_snippet_training_data import export_rows
-from lib.review_newsagency_snippets import coverage_priority, parse_manual_span, prompt_manual_spans, review_loop, row_needs_coverage
+from lib.review_newsagency_snippets import (
+    coverage_priority,
+    parse_manual_span,
+    prompt_manual_spans,
+    prompt_prediction_spans,
+    review_loop,
+    row_needs_coverage,
+)
 from lib.review_radiostation_snippets import materialize_views
 from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
 from lib.sample_newsagencies import (
@@ -1471,6 +1478,43 @@ def test_prompt_manual_spans_can_cancel_without_saving(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     assert prompt_manual_spans(row, {}) is None
+
+
+def test_prediction_span_review_can_correct_to_candidate_label(monkeypatch, capsys) -> None:
+    row = {
+        "text": "Telegraphen-Union berichtet:",
+        "tokens": ["Telegraphen-Union", "berichtet", ":"],
+        "token_start_offsets": [0, 19, 28],
+        "token_end_offsets": [18, 27, 29],
+        "candidate_label": "org.ent.pressagency.telegraphen-union",
+        "curation": {"label": "org.ent.pressagency.telegraphen-union"},
+    }
+    spans = [
+        {
+            "token_start": 0,
+            "token_stop": 1,
+            "label": "org.ent.pressagency.tass",
+            "surface": "Telegraphen-Union",
+            "confidence": 0.338,
+            "margin": 0.088,
+        },
+        {
+            "token_start": 1,
+            "token_stop": 2,
+            "label": "org.ent.pressagency.wolff",
+            "surface": "berichtet",
+            "confidence": 0.520,
+            "margin": 0.256,
+        },
+    ]
+    answers = iter(["c", "r"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    accepted = prompt_prediction_spans(row, spans, {})
+
+    captured = capsys.readouterr()
+    assert accepted == [{**spans[0], "label": "org.ent.pressagency.telegraphen-union"}]
+    assert "label mismatch: prediction=org.ent.pressagency.tass candidate=org.ent.pressagency.telegraphen-union" in captured.out
 
 
 def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeypatch, capsys) -> None:

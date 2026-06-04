@@ -117,6 +117,8 @@ Use review only when the embedded agency name is not clearly identifiable or the
 
 Use `org.ent.pressagency.telegraphen-union` for `Telegraphen-Union`, `T.U.`, and contextual Weimar-period source formulas such as `Berlin, 7. Januar. (UTA)`. For `UTA`, require parenthesized or formulaic dispatch-source context and a plausible German/Swiss newspaper date/location context. Do not map `UTA` to `org.ent.pressagency.ats-sda`.
 
+For `Telegraphen-Union berichtet:` and comparable source phrases, annotate only `Telegraphen-Union`. Verbs such as `berichtet` are context cues and remain `O`.
+
 ## CTK / Czechoslovak News Agency
 
 Use `org.ent.pressagency.ctk` for CTK/ČTK, Ceteka, the Czech/Czechoslovak News Agency, `Československá tisková kancelář`, and German historical renderings such as `tschechoslowakische Nachrichtenagentur`, `tschechoslowakischen Nachrichtenagentur`, or `Tschechoslowakisches Nachrichtenbüro`.
