@@ -136,6 +136,25 @@ def test_alias_matcher_keeps_final_period_for_dotted_acronym_alias() -> None:
     ]
 
 
+def test_alias_matcher_keeps_final_period_for_dotted_ats_alias() -> None:
+    tokens = ["MOSCOU", ",", "7", "(", "A", ".", "T", ".", "S", ".", ")", "."]
+
+    spans = find_alias_spans(tokens, ["A.T.S."], "org.ent.pressagency.ats-sda")
+
+    assert spans == [
+        {
+            "token_start": 4,
+            "token_stop": 10,
+            "label": "org.ent.pressagency.ats-sda",
+            "surface": "A . T . S .",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "matcher": "alias_compact",
+            "alias": "A.T.S.",
+        }
+    ]
+
+
 def test_suppress_contained_same_label_spans_keeps_full_acronym_span() -> None:
     spans = [
         {"token_start": 19, "token_stop": 25, "label": "org.ent.pressagency.afp", "surface": "A. F. P."},

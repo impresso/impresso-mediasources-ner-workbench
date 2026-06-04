@@ -31,16 +31,16 @@ Annotators work on sampled search results and short paragraph-sized contexts, no
 
 ## Core Task
 
-Annotate every explicit mention of a specific canonical news agency. For radio stations and broadcasters, annotate mentions when the context relates to the organization's media, broadcast, programme, news, publication, institutional broadcaster, or media-source function.
+Annotate the visible organization-name span for every explicit mention of a specific canonical news agency. For radio stations and broadcasters, annotate the visible organization-name span when the mention refers to the broadcaster/media outlet, its broadcasts, programmes, institutional organization, media staff, or media-source function.
 
-Typical positive contexts:
+Typical positive examples:
 
-- `Reuters meldet ...`
-- `Selon l'agence Havas ...`
-- `D.N.B. berichtet ...`
-- `Radio Londres annonce ...`
-- `Nach einer Meldung der BBC ...`
-- `Le poste de Moscou diffuse ...`
+- `Reuters meldet ...` -> annotate `Reuters`
+- `Selon l'agence Havas ...` -> annotate `agence Havas`
+- `D.N.B. berichtet ...` -> annotate `D.N.B.`
+- `Radio Londres annonce ...` -> annotate `Radio Londres`
+- `Nach einer Meldung der BBC ...` -> annotate `BBC`
+- `Le poste de Moscou diffuse ...` -> annotate the mapped station expression if canonical metadata supports it
 - an article about Reuters, BBC, or another canonical organization as a topic
 - a business story about an agency merger, office, ownership, staff, or infrastructure
 - a programme schedule, channel listing, or broadcast listing that mentions a canonical radio station
@@ -121,12 +121,18 @@ For radio-station names and acronyms, do not annotate every string match. If the
 
 ### Annotate
 
-Annotate every explicit mention of a specific canonical news agency, and every media-function mention of a canonical radio station or broadcaster. This includes source-attribution contexts:
+Annotate the visible organization-name span for every explicit mention of a specific canonical news agency. This is intentionally broader than the MA-thesis source-attribution setup: source attribution is not required. A mention remains positive when the article discusses the agency, its staff, directors, correspondents, offices, ownership, legal status, mergers, infrastructure, or role in public life.
 
-- source verbs: `meldet`, `berichtet`, `annonce`, `communique`, `déclare`, `diffuse`, `broadcasts`, `reports`
-- source nouns: `Meldung`, `dépêche`, `communiqué`, `bulletin`, `émission`, `broadcast`
-- dateline/source formulas: `(Reuter)`, `(Havas)`, `(D.N.B.)`, `Radio Londres:`
+For radio stations and broadcasters, annotate the visible organization-name span when the mention refers to the broadcaster/media outlet, its broadcasts, programmes, institutional organization, media staff, or media-source function.
+
+Surrounding verbs and nouns are only context evidence. Do not annotate words such as `meldet`, `berichtet`, `annonce`, `dépêche`, `communiqué`, `émission`, or `broadcast` unless they are part of the visible organization name. In `Reuters meldet ...`, annotate only `Reuters`. In `Radio Londres annonce ...`, annotate only `Radio Londres`.
+
+Common positive evidence includes:
+
+- source formulas: `(Reuter)`, `(Havas)`, `(D.N.B.)`, `(A. T. S.)`, `Radio Londres:`
 - indirect source attribution: `nach Reuter`, `selon Havas`, `d'après la BBC`
+- source verbs near the mention: `meldet`, `berichtet`, `annonce`, `communique`, `déclare`, `diffuse`, `broadcasts`, `reports`
+- source nouns near the mention: `Meldung`, `dépêche`, `communiqué`, `bulletin`, `émission`, `broadcast`
 
 Also annotate institutional, business, and programme contexts:
 
@@ -136,6 +142,8 @@ Also annotate institutional, business, and programme contexts:
 - `Fusion de l'agence Havas avec ...`
 - `Programme de Radio Londres ...`
 - `BBC Orchestra ...`
+
+Do not annotate the string when the context clearly refers to a different, derived, or homographic non-media organization rather than the canonical agency/broadcaster. For example, a sports fixture `BBC (Damen) — Nilvange (Damen)` is negative because `BBC` denotes a basketball/club/team context, not the broadcaster. The same principle applies to football clubs, local associations, teams, or other organizations that share an acronym or name with a media source.
 
 ### Agence Radio vs Radio Stations
 
@@ -149,7 +157,6 @@ Annotate formulaic dispatch-source mentions such as `(Radio.)` as `org.ent.press
 - political, diplomatic, financial, or international news dispatches rather than programme listings
 
 Do not annotate bare `Radio` as Agence Radio when it is just a medium, a generic radio reference, a programme heading, or part of a canonical broadcaster/station name such as `Radio Paris`, `Radio Londres`, `Radio Moscou`, `Radio Vatican`, or `Radio Luxembourg`.
-- `B. B. C. (1500 an 261 m) ...`
 
 ### Do Not Annotate
 

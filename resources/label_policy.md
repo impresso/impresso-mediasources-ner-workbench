@@ -35,7 +35,7 @@ These are not trainable output labels:
 - `pers.ind.articleauthor`
 - generic organization labels
 - generic source markers without a resolved organization
-- homographic radio-station acronyms used for unrelated non-media clubs, teams, or associations
+- homographic media-source acronyms used for unrelated non-media clubs, teams, associations, or other organizations
 
 Bare `ag` in the thesis meant generic `ag.`, `agence`, or `Agentur`. It remains negative/O unless a specific canonical organization can be resolved.
 
@@ -45,18 +45,26 @@ Do not annotate:
 - author or correspondent signatures such as initials, reporter names, or old `pers.ind.articleauthor` cases
 - OCR strings where the organization cannot be identified confidently
 
-## Positive Contexts
+## Positive Scope
 
-Positive mentions include:
+Annotate the visible organization-name span, not the surrounding evidence words. Verbs and nouns such as `meldet`, `berichtet`, `annonce`, `dépêche`, `communiqué`, `émission`, or `broadcast` are context cues only and are not part of the entity span unless they are part of the visible organization name.
+
+Positive news-agency mentions include every explicit mention of a specific canonical news agency, including source attribution, article-topic mentions, people/staff contexts, institutional contexts, offices, mergers, ownership, infrastructure, and legal or business stories. Source attribution is not required.
+
+Positive radio-station/broadcaster mentions include explicit mentions tied to the broadcaster/media outlet, broadcasts, programmes, institutional organization, media staff, or media-source function.
+
+Common positive evidence includes:
 
 - source formulas: `(Reuter)`, `(Havas)`, `(D.N.B.)`, `Radio Londres:`
 - indirect source attribution: `nach Reuter`, `selon Havas`, `d'après la BBC`
+- source verbs near the mention: `meldet`, `berichtet`, `annonce`, `diffuse`, `reports`
+- source nouns near the mention: `Meldung`, `dépêche`, `communiqué`, `bulletin`, `émission`
 - institutional or business mentions: offices, mergers, ownership, staff, infrastructure
 - article-topic mentions about a canonical news agency, or about a radio station/broadcaster in its media role
 - programme schedules, channel listings, and broadcast listings naming a canonical radio station
 - broadcaster-related programme entities such as `BBC Orchestra` or `BBC Scottish Orchestra`
 
-Radio-station acronym/name matches are negative when the context clearly refers to a non-media organization, for example a sports fixture listing such as `BBC (Damen) — Nilvange (Damen)`.
+Matches are negative when the context clearly refers to a different, derived, or homographic non-media organization rather than the canonical media source. For example, a sports fixture listing such as `BBC (Damen) — Nilvange (Damen)` is negative because the acronym denotes a team/club context, not the broadcaster. The same applies to football clubs, local associations, teams, or other organizations sharing an acronym or name.
 
 ## Boundary Policy
 
