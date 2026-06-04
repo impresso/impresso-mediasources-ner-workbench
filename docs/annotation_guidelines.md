@@ -83,6 +83,7 @@ Examples:
 - Deutsches Nachrichtenbüro / DNB
 - Deutsche Presse-Agentur / DPA
 - TASS
+- Tanjug / Tan Jug.
 - Wolff
 - Agence Radio
 

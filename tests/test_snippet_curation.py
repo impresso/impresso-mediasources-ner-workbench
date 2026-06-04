@@ -697,6 +697,12 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                     "label": "org.ent.pressagency.ats-sda",
                     "display_name": "Schweizerische Depeschenagentur",
                     "aliases": ["Schweizerische Depeschenagentur", "Schweizer Depeschenagentur", "SDA"],
+                },
+                {
+                    "canonical_id": "tanjug",
+                    "label": "org.ent.pressagency.tanjug",
+                    "display_name": "Tanjug",
+                    "aliases": ["Tanjug", "Tan Jug."],
                 }
             ]
         ),
@@ -712,6 +718,14 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                 "query": "Radio London",
                 "language": "de",
                 "snippet": "Wie die Schweizer Depeschenagentur aus London berichtet, gab Radio London bekannt.",
+            },
+            {
+                "id": "radio-vatican-with-tanjug",
+                "label": "org.ent.radiostation",
+                "station": "radio_vatican",
+                "query": "Radio Vatican",
+                "language": "fr",
+                "snippet": "Belgrade, 7 juillet. (Tan Jug.) — Le journal communiste publie la nouvelle.",
             }
         ],
     )
@@ -729,13 +743,21 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
         )
     )
 
-    scored = json.loads(scored_path.read_text(encoding="utf-8"))
-    spans = scored["model"]["predicted_spans"]
+    scored_rows = [
+        json.loads(line)
+        for line in scored_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    london_scored = next(row for row in scored_rows if row["id"] == "radio-london-with-sda")
+    tanjug_scored = next(row for row in scored_rows if row["id"] == "radio-vatican-with-tanjug")
+    london_spans = london_scored["model"]["predicted_spans"]
+    tanjug_spans = tanjug_scored["model"]["predicted_spans"]
     assert any(
         span["surface"] == "Schweizer Depeschenagentur" and span["label"] == "org.ent.pressagency.ats-sda"
-        for span in spans
+        for span in london_spans
     )
-    assert any(span["surface"] == "Radio London" and span["label"] == "org.ent.radiostation.bbc" for span in spans)
+    assert any(span["surface"] == "Radio London" and span["label"] == "org.ent.radiostation.bbc" for span in london_spans)
+    assert any(span["surface"] == "Tan Jug." and span["label"] == "org.ent.pressagency.tanjug" for span in tanjug_spans)
 
 
 def test_radiostation_scoring_does_not_emit_generic_label(tmp_path: Path) -> None:

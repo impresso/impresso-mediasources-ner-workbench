@@ -1126,5 +1126,62 @@
         "url": "https://de.wikipedia.org/wiki/Schweizerische_Politische_Korrespondenz"
       }
     ]
+  },
+  {
+    "canonical_id": "tanjug",
+    "label": "org.ent.pressagency.tanjug",
+    "display_name": "Tanjug",
+    "aliases": [
+      "Tanjug",
+      "TANJUG",
+      "Tan Jug",
+      "Tan Jug.",
+      "Tan-Jug",
+      "Agence Tanjug",
+      "agence Tanjug"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Tanjug",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q371267",
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "Yugoslav state news agency founded in 1943 as Telegrafska agencija nove Jugoslavije, the Telegraphic Agency of New Yugoslavia. Historical French and German newspapers may cite it in dispatch-source formulas as Tanjug, TANJUG, Tan Jug., or Tan-Jug.",
+    "active_period": {
+      "start": "1943",
+      "end": "2021",
+      "note": "Founded in 1943 as Yugoslavia's official news agency; the Serbian state-owned agency officially ceased in 2021, while the Tanjug brand continued under a private company."
+    },
+    "aliases_by_language": {
+      "en": [
+        "Tanjug",
+        "TANJUG",
+        "Telegraphic Agency of New Yugoslavia"
+      ],
+      "de": [
+        "Tanjug",
+        "TANJUG",
+        "Tan Jug",
+        "Tan-Jug"
+      ],
+      "fr": [
+        "Tanjug",
+        "TANJUG",
+        "Tan Jug",
+        "Tan Jug.",
+        "Tan-Jug",
+        "Agence Tanjug",
+        "agence Tanjug"
+      ]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q371267"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Tanjug"
+      }
+    ],
+    "annotation_note": "Use for source attributions such as (Tan Jug.) or Belgrade dateline formulas where the context matches a news-agency dispatch. Do not treat Jugoslav place or nationality words alone as agency mentions."
   }
 ]
