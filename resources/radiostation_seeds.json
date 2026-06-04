@@ -3,9 +3,11 @@
     "canonical_id": "bbc",
     "label": "org.ent.radiostation.bbc",
     "display_name": "BBC",
-    "aliases": ["BBC", "Radio Londres", "Radio London"],
+    "aliases": ["BBC", "Radio Londres", "Radio London", "Radio Londra", "Londoner Rundfunk"],
     "wikipedia_url": "https://en.wikipedia.org/wiki/BBC",
     "wikidata_url": null,
+    "description": "British public broadcaster. In wartime European newspaper contexts, names such as Radio Londres, Radio London, Radio Londra, and Londoner Rundfunk usually refer to BBC foreign-language broadcasts from London rather than to separate stations. These broadcasts could involve Free French, exile-government, resistance, or other allied contributors, but the broadcasting infrastructure and service were part of the BBC's wider European output.",
+    "annotation_note": "Normalize wartime foreign-language references to Radio Londres/Radio London/Radio Londra/Londoner Rundfunk to org.ent.radiostation.bbc when the context is a broadcast, source attribution, programme, or broadcaster mention.",
     "trainable": true,
     "status": "seed_from_sampler"
   },
@@ -68,5 +70,131 @@
     "wikidata_url": null,
     "trainable": true,
     "status": "seed_from_sampler"
+  },
+  {
+    "canonical_id": "rts",
+    "label": "org.ent.radiostation.rts",
+    "display_name": "Radio Télévision Suisse",
+    "aliases": [
+      "RTS",
+      "Radio Télévision Suisse",
+      "Radio Television Suisse",
+      "Radio Suisse Romande",
+      "RSR",
+      "Radio-Télévision Suisse",
+      "Radio-Television Suisse"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Suisse_Romande",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q3416973",
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "Swiss public broadcaster for French-speaking Switzerland. Radio Suisse Romande (RSR), founded in 1922 as a radio unit of SRG SSR, merged with Télévision Suisse Romande in 2010 to form Radio Télévision Suisse (RTS), covering radio, television, and online services.",
+    "active_period": {
+      "start": "1922",
+      "end": null,
+      "note": "Radio Suisse Romande existed as RSR until the 2010 merger; the continuing broadcaster is Radio Télévision Suisse (RTS)."
+    },
+    "aliases_by_language": {
+      "de": [
+        "RTS",
+        "Radio Télévision Suisse",
+        "Radio Suisse Romande",
+        "RSR"
+      ],
+      "fr": [
+        "RTS",
+        "Radio Télévision Suisse",
+        "Radio Suisse Romande",
+        "RSR"
+      ],
+      "en": [
+        "RTS",
+        "Radio Television Suisse",
+        "Radio Suisse Romande",
+        "RSR"
+      ]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q3416973"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Radio_Suisse_Romande"
+      }
+    ]
+  },
+  {
+    "canonical_id": "rtl",
+    "label": "org.ent.radiostation.rtl",
+    "display_name": "RTL / Radio Luxembourg",
+    "aliases": [
+      "RTL",
+      "Radio Luxembourg",
+      "Radio Luxemburg",
+      "Radio Télévision Luxembourg",
+      "Radio Television Luxembourg",
+      "Radio-Télé-Luxembourg",
+      "Radio-Tele-Luxembourg",
+      "Radio Luxembourg 208",
+      "RTL Radio",
+      "RTL Radio Lëtzebuerg",
+      "RTL Radio Letzebuerg"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Luxembourg",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q3196539",
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "Luxembourg-based multilingual commercial broadcaster launched in 1933 and widely known as Radio Luxembourg; in many non-English contexts the broadcaster was known as RTL, from Radio Télévision Luxembourg. The historical English-language Radio Luxembourg service ended in 1992, while related RTL radio and television brands continue under the RTL broadcaster/media group.",
+    "active_period": {
+      "start": "1933",
+      "end": null,
+      "note": "Historical Radio Luxembourg service launched in 1933; the English-language service ended in 1992, while related RTL radio/television broadcaster brands continue."
+    },
+    "aliases_by_language": {
+      "de": [
+        "RTL",
+        "Radio Luxemburg",
+        "Radio Luxembourg",
+        "Radio Télévision Luxembourg",
+        "RTL Radio"
+      ],
+      "fr": [
+        "RTL",
+        "Radio Luxembourg",
+        "Radio Télévision Luxembourg",
+        "Radio-Télé-Luxembourg"
+      ],
+      "en": [
+        "RTL",
+        "Radio Luxembourg",
+        "Radio Television Luxembourg",
+        "Radio Luxembourg 208"
+      ],
+      "lb": [
+        "RTL",
+        "RTL Radio Lëtzebuerg",
+        "Radio Lëtzebuerg"
+      ]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q3196539"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Radio_Luxembourg"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/RTL_Radio"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/RTL_Group"
+      }
+    ]
   }
 ]

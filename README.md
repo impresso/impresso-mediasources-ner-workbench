@@ -160,6 +160,8 @@ For basic curation of the existing French/German dev and test folds, run the sel
 make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
+To build only one fold's review queue, use `make curate-legacy-validation ...` or `make curate-legacy-test ...` with the same arguments.
+
 The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains a deterministic `review_id`, document metadata, gold entity, predicted entity, token context, and a `decision` block for manual curation.
 
 For iterative or multi-reviewer curation, store decisions in `data/curated/legacy-eval-curation/review/decisions.jsonl` and regenerate the review files. Rows with a matching `review_id` are marked with the saved decision, and remaining items are written to `todo_disagreements.jsonl`.
@@ -183,6 +185,26 @@ make validate-curation PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 
 Use `ARGS=--no-require-complete` only for in-progress review snapshots.
 
+After validation, apply the reviewed decisions to a new curated JSONL directory:
+
+```bash
+make apply-curation PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
+```
+
+This writes revised folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Boundary corrections are parsed from notes such as `13:15 "Agence Wolff" label=org.ent.pressagency.wolff`.
+
+To inspect the exact ground-truth changes before publishing or retraining, compare the original and curated JSONL files with `git diff --no-index`:
+
+```bash
+git diff --no-index data/curated/legacy-import/validation.jsonl data/curated/legacy-import-curated/validation.jsonl
+git diff --no-index data/curated/legacy-import/test.jsonl data/curated/legacy-import-curated/test.jsonl
+git diff --no-index data/curated/legacy-import/label_map.json data/curated/legacy-import-curated/label_map.json
+```
+
+For a decision-level audit, inspect `data/curated/legacy-import-curated/curation_changes.jsonl`. Decisions marked as `ignored` are documented there and leave the corresponding annotation unchanged for this curation pass.
+
+For a lightweight NER-tag overview, inspect `data/curated/legacy-import-curated/curation_changes_tags.tsv`. It is a CoNLL-like TSV grouped by review item, with comments followed by `TOKEN`, `BEFORE_NERTAG`, and `AFTER_NERTAG` columns. Context comments and review displays use the HIPE `NoSpaceAfter` render metadata where available, so abbreviations and elisions appear in natural form such as `D.N.B.` or `l'Agence`, not as whitespace-joined token strings.
+
 The fine-tuned Hugging Face model repository is configured as `HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner`. The v0.1 label space covers news agencies and radio stations; the repository name leaves room for future cited media-source families such as newspaper citations.
 
 ```bash
@@ -195,7 +217,7 @@ make push-model PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk MODEL=models
 make help
 make smoke
 make validate-labels
-make sample-newsagencies ARGS="--dry-run --max-docs 10"
+make sample-newsagencies ARGS="--dry-run --labels org.ent.pressagency.reuters --max-queries-per-label 1"
 make sample-radiostations ARGS="--dry-run --max-docs 10"
 make export-dataset
 make download-mlm-sources
@@ -206,7 +228,51 @@ make publish-dataset ARGS="--dry-run"
 make publish-testset ARGS="--dry-run"
 make train CFG=configs/model-v0.1.0.mk
 make test CFG=configs/model-v0.1.0.mk
+make apply-curation CFG=configs/model-v0.1.0.mk
+make score-newsagency-snippets CFG=configs/model-v0.1.0.mk
+make review-newsagency-snippets CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
+make export-newsagency-snippets CFG=configs/model-v0.1.0.mk
+make score-radiostation-snippets CFG=configs/model-v0.1.0.mk
+make review-radiostation-spans CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
+make export-radiostation-snippets CFG=configs/model-v0.1.0.mk
+make review-radiostation-snippets CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
 make push-model CFG=configs/model-v0.1.0.mk
+```
+
+## Publish Dataset
+
+The training dataset publisher prepares a Hugging Face-ready directory from the curated JSONL without uploading by default:
+
+```bash
+make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
+```
+
+By default this reads `data/curated/legacy-import-curated/` and writes `/private/tmp/impresso-mediasources-ner-dataset/` with:
+
+```text
+README.md
+data/train.jsonl
+data/validation.jsonl
+data/test.jsonl
+label_map.json
+dataset_summary.json
+audit/curation_summary.json
+audit/curation_changes.jsonl
+audit/curation_changes_tags.tsv
+```
+
+The publisher validates entity labels against `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`. To upload after inspecting the staged directory:
+
+```bash
+make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk ARGS="--upload"
+```
+
+The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
+
+To open a Hub pull request instead of pushing directly:
+
+```bash
+make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk ARGS="--upload --create-pr"
 ```
 
 Most commands are scaffolded and will become active as the implementation lands.
@@ -216,6 +282,8 @@ Most commands are scaffolded and will become active as the implementation lands.
 See [WORKBENCH_PLAN.md](WORKBENCH_PLAN.md) for the implementation plan and thesis-derived requirements.
 
 See [docs/annotation_guidelines.md](docs/annotation_guidelines.md) for the news-agency and radio-station annotation rules.
+
+See [docs/curation.md](docs/curation.md) for the legacy dev/test curation and review workflow.
 
 See [docs/jsonl_schema.md](docs/jsonl_schema.md) for the annotated JSONL field contract and its mapping from the legacy HIPE TSV CoNLL-style format.
 

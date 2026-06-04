@@ -1,4 +1,9 @@
-from lib.build_curation_review import build_disagreements, stable_review_id, summarize
+import argparse
+from pathlib import Path
+
+import pytest
+
+from lib.build_curation_review import build_disagreements, context, selected_split_inputs, stable_review_id, summarize
 
 
 def test_build_disagreements_groups_overlap_and_extra_prediction() -> None:
@@ -12,6 +17,7 @@ def test_build_disagreements_groups_overlap_and_extra_prediction() -> None:
             "tokens": ["foo", "Agence", "Havas", "bar", "Reuters"],
             "token_start_offsets": [0, 4, 11, 17, 21],
             "token_end_offsets": [3, 10, 16, 20, 28],
+            "text": "foo Agence Havas bar Reuters",
         }
     ]
     prediction_rows = [
@@ -88,3 +94,42 @@ def test_build_disagreements_applies_saved_decisions() -> None:
     assert rows[0]["decision"]["status"] == "done"
     assert rows[0]["decision"]["choice"] == "gold"
     assert summarize(rows)["by_status"] == {"done": 1}
+
+
+def test_context_uses_natural_text_offsets_without_synthetic_spaces() -> None:
+    source = {
+        "tokens": ["D", ".", "N", ".", "B", ".", "Ende"],
+        "token_start_offsets": [0, 1, 2, 3, 4, 5, 7],
+        "token_end_offsets": [1, 2, 3, 4, 5, 6, 11],
+        "token_render": ["NoSpaceAfter", "NoSpaceAfter", "NoSpaceAfter", "NoSpaceAfter", "NoSpaceAfter", "_", "_"],
+        "text": "D.N.B. Ende",
+    }
+
+    row = context(source, [(0, 6, "org.ent.pressagency.dnb")], radius=1)
+
+    assert row["text"] == "D.N.B. Ende"
+
+
+def test_selected_split_inputs_accepts_test_only() -> None:
+    args = argparse.Namespace(
+        splits="test",
+        validation_jsonl="",
+        validation_predictions="",
+        test_jsonl="test.jsonl",
+        test_predictions="test_predictions.jsonl",
+    )
+
+    assert selected_split_inputs(args) == [("test", Path("test.jsonl"), Path("test_predictions.jsonl"))]
+
+
+def test_selected_split_inputs_requires_requested_paths() -> None:
+    args = argparse.Namespace(
+        splits="validation",
+        validation_jsonl="",
+        validation_predictions="",
+        test_jsonl="test.jsonl",
+        test_predictions="test_predictions.jsonl",
+    )
+
+    with pytest.raises(ValueError, match="validation requires"):
+        selected_split_inputs(args)

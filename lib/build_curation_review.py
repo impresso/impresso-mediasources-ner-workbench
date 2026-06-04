@@ -81,22 +81,48 @@ def entity_record(entity: Entity | None, row: dict[str, Any]) -> dict[str, Any] 
     if entity is None:
         return None
     start, stop, label = entity
-    tokens = row["tokens"][start:stop]
     token_start_offsets = row.get("token_start_offsets", [])
     token_end_offsets = row.get("token_end_offsets", [])
     char_start = token_start_offsets[start] if start < len(token_start_offsets) else None
     char_stop = token_end_offsets[stop - 1] if stop - 1 < len(token_end_offsets) else None
+    surface = natural_text(row, start, stop)
     return {
         "label": label,
         "token_start": start,
         "token_stop": stop,
-        "surface": " ".join(tokens),
+        "surface": surface,
         "char_start": char_start,
         "char_stop": char_stop,
     }
 
 
-def context(tokens: list[str], entities: list[Entity], radius: int) -> dict[str, Any]:
+def natural_text(row: dict[str, Any], start: int, stop: int) -> str:
+    token_start_offsets = row.get("token_start_offsets", [])
+    token_end_offsets = row.get("token_end_offsets", [])
+    text = row.get("text")
+    if (
+        isinstance(text, str)
+        and start < len(token_start_offsets)
+        and stop > start
+        and stop - 1 < len(token_end_offsets)
+    ):
+        return text[token_start_offsets[start] : token_end_offsets[stop - 1]]
+    return render_tokens(row["tokens"][start:stop], row.get("token_render", [])[start:stop])
+
+
+def render_tokens(tokens: list[str], token_render: list[str] | None = None) -> str:
+    token_render = token_render or [""] * len(tokens)
+    parts = []
+    for index, token in enumerate(tokens):
+        parts.append(token)
+        render = token_render[index] if index < len(token_render) else ""
+        if "NoSpaceAfter" not in render and index != len(tokens) - 1:
+            parts.append(" ")
+    return "".join(parts)
+
+
+def context(row: dict[str, Any], entities: list[Entity], radius: int) -> dict[str, Any]:
+    tokens = row["tokens"]
     if entities:
         start = max(0, min(entity[0] for entity in entities) - radius)
         stop = min(len(tokens), max(entity[1] for entity in entities) + radius)
@@ -107,7 +133,8 @@ def context(tokens: list[str], entities: list[Entity], radius: int) -> dict[str,
         "token_start": start,
         "token_stop": stop,
         "tokens": tokens[start:stop],
-        "text": " ".join(tokens[start:stop]),
+        "token_render": row.get("token_render", [])[start:stop],
+        "text": natural_text(row, start, stop),
     }
 
 
@@ -182,7 +209,7 @@ def review_item(
         "issue_type": issue_type,
         "gold": entity_record(gold, source),
         "prediction": entity_record(pred, source),
-        "context": context(source["tokens"], entities, context_radius),
+        "context": context(source, entities, context_radius),
         "decision": {
             "status": decision.get("status", "todo"),
             "choice": decision.get("choice", ""),
@@ -229,15 +256,35 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build manual curation review JSONL from evaluation predictions.")
-    parser.add_argument("--validation-jsonl", required=True)
-    parser.add_argument("--validation-predictions", required=True)
-    parser.add_argument("--test-jsonl", required=True)
-    parser.add_argument("--test-predictions", required=True)
+    parser.add_argument("--validation-jsonl", default="")
+    parser.add_argument("--validation-predictions", default="")
+    parser.add_argument("--test-jsonl", default="")
+    parser.add_argument("--test-predictions", default="")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--decisions-jsonl", default="")
     parser.add_argument("--languages", default="de fr")
     parser.add_argument("--context-radius", type=int, default=20)
+    parser.add_argument("--splits", default="validation test", help='Whitespace-separated subset, e.g. "validation" or "test".')
     return parser.parse_args(argv)
+
+
+def selected_split_inputs(args: argparse.Namespace) -> list[tuple[str, Path, Path]]:
+    available = {
+        "validation": (args.validation_jsonl, args.validation_predictions),
+        "test": (args.test_jsonl, args.test_predictions),
+    }
+    selected = args.splits.split()
+    unknown = sorted(set(selected) - set(available))
+    if unknown:
+        raise ValueError(f"unknown split(s): {', '.join(unknown)}")
+
+    out = []
+    for split in selected:
+        source, predictions = available[split]
+        if not source or not predictions:
+            raise ValueError(f"{split} requires --{split}-jsonl and --{split}-predictions")
+        out.append((split, Path(source), Path(predictions)))
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -246,10 +293,7 @@ def main(argv: list[str] | None = None) -> int:
     languages = set(args.languages.split())
     decisions = load_decisions(Path(args.decisions_jsonl) if args.decisions_jsonl else None)
     all_rows: list[dict[str, Any]] = []
-    for split, source_path, prediction_path in [
-        ("validation", Path(args.validation_jsonl), Path(args.validation_predictions)),
-        ("test", Path(args.test_jsonl), Path(args.test_predictions)),
-    ]:
+    for split, source_path, prediction_path in selected_split_inputs(args):
         rows = build_disagreements(
             split,
             load_jsonl(source_path),
@@ -264,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
         all_rows.extend(rows)
 
     write_jsonl(output_dir / "all_disagreements.jsonl", all_rows)
-    write_jsonl(output_dir / "todo_disagreements.jsonl", [row for row in all_rows if row["decision"]["status"] != "done"])
+    write_jsonl(output_dir / "todo_disagreements.jsonl", [row for row in all_rows if row["decision"]["status"] == "todo"])
     write_json(output_dir / "summary.json", summarize(all_rows))
     print(json.dumps(summarize(all_rows), ensure_ascii=False, sort_keys=True))
     return 0

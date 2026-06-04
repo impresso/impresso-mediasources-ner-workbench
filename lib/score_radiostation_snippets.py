@@ -1,0 +1,265 @@
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
+from .score_newsagency_snippets import (
+    attach_surfaces,
+    device_for,
+    import_runtime,
+    labels_to_spans,
+    resolve_model_ref,
+    score_tokens,
+)
+
+
+def normalize_station_id(value: Any) -> str:
+    return str(value or "").strip().lower().replace("_", "-")
+
+
+def load_station_metadata(path: Path) -> dict[str, dict[str, Any]]:
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    metadata: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        station_id = normalize_station_id(row.get("canonical_id"))
+        label = str(row.get("label", ""))
+        if station_id and label.startswith("org.ent.radiostation."):
+            metadata[station_id] = row
+    return metadata
+
+
+def seed_aliases(seed: dict[str, Any]) -> list[str]:
+    aliases = []
+    for alias in seed.get("aliases") or []:
+        if isinstance(alias, str) and alias.strip():
+            aliases.append(alias.strip())
+    aliases_by_language = seed.get("aliases_by_language") or {}
+    if isinstance(aliases_by_language, dict):
+        for values in aliases_by_language.values():
+            for alias in values or []:
+                if isinstance(alias, str) and alias.strip():
+                    aliases.append(alias.strip())
+    display = seed.get("display_name")
+    if isinstance(display, str) and display.strip():
+        aliases.append(display.strip())
+    return unique_strings(aliases)
+
+
+def build_alias_index(metadata: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    for seed in metadata.values():
+        for alias in seed_aliases(seed):
+            key = compact(alias)
+            if key and key not in index:
+                index[key] = seed
+    return index
+
+
+def row_station_id(row: dict[str, Any]) -> str:
+    station = normalize_station_id(row.get("station") or row.get("agency"))
+    if station:
+        return station
+    label = str(row.get("candidate_label") or row.get("label") or "")
+    if label.startswith("org.ent.radiostation."):
+        return normalize_station_id(label.rsplit(".", 1)[-1])
+    return ""
+
+
+def unique_strings(values: list[str]) -> list[str]:
+    seen = set()
+    unique = []
+    for value in values:
+        key = value.casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(value)
+    return unique
+
+
+def non_generic_radio_label(row: dict[str, Any]) -> str:
+    label = str(row.get("candidate_label") or row.get("label") or "")
+    if label.startswith("org.ent.radiostation.") and label != "org.ent.radiostation":
+        return label
+    return ""
+
+
+def aliases_for_row(
+    row: dict[str, Any],
+    metadata: dict[str, dict[str, Any]],
+    alias_index: dict[str, dict[str, Any]],
+) -> tuple[str, list[str]]:
+    station_id = row_station_id(row)
+    aliases = []
+    query = str(row.get("query") or "").strip()
+    if query:
+        aliases.append(query)
+    seed = metadata.get(station_id) or alias_index.get(compact(query)) or {}
+    aliases.extend(seed_aliases(seed))
+    label = str(seed.get("label") or non_generic_radio_label(row))
+    return label, unique_strings(aliases)
+
+
+def token_window_surface(tokens: list[str], start: int, stop: int) -> str:
+    return " ".join(tokens[start:stop])
+
+
+def compact(value: str) -> str:
+    return re.sub(r"\W+", "", value, flags=re.UNICODE).casefold()
+
+
+def has_word_char(value: str) -> bool:
+    return bool(re.search(r"\w", value, flags=re.UNICODE))
+
+
+def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[dict[str, Any]]:
+    spans: list[dict[str, Any]] = []
+    seen = set()
+    alias_forms = [(alias, compact(alias)) for alias in aliases if compact(alias)]
+    max_len = max((len(alias.split()) + 3 for alias in aliases), default=1)
+    for start in range(len(tokens)):
+        for stop in range(start + 1, min(len(tokens), start + max_len) + 1):
+            if not has_word_char(tokens[start]) or not has_word_char(tokens[stop - 1]):
+                continue
+            surface = token_window_surface(tokens, start, stop)
+            surface_compact = compact(surface)
+            for alias, alias_compact in alias_forms:
+                if surface_compact != alias_compact:
+                    continue
+                key = (start, stop, label)
+                if key in seen:
+                    continue
+                seen.add(key)
+                spans.append(
+                    {
+                        "token_start": start,
+                        "token_stop": stop,
+                        "label": label,
+                        "surface": surface,
+                        "confidence": 1.0,
+                        "margin": 1.0,
+                        "matcher": "alias_compact",
+                        "alias": alias,
+                    }
+                )
+    return spans
+
+
+def attach_offsets(spans: list[dict[str, Any]], starts: list[int], stops: list[int], text: str) -> list[dict[str, Any]]:
+    out = []
+    for span in spans:
+        start = int(span["token_start"])
+        stop = int(span["token_stop"])
+        if start < 0 or stop <= start or stop > len(starts):
+            continue
+        item = dict(span)
+        item["start"] = starts[start]
+        item["stop"] = stops[stop - 1]
+        item["surface"] = text[item["start"] : item["stop"]]
+        out.append(item)
+    return out
+
+
+def dedupe_spans(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    seen = set()
+    for span in spans:
+        key = (int(span["token_start"]), int(span["token_stop"]), str(span["label"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(span)
+    return out
+
+
+def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, Any] | None:
+    model_name = str(getattr(args, "model", "") or "")
+    if not model_name:
+        return None
+    torch, model_cls, tokenizer_cls = import_runtime()
+    model_ref = resolve_model_ref(model_name)
+    device = device_for(str(getattr(args, "device", "auto")), torch)
+    tokenizer = tokenizer_cls.from_pretrained(model_ref)
+    model = model_cls.from_pretrained(model_ref).to(device)
+    model.eval()
+    return torch, tokenizer, model, device, model_name
+
+
+def score_rows(args: argparse.Namespace) -> dict[str, Any]:
+    metadata = load_station_metadata(Path(args.radiostations))
+    alias_index = build_alias_index(metadata)
+    model_runtime = load_model_runtime(args)
+    rows = []
+    counts = {"needs_review": 0, "no_alias_match": 0, "model_span": 0, "unresolved_label": 0}
+    for index, row in enumerate(load_jsonl(Path(args.input)), start=1):
+        text, tokens, starts, stops = candidate_tokens(row)
+        label, aliases = aliases_for_row(row, metadata, alias_index)
+        alias_spans = attach_offsets(find_alias_spans(tokens, aliases, label), starts, stops, text) if label else []
+        model_spans: list[dict[str, Any]] = []
+        if model_runtime is not None:
+            torch, tokenizer, model, device, _model_name = model_runtime
+            labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, int(getattr(args, "max_sequence_len", 512)))
+            model_spans = attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text)
+        spans = dedupe_spans(alias_spans + model_spans)
+        out = dict(row)
+        out["id"] = candidate_id(row, index)
+        out["candidate_label"] = label or None
+        out["entity_family"] = "radiostation"
+        out["text"] = text
+        out["tokens"] = tokens
+        out["token_start_offsets"] = starts
+        out["token_end_offsets"] = stops
+        out["model"] = {
+            "repo_id": str(getattr(args, "model", "") or "alias-matcher"),
+            "scorers": ["radiostation_alias_matcher"] + (["token_classifier"] if model_runtime is not None else []),
+            "predicted_spans": spans,
+        }
+        reasons = []
+        if not label:
+            reasons.append("unresolved_radiostation_label")
+        if not alias_spans:
+            reasons.append("no_alias_span_match")
+        if model_runtime is not None and model_spans:
+            reasons.append("model_predicted_mediaagency_span")
+        out["curation"] = {
+            "status": "needs_review",
+            "label": out["candidate_label"],
+            "reasons": reasons,
+            "reviewer": None,
+            "reviewed_at": None,
+            "notes": None,
+        }
+        counts["needs_review"] += 1
+        if not alias_spans:
+            counts["no_alias_match"] += 1
+        if model_spans:
+            counts["model_span"] += 1
+        if not label:
+            counts["unresolved_label"] += 1
+        rows.append(out)
+    write_jsonl(Path(args.output), rows)
+    return {"rows": len(rows), **counts, "output": args.output}
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Score radio-station snippets with deterministic seed alias matching.")
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--radiostations", default="resources/radiostation_seeds.json")
+    parser.add_argument("--model", default="")
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--max-sequence-len", type=int, default=512)
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    print(json.dumps(score_rows(args), ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

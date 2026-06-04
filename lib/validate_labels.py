@@ -59,6 +59,15 @@ def validate_rows(rows: list[dict[str, Any]], *, expected_prefix: str, source: P
         if trainable and expected_prefix == "org.ent.pressagency.":
             if not (isinstance(wikipedia_url, str) and wikipedia_url.startswith("https://")):
                 errors.append(f"{where}: trainable news-agency row must have wikipedia_url")
+            description = row.get("description")
+            if not (isinstance(description, str) and description.strip()):
+                errors.append(f"{where}: trainable news-agency row must have description")
+            active_period = row.get("active_period")
+            if not isinstance(active_period, dict) or "start" not in active_period or "end" not in active_period:
+                errors.append(f"{where}: trainable news-agency row must have active_period with start/end")
+            aliases_by_language = row.get("aliases_by_language")
+            if not isinstance(aliases_by_language, dict) or not any(aliases_by_language.get(lang) for lang in ("de", "fr", "en")):
+                errors.append(f"{where}: trainable news-agency row must have aliases_by_language")
 
     return errors
 

@@ -1,5 +1,7 @@
 # Annotation Guidelines
 
+**Version 2.0**
+
 These guidelines define how to annotate news-agency and radio-station mentions for the Impresso media sources dataset.
 
 The dataset trains one joint token-classification model with two entity families:
@@ -9,9 +11,27 @@ The dataset trains one joint token-classification model with two entity families
 
 Annotators work on sampled search results and short paragraph-sized contexts, not complete long articles. The goal is to capture explicit mentions of canonical news agencies and radio stations cleanly while keeping the annotation task fast and consistent.
 
+## Table Of Contents
+
+- [Core Task](#core-task)
+- [Annotation Unit](#annotation-unit)
+- [Entity Families](#entity-families)
+  - [News Agencies](#news-agencies)
+  - [Radio Stations](#radio-stations)
+- [Positive And Negative Decisions](#positive-and-negative-decisions)
+  - [Annotate](#annotate)
+  - [Do Not Annotate](#do-not-annotate)
+- [Boundaries](#boundaries)
+- [OCR And Normalization](#ocr-and-normalization)
+- [Labels And Exclusions](#labels-and-exclusions)
+- [Paragraph-Level Sampling Workflow](#paragraph-level-sampling-workflow)
+- [Quality Statuses](#quality-statuses)
+- [Differences From The MA Thesis Guidelines](#differences-from-the-ma-thesis-guidelines)
+- [Examples](#examples)
+
 ## Core Task
 
-Annotate every explicit mention of a specific canonical news agency or radio station in the paragraph, regardless of whether it is used as a cited source, institutional topic, business actor, office, broadcaster, or programme listing.
+Annotate every explicit mention of a specific canonical news agency. For radio stations and broadcasters, annotate mentions when the context relates to the organization's media, broadcast, programme, news, publication, institutional broadcaster, or media-source function.
 
 Typical positive contexts:
 
@@ -24,11 +44,13 @@ Typical positive contexts:
 - an article about Reuters, BBC, or another canonical organization as a topic
 - a business story about an agency merger, office, ownership, staff, or infrastructure
 - a programme schedule, channel listing, or broadcast listing that mentions a canonical radio station
+- a broadcaster-related programme item such as `BBC Orchestra`, `BBC Scottish Orchestra`, or a BBC broadcast service
 
 Typical negative contexts:
 
 - a generic phrase such as `une agence`, `ag.`, or `Agentur` without a resolved real organization
 - an author signature or correspondent attribution
+- a homographic non-media organization, club, or team such as `BBC (Damen)` in a basketball fixture list
 
 The annotation target is the organization mention, not the whole sentence and not the article.
 
@@ -62,12 +84,13 @@ Examples:
 - Deutsche Presse-Agentur / DPA
 - TASS
 - Wolff
+- Agence Radio
 
 Only labels backed by canonical metadata in `resources/newsagency_seeds.json` are trainable labels.
 
 ### Radio Stations
 
-Use `org.ent.radiostation.<canonical_id>` for real radio stations or broadcasters whenever the specific station is mentioned.
+Use `org.ent.radiostation.<canonical_id>` for real radio stations or broadcasters when the mention is tied to the organization's media, broadcasting, programme, news, or institutional broadcaster function.
 
 Examples:
 
@@ -78,14 +101,24 @@ Examples:
 - Voice of America
 - Radio Free Europe
 - Deutsche Welle
+- RTS / Radio Télévision Suisse / Radio Suisse Romande / RSR
+- RTL / Radio Luxembourg / Radio Télévision Luxembourg
 
-Annotate every specific canonical radio-station mention, including source-like uses, institutional references, and programme or broadcast schedule mentions.
+Annotate specific canonical radio-station mentions when the context is connected to broadcasting, media production, media organizations, programme schedules, news/source attribution, or institutional broadcaster activity.
+
+Treat broad broadcasters such as the BBC as media outlets/broadcasters for this dataset, even when the visible service is television rather than radio. `BBC Television`, `BBC TV`, and television-programme contexts are positive when they refer to the broadcaster/media outlet.
+
+Use the publication date and surrounding programme/source context to disambiguate BBC-related London radio names. For World War II and occupation-era material, normalize popular foreign-language names for BBC broadcasts from London to `org.ent.radiostation.bbc`. This includes `Radio Londres`, `Radio London`, `Radio Londra`, and `Londoner Rundfunk` when the context is a broadcast, source attribution, programme, or broadcaster mention. These names were often listener/newspaper labels for BBC foreign-language services rather than separate station names. The broadcast content may involve Free French, exile-government, resistance, or allied contributors, but for this dataset the media outlet label is still BBC.
+
+For earlier programme guides, especially 1920s material, `Radio-Londres` may identify the London broadcasting station by city rather than the later wartime French-language service. A wavelength such as `365 m` is a strong contextual clue for the London station 2LO/BBC London transmitter. Annotate the visible span as printed, for example `Radio-Londres`, and use `org.ent.radiostation.bbc` as the current canonical label. In notes or downstream entity-linking metadata this can be distinguished as a pre-war London station/BBC-related service, but do not create a separate training label unless the canonical metadata is explicitly extended.
+
+For radio-station names and acronyms, do not annotate every string match. If the same acronym/name is used for a sports club, local association, team, or other non-media organization, keep it negative/O.
 
 ## Positive And Negative Decisions
 
 ### Annotate
 
-Annotate every explicit mention of a specific canonical agency or station. This includes source-attribution contexts:
+Annotate every explicit mention of a specific canonical news agency, and every media-function mention of a canonical radio station or broadcaster. This includes source-attribution contexts:
 
 - source verbs: `meldet`, `berichtet`, `annonce`, `communique`, `déclare`, `diffuse`, `broadcasts`, `reports`
 - source nouns: `Meldung`, `dépêche`, `communiqué`, `bulletin`, `émission`, `broadcast`
@@ -99,6 +132,21 @@ Also annotate institutional, business, and programme contexts:
 - `L'agence Havas fut critiquée ...`
 - `Fusion de l'agence Havas avec ...`
 - `Programme de Radio Londres ...`
+- `BBC Orchestra ...`
+
+### Agence Radio vs Radio Stations
+
+`Agence Radio` is a historical French press agency, not a radio-station label. Despite the name, it distributed telegrams, international news, and political information to newspapers; `Radio` refers to radiotelegraph/wireless transmission technology and to the agency name, not to a broadcaster in ordinary source formulas.
+
+Annotate formulaic dispatch-source mentions such as `(Radio.)` as `org.ent.pressagency.agence-radio` when the publication date and context support a French news-agency attribution. Strong positive clues include:
+
+- French newspaper source formulas parallel to `(Havas.)`, `(Reuter.)`, `(D.N.B.)`, or `(A.F.P.)`
+- dateline plus source pattern such as `Londres, le 15 janvier ... (Radio.)`
+- dates in the agency's active period, especially 1918-1944
+- political, diplomatic, financial, or international news dispatches rather than programme listings
+
+Do not annotate bare `Radio` as Agence Radio when it is just a medium, a generic radio reference, a programme heading, or part of a canonical broadcaster/station name such as `Radio Paris`, `Radio Londres`, `Radio Moscou`, `Radio Vatican`, or `Radio Luxembourg`.
+- `B. B. C. (1500 an 261 m) ...`
 
 ### Do Not Annotate
 
@@ -120,14 +168,16 @@ Do not annotate unresolved unknowns as labels. Mark them for review if they migh
 
 ## Boundaries
 
-Annotate the shortest complete organization mention.
+Annotate the shortest span that preserves the full visible organization-name surface. In compounds, the full compound token or hyphenated compound may be the correct practical span when a canonical agency name is embedded in it.
 
 Include:
 
 - abbreviation-internal periods: `D.N.B.`, `A.F.P.`
 - abbreviation-internal hyphens or slashes when part of the name: `ATS-SDA`, `Kipa/Apic`
 - words that are part of the official name: `Agence France Presse`, `United Press`
+- generic type words when they are used as part of the proper-name surface: `Agence Havas`, `Agence Wolff`, `Agence Reuter`
 - OCR-noisy characters that belong to the mention if the mention is still identifiable
+- full compound tokens or hyphenated compounds when a canonical agency name is embedded in the compound
 
 Exclude:
 
@@ -136,16 +186,60 @@ Exclude:
 - generic words unless they are part of the proper name
 - article titles or sentence context outside the name
 
-German compounds:
+News-agency names with `Agence`:
 
-- Annotate only the agency-name part when possible: `Reuter` in `Reutermeldung`.
-- If the annotation tool cannot select a substring inside a token, flag the case for review instead of expanding to a misleading full compound label.
+- Include `Agence` when it immediately precedes a specific agency name and functions as part of the named mention.
+- Exclude articles and elided articles before it: annotate `Agence Wolff`, not `l' Agence Wolff`.
+- Prefer the full visible proper-name surface over the shortest canonical label token. For example, annotate `Agence Havas`, not only `Havas`, when both words are cleanly present.
+- If the text only has the agency name without `Agence`, annotate the name alone: `Havas`, `Wolff`, `Reuter`, `Reuters`.
+- If `agence` is lowercase or syntactically generic but immediately names the organization, include it when the phrase is still the proper-name surface: `l'agence Havas` -> `agence Havas`.
+- Do not include generic descriptors that are not part of the name: in `une agence de presse Havas` or `l'agence télégraphique Reuter`, annotate `Havas` or `Reuter` unless the source clearly uses `Agence Havas` or `Agence Reuter` as the name.
+- Do not include corrupted tokens merely because they might stand for `Agence`. If OCR gives `A qgcncc Reuter`, annotate the clean identifiable name `Reuter` and add a correction note if useful.
+- If `Agence` is readable but the following agency token is OCR-noisy and identifiable, include the readable `Agence` plus the noisy agency token, and record the normalized form in notes.
+
+Examples:
+
+| Text                     | Annotate       | Do not annotate             |
+| ------------------------ | -------------- | --------------------------- |
+| `l' Agence Wolff`        | `Agence Wolff` | `l' Agence Wolff`, `Wolff`  |
+| `Agence Havas`           | `Agence Havas` | `Havas`                     |
+| `presse , Havas .`       | `Havas`        | `presse , Havas`, `Havas .` |
+| `l'agence Havas annonce` | `agence Havas` | `l'agence`, `Havas`         |
+| `A qgcncc Reuter`        | `Reuter`       | `A qgcncc Reuter`           |
+
+Compounds:
+
+- If a canonical news-agency name appears inside a compound, annotate the full compound token or hyphenated compound.
+- This rule is intended to keep annotation fast, reproducible, and compatible with token-level BIO export.
+- The canonical label should still refer to the agency, even when the surface span contains a compound suffix or modifier.
+- Use `review` only when the embedded agency name is not clearly identifiable or the compound could refer to something else.
+
+Examples:
+
+| Text                    | Annotate                | Label                         | Note                              |
+| ----------------------- | ----------------------- | ----------------------------- | --------------------------------- |
+| `Reutermeldung`         | `Reutermeldung`         | `org.ent.pressagency.reuters` | full compound token               |
+| `Havasbericht`          | `Havasbericht`          | `org.ent.pressagency.havas`   | full compound token               |
+| `DNB-Nachricht`         | `DNB-Nachricht`         | `org.ent.pressagency.dnb`     | hyphenated compound               |
+| `Reuters-Korrespondent` | `Reuters-Korrespondent` | `org.ent.pressagency.reuters` | hyphenated compound               |
+| `Reuterbureau`          | `Reuterbureau`          | `org.ent.pressagency.reuters` | compound with historical spelling |
 
 Radio-station names:
 
 - Include `Radio` when it is part of the station name: `Radio Paris`, `Radio Moscou`.
-- For `BBC`, annotate the acronym alone unless the full name is present.
-- Do not include words like `poste`, `sender`, or `station` unless they are part of the name or needed to identify a historical station label.
+- For `BBC`, annotate the acronym alone unless the visible name/service phrase includes a broadcaster-service word such as `Television` or `TV`.
+- Include `Television` in `BBC Television` when both words form the visible broadcaster-service name. Annotate `BBC` alone in generic phrases such as `BBC announced ...` or `on BBC`.
+- Do not include words like `poste`, `sender`, or `station` when they are only generic descriptors.
+- Include such words only when the expression functions as a historical station label and the station would otherwise be hard to identify.
+
+Examples:
+
+| Text                             | Annotate          | Label or decision                                 | Note                          |
+| -------------------------------- | ----------------- | ------------------------------------------------- | ----------------------------- |
+| `Radio Paris annonce ...`        | `Radio Paris`     | `org.ent.radiostation.radio_paris`                | `Radio` is part of the name   |
+| `la station BBC annonce ...`     | `BBC`             | `org.ent.radiostation.bbc`                        | `station` is generic          |
+| `le poste de Moscou diffuse ...` | `poste de Moscou` | review or canonical radio-station label if mapped | historical station expression |
+| `Nach einer Sendung der BBC ...` | `BBC`             | `org.ent.radiostation.bbc`                        | source-like use               |
 
 ## OCR And Normalization
 
@@ -212,18 +306,18 @@ Keep negative examples. They are especially important for short acronyms and rad
 
 Each paragraph candidate should receive a curation status:
 
-| Status | Meaning | Training use |
-| --- | --- | --- |
-| `accepted` | Contains one or more verified canonical agency/station mentions. | Include. |
-| `negative` | Contains no specific canonical agency/station mention but is useful contrastive material. | Include as all-`O`. |
-| `review` | Potential mention needs a decision or canonical metadata update. | Exclude until resolved. |
-| `non_usable` | Too noisy, too little context, wrong language, or broken OCR. | Exclude. |
+| Status       | Meaning                                                      | Training use            |
+| ------------ | ------------------------------------------------------------ | ----------------------- |
+| `accepted`   | Contains one or more verified canonical agency/station mentions. | Include.                |
+| `negative`   | Contains no specific canonical agency/station mention but is useful contrastive material. | Include as all-`O`.     |
+| `review`     | Potential mention needs a decision or canonical metadata update. | Exclude until resolved. |
+| `non_usable` | Too noisy, too little context, wrong language, or broken OCR. | Exclude.                |
 
 Use `review` for ambiguous historical labels rather than forcing uncertain annotations.
 
 ## Differences From The MA Thesis Guidelines
 
-The new guidelines change the central semantic rule from the MA thesis. The MA thesis focused on explicit source attributions. The new dataset annotates every explicit mention of a specific canonical news agency or radio station in the paragraph.
+The new guidelines change the central semantic rule from the MA thesis. The MA thesis focused on explicit source attributions. The new dataset annotates every explicit mention of a specific canonical news agency in the paragraph, and radio-station/broadcaster mentions when they are tied to the organization's media function.
 
 Important continuities:
 
@@ -231,15 +325,16 @@ Important continuities:
 - Abbreviation-internal periods remain part of the mention.
 - Sentence-final punctuation remains outside the mention.
 - Generic words like `agence` or `Agentur` are excluded unless part of a proper name.
-- German compounds should not be over-annotated.
+- Compounds containing recognizable canonical agency names should be annotated as full compound tokens or hyphenated compounds.
 - Author attributions are not target entities.
 
 Important changes:
 
 - The new dataset includes both news agencies and radio stations in one model.
 - Source attribution is no longer required for a positive label.
-- Mentions of agencies or stations as article topics, institutional actors, business entities, offices, staff, infrastructure, programme schedules, or broadcast listings are positive when the organization is specific and canonical.
-- Radio stations are first-class labels whenever the specific canonical station is mentioned.
+- Mentions of news agencies as article topics, institutional actors, business entities, offices, staff, infrastructure, or source attributions are positive when the organization is specific and canonical.
+- Radio stations and broadcasters are first-class labels when the mention is tied to broadcasting, media production, media-source use, programme schedules, news/source attribution, or institutional broadcaster activity.
+- Radio-station acronyms used for unrelated clubs, teams, or associations are negative/O.
 - Annotation is paragraph-centered, not full-document-centered.
 - The workflow begins from sampled search results and query provenance.
 - Negative paragraph examples are deliberately curated for disambiguation.
@@ -253,12 +348,31 @@ The practical consequence is that annotators should spend less time deciding whe
 
 ## Examples
 
-| Text | Decision | Span | Label |
-| --- | --- | --- | --- |
-| `Selon Reuters, la situation reste confuse.` | annotate | `Reuters` | `org.ent.pressagency.reuters` |
-| `Reuters ouvre un nouveau bureau.` | annotate | `Reuters` | `org.ent.pressagency.reuters` |
-| `D.N.B. meldet aus Berlin ...` | annotate | `D.N.B.` | `org.ent.pressagency.dnb` |
-| `Nach einer Sendung der BBC ...` | annotate | `BBC` | `org.ent.radiostation.bbc` |
-| `La BBC modifie son programme.` | annotate | `BBC` | `org.ent.radiostation.bbc` |
-| `ag. meldet ...` | do not label as agency | none | all `O`, possible review |
-| `sn` as a signature | do not annotate | none | all `O` |
+| Text                                         | Decision                                             | Span              | Label                                                        |
+| -------------------------------------------- | ---------------------------------------------------- | ----------------- | ------------------------------------------------------------ |
+| `Selon Reuters, la situation reste confuse.` | annotate                                             | `Reuters`         | `org.ent.pressagency.reuters`                                |
+| `Reuters ouvre un nouveau bureau.`           | annotate                                             | `Reuters`         | `org.ent.pressagency.reuters`                                |
+| `D.N.B. meldet aus Berlin ...`               | annotate                                             | `D.N.B.`          | `org.ent.pressagency.dnb`                                    |
+| `l'agence Havas annonce ...`                 | annotate                                             | `agence Havas`    | `org.ent.pressagency.havas`                                  |
+| `Reutermeldung aus Berlin ...`               | annotate                                             | `Reutermeldung`   | `org.ent.pressagency.reuters`                                |
+| `DNB-Nachricht über die Lage ...`            | annotate                                             | `DNB-Nachricht`   | `org.ent.pressagency.dnb`                                    |
+| `Londres, le 15 janvier ... (Radio.)`        | annotate                                             | `Radio`           | `org.ent.pressagency.agence-radio`; dispatch-source formula  |
+| `Nach einer Sendung der BBC ...`             | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
+| `La BBC modifie son programme.`              | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
+| `Radio Londres annonce ...`                  | annotate                                             | `Radio Londres`   | `org.ent.radiostation.bbc`                                   |
+| `Radio Londra comunica ...`                  | annotate                                             | `Radio Londra`    | `org.ent.radiostation.bbc`                                   |
+| `Londoner Rundfunk meldet ...`               | annotate                                             | `Londoner Rundfunk` | `org.ent.radiostation.bbc`                                 |
+| `BBC Television diffuse ...`                 | annotate                                             | `BBC Television`  | `org.ent.radiostation.bbc`                                   |
+| `un programme de BBC TV ...`                 | annotate                                             | `BBC TV`          | `org.ent.radiostation.bbc`                                   |
+| `BBC Scottish Orchestra ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
+| `BBC (Damen) — Nilvange (Damen)`             | do not annotate                                      | none              | all `O`; basketball/team context, not broadcaster function   |
+| `la radio diffuse le concert ...`            | do not annotate                                      | none              | generic medium, not Agence Radio                            |
+| `Radio Paris annonce ...`                    | annotate                                             | `Radio Paris`     | `org.ent.radiostation.radio_paris`                           |
+| `la station BBC annonce ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
+| `le poste de Moscou diffuse ...`             | review or annotate if canonical mapping is available | `poste de Moscou` | `org.ent.radiostation.<canonical_id>` or review              |
+| `Reutei annonce ...`                         | annotate if identifiable                             | `Reutei`          | `org.ent.pressagency.reuters`; normalized surface `Reuter` or `Reuters` |
+| `D . N . B . meldet ...`                     | annotate if offsets are preserved                    | `D . N . B .`     | `org.ent.pressagency.dnb`; normalized surface `D.N.B.`       |
+| `AP bat son record ...`                      | do not annotate or mark review                       | none              | all `O`, unless context clearly means Associated Press       |
+| `(AP) Washington ...`                        | annotate if source context is clear                  | `AP`              | `org.ent.pressagency.ap`                                     |
+| `ag. meldet ...`                             | do not label as agency                               | none              | all `O`, possible review                                     |
+| `sn` as a signature                          | do not annotate                                      | none              | all `O`                                                      |

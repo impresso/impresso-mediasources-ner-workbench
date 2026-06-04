@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help smoke validate-labels sample-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-review curate-legacy-eval review-curation validate-curation push-model
+.PHONY: help help-review smoke validate-labels sample-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets review-radiostation-snippets review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -16,7 +16,7 @@ help:
 	@echo "Targets:"
 	@echo "  make smoke                         Run lightweight contract checks"
 	@echo "  make validate-labels               Validate canonical label metadata"
-	@echo "  make sample-newsagencies ARGS=...  Sample news-agency candidates"
+	@echo "  make sample-newsagencies ARGS=...  Sample real news-agency search snippets"
 	@echo "  make sample-radiostations ARGS=... Sample radio-station candidates"
 	@echo "  make curate ARGS=...               Curate candidate JSONL"
 	@echo "  make import-legacy-hipe ARGS=...   Convert legacy HIPE TSV annotations to JSONL"
@@ -31,9 +31,48 @@ help:
 	@echo "  make test CFG=...                  Evaluate via training submodule"
 	@echo "  make test-official CFG=...         Evaluate and record official metrics"
 	@echo "  make curate-legacy-eval CFG=...    Evaluate dev/test and build curation review JSONL"
+	@echo "  make curate-legacy-validation CFG=... Evaluate only legacy dev/validation for curation"
+	@echo "  make curate-legacy-test CFG=...    Evaluate only legacy test for curation"
+	@echo "  make build-newsagency-snippets-from-legacy Build bootstrap snippet candidates from legacy JSONL"
+	@echo "  make score-newsagency-snippets     Score sampled news-agency snippets with current model"
+	@echo "  make review-newsagency-snippets REVIEWER=... Review uncertain news-agency snippets"
+	@echo "  make export-newsagency-snippets    Export accepted news-agency snippets to training JSONL"
+	@echo "  make score-radiostation-snippets   Score sampled radio-station snippets with alias matching"
+	@echo "  make review-radiostation-spans     Review radio-station span suggestions"
+	@echo "  make export-radiostation-snippets  Export accepted radio-station snippets to training JSONL"
+	@echo "  make review-radiostation-snippets REVIEWER=... Triage radio-station snippets"
 	@echo "  make review-curation REVIEWER=...  Review pending curation disagreements in terminal"
 	@echo "  make validate-curation CFG=...     Validate reviewed curation decisions"
+	@echo "  make apply-curation CFG=...        Apply reviewed decisions to JSONL annotations"
 	@echo "  make push-model CFG=...            Push model payload to Hugging Face"
+
+help-review:
+	@echo "Review and curation targets"
+	@echo ""
+	@echo "Legacy dev/test correction:"
+	@echo "  make curate-legacy-eval CURATION_MODEL=...   Score validation+test and build review queue"
+	@echo "  make curate-legacy-validation CURATION_MODEL=... Score validation only"
+	@echo "  make curate-legacy-test CURATION_MODEL=...   Score test only"
+	@echo "  make review-curation                         Review pending gold/prediction disagreements"
+	@echo "  make validate-curation                       Validate curation decisions"
+	@echo "  make apply-curation                          Write curated JSONL folds"
+	@echo ""
+	@echo "News-agency snippet review:"
+	@echo "  make sample-newsagencies                    Sample real Impresso search snippets"
+	@echo "  make build-newsagency-snippets-from-legacy   Bootstrap snippet candidates from legacy JSONL"
+	@echo "  make score-newsagency-snippets               Score sampled snippets with HF_MODEL"
+	@echo "  make review-newsagency-snippets              Review uncertain snippets; press i for label info"
+	@echo "  make export-newsagency-snippets              Export accepted snippets to training JSONL"
+	@echo ""
+	@echo "Radio-station snippet review:"
+	@echo "  make score-radiostation-snippets             Score existing sampled radio snippets by alias"
+	@echo "  make review-radiostation-spans               Review radio-station span suggestions"
+	@echo "  make export-radiostation-snippets            Export accepted spans to training JSONL"
+	@echo "  make review-radiostation-snippets            Triage snippets as yes/no/skip"
+	@echo ""
+	@echo "Useful overrides:"
+	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., NEWSAGENCY_LEGACY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
+	@echo "  AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
 
 smoke:
 	$(PYTHON) -m py_compile lib/*.py hf_model/pipeline.py
@@ -43,7 +82,7 @@ validate-labels:
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json
 
 sample-newsagencies:
-	$(PYTHON) -m lib.sample_newsagencies $(ARGS)
+	$(PYTHON) -m lib.sample_newsagencies --seeds "$(NEWSAGENCY_LABEL_METADATA)" --out "$(NEWSAGENCY_SNIPPETS)" --summary-out "$(NEWSAGENCY_SNIPPET_SUMMARY)" --languages $(NEWSAGENCY_SAMPLE_LANGS) --target-per-query-lang "$(NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG)" --max-queries-per-label "$(NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(NEWSAGENCY_SAMPLE_YEAR_START)" --year-end "$(NEWSAGENCY_SAMPLE_YEAR_END)" $(ARGS)
 
 sample-radiostations:
 	$(PYTHON) -m lib.sample_radiostations $(ARGS)
@@ -71,7 +110,7 @@ push-mlm-model:
 	$(PYTHON) -m lib.push_mlm_model_to_hub --repo-id "$(MLM_HF_MODEL)" --model-dir "$(MLM_OUTPUT_DIR)/final" --card hf_mlm_model/README.md $(ARGS)
 
 publish-dataset:
-	$(PYTHON) -m lib.publish_dataset $(ARGS)
+	$(PYTHON) -m lib.publish_dataset --input-dir "$(DATASET_SOURCE_DIR)" --output-dir "$(DATASET_OUTPUT_DIR)" --repo-id "$(DATASET)" --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json $(ARGS)
 
 publish-testset:
 	$(PYTHON) -m lib.publish_testset $(ARGS)
@@ -90,16 +129,59 @@ curation-eval:
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 
+curation-eval-validation:
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+
+curation-eval-test:
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+
 curation-review:
-	$(PYTHON) -m lib.build_curation_review --validation-jsonl "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" $(ARGS)
+	$(PYTHON) -m lib.build_curation_review --validation-jsonl "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "validation test" $(ARGS)
+
+curation-review-validation:
+	$(PYTHON) -m lib.build_curation_review --validation-jsonl "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "validation" $(ARGS)
+
+curation-review-test:
+	$(PYTHON) -m lib.build_curation_review --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "test" $(ARGS)
 
 curate-legacy-eval: curation-eval curation-review
+
+curate-legacy-validation: curation-eval-validation curation-review-validation
+
+curate-legacy-test: curation-eval-test curation-review-test
+
+build-newsagency-snippets-from-legacy:
+	$(PYTHON) -m lib.build_newsagency_snippets --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/train.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/validation.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/test.jsonl" --output "$(NEWSAGENCY_LEGACY_SNIPPETS)" --context-radius "$(NEWSAGENCY_SNIPPET_CONTEXT_RADIUS)" --limit "$(NEWSAGENCY_SNIPPET_LIMIT)" $(ARGS)
+
+score-newsagency-snippets:
+	$(PYTHON) -m lib.score_newsagency_snippets --input "$(NEWSAGENCY_SNIPPETS)" --output "$(NEWSAGENCY_SCORED_SNIPPETS)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
+
+review-newsagency-snippets:
+	$(PYTHON) -m lib.review_newsagency_snippets --input "$(NEWSAGENCY_SCORED_SNIPPETS)" --output "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
+
+export-newsagency-snippets:
+	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --label-map "$(LABEL_MAP)" $(ARGS)
+
+score-radiostation-snippets:
+	$(PYTHON) -m lib.score_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --output "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" $(ARGS)
+
+review-radiostation-spans:
+	$(PYTHON) -m lib.review_newsagency_snippets --input "$(RADIOSTATION_SCORED_SNIPPETS)" --output "$(RADIOSTATION_REVIEWED_SNIPPETS)" --decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --review-prefix "radiostation-span" $(ARGS)
+
+export-radiostation-snippets:
+	$(PYTHON) -m lib.export_snippet_training_data --input "$(RADIOSTATION_REVIEWED_SNIPPETS)" --output "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" $(ARGS)
+
+review-radiostation-snippets:
+	$(PYTHON) -m lib.review_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --output-dir "$(RADIOSTATION_SNIPPET_OUTPUT_DIR)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" $(ARGS)
 
 review-curation:
 	$(PYTHON) -m lib.review_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/todo_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --reviewer "$(REVIEWER)" $(ARGS)
 
 validate-curation:
 	$(PYTHON) -m lib.validate_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --require-complete $(ARGS)
+
+apply-curation:
+	$(PYTHON) -m lib.apply_curation_decisions --input-dir "$(CURATION_INPUT_DIR)" --output-dir "$(CURATION_APPLIED_DIR)" --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --splits "validation test" --require-complete $(ARGS)
 
 push-model:
 	$(PYTHON) -m lib.push_model_to_hub --repo-id "$(HF_MODEL)" --model "$(MODEL)" --card hf_model/README.md $(ARGS)

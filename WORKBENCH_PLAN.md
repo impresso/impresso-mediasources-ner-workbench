@@ -175,7 +175,7 @@ For the new JSONL inference output:
 | --- | --- | --- |
 | Workbench GitHub repo | `impresso-mediasources-ner-workbench` | Control plane for sampling, curation, configs, tests, source HF cards, and publish scripts |
 | Training code submodule | `training/newsagency-radiostation-modernbert-classifier/` | ModernBERT-only token-classification training/evaluation code adapted from Nikki's repo |
-| HF training dataset repo | `impresso-project/newsagency-radiostation-dataset` | Published curated training data for both entity families |
+| HF training dataset repo | `impresso-project/impresso-mediaagencies-ner-dataset` | Published curated training data for both entity families |
 | HF testset repo | `impresso-project/newsagency-radiostation-testset` | Frozen held-out benchmark |
 | HF model repo | `impresso-project/mmbert-impresso-mediasources-ner` | Published model payload and self-contained HF inference pipeline for source-mention NER |
 | HF continued-MLM model repo | `impresso-project/mmbert-multilingual-impresso-continued-mlm` | Domain-adapted multilingual mmBERT checkpoint from continued MLM on Impresso text |
@@ -238,7 +238,7 @@ impresso-mediasources-ner-workbench/
     README.md
 
   hub/
-    newsagency-radiostation-dataset/
+    impresso-mediaagencies-ner-dataset/
     newsagency-radiostation-testset/
     mmbert-impresso-mediasources-ner/
     multilingualmodernimpressoBERT/
@@ -294,6 +294,33 @@ Status: todo unless marked otherwise.
 - [ ] Export accepted news-agency and radio-station material into training JSONL.
 - [ ] Keep rejected and ambiguous radio-station/news-agency material as curation evidence, not trainable labels.
 - [ ] Add small fixtures and tests for candidate schema validation and export behavior.
+
+### Applying Legacy Evaluation Curation
+
+Implemented for the legacy French/German dev and test folds:
+
+- Generate model-vs-gold disagreements with `make curate-legacy-eval`.
+- Store reviewer decisions append-only in `data/curated/legacy-eval-curation/review/decisions.jsonl`.
+- Validate completed decisions with `make validate-curation`.
+- Apply completed decisions with `make apply-curation`, writing revised JSONL to `data/curated/legacy-import-curated/`.
+
+The apply step is intentionally non-destructive. It reads `data/curated/legacy-import/` and writes a new output directory containing revised `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, and `curation_summary.json`.
+
+Decision semantics:
+
+- `gold`: keep this row's gold span unless a correction note is supplied.
+- `prediction`: add or replace the overlapping gold span with the prediction span; if a correction note is supplied, use the corrected span instead.
+- `neither`: remove displayed overlapping spans; if a correction note is supplied, add that corrected span.
+- `both`: keep/add both displayed spans only when they can be represented as non-overlapping BIO spans.
+- `skip`: records an audit row but should not be used for final complete curation.
+
+Correction notes use a copyable syntax emitted by the terminal reviewer:
+
+```text
+13:15 "Agence Wolff" label=org.ent.pressagency.wolff
+```
+
+After applying decisions, the script rebuilds `entities`, `token_labels`, and `token_label_ids`, regenerates `label_map.json`, validates the public JSONL schema, and writes an audit row for every applied decision.
 
 ### Canonical Label Metadata
 
@@ -372,6 +399,143 @@ Use one JSON object per line. Keep enough provenance for later audit and reprodu
 ```
 
 Accepted curation should resolve to a canonical label in either the `pressagency` or `radiostation` namespace.
+
+### Sampled Snippets To Additional Training Data
+
+Goal: turn sampled short text snippets into additional supervised training data with minimal human work while avoiding self-training drift.
+
+The workflow should treat news-agency snippets and radio-station snippets differently.
+
+#### News-Agency Snippets: Model-Assisted Active Learning
+
+News agencies already have a legacy-trained model and canonical labels. Use the current model as a proposal generator, not as an unquestioned annotator.
+
+Pipeline:
+
+1. Sample snippets by canonical news-agency query, alias, language, newspaper, and date bucket.
+2. Run the current `mmbert-impresso-mediasources-ner` model on each snippet.
+3. Convert model output into candidate spans with confidence and margin metadata.
+4. Auto-accept only high-confidence, policy-compatible predictions when the predicted label matches the sampled canonical agency or a known alias-compatible canonical label.
+5. Send uncertain or suspicious cases to manual span review.
+6. Export only accepted spans into additional JSONL training rows.
+7. Keep rejected, skipped, and uncertain cases as audit evidence and as future active-learning candidates.
+
+Manual review should be required when:
+
+- no agency span is predicted in a snippet sampled for a concrete agency
+- the predicted label differs from the query agency
+- the confidence is below a configurable threshold
+- competing labels have a small confidence margin
+- the predicted span boundary includes only a generic token such as `Agence`, `Agentur`, or punctuation-adjacent fragments
+- multiple possible agencies are present
+- OCR or abbreviation noise makes the canonical identity unclear
+
+Suggested candidate fields:
+
+```json
+{
+  "id": "snippet-id",
+  "entity_family": "pressagency",
+  "candidate_label": "org.ent.pressagency.reuters",
+  "query": "Reuters",
+  "text": "...",
+  "tokens": ["..."],
+  "model": {
+    "repo_id": "impresso-project/mmbert-impresso-mediasources-ner",
+    "revision": "<sha>",
+    "predicted_spans": [
+      {
+        "token_start": 12,
+        "token_stop": 13,
+        "label": "org.ent.pressagency.reuters",
+        "surface": "Reuters",
+        "confidence": 0.97,
+        "margin": 0.42
+      }
+    ]
+  },
+  "curation": {
+    "status": "auto_accepted|needs_review|accepted|rejected|skipped",
+    "reviewer": null,
+    "reviewed_at": null,
+    "notes": null
+  }
+}
+```
+
+Implementation tasks:
+
+- [ ] Add `make score-newsagency-snippets` to run the current model over sampled news-agency snippets.
+- [ ] Add configurable thresholds for `AUTO_ACCEPT_MIN_CONFIDENCE`, `AUTO_ACCEPT_MIN_MARGIN`, and `REVIEW_MAX_ITEMS`.
+- [ ] Add a review queue for low-confidence or mismatched news-agency snippets.
+- [ ] Add an export command that writes accepted snippet annotations into the same public JSONL schema as the legacy dataset.
+- [ ] Track the source model revision in every auto-accepted record.
+- [ ] Keep auto-accepted and manually accepted rows distinguishable in audit metadata.
+
+#### Radio-Station Snippets: Human Triage First
+
+Radio stations do not yet have reliable span annotations in the current training data. Start with a very lightweight human decision on sampled snippets before attempting full NER annotation.
+
+First-pass human choices:
+
+- `yes`: the snippet mentions the target radio station or another canonical radio station.
+- `no`: the snippet does not mention a radio station in the annotation-policy sense.
+- `skip`: unclear, noisy, needs context, or not worth deciding now.
+
+This pass is intentionally not a full boundary annotation. It creates a high-precision pool of positive snippets and a useful set of negative/irrelevant examples.
+
+Second pass for `yes` snippets:
+
+1. Identify the radio-station span and canonical label.
+2. Apply the annotation guidelines for station names, programme schedules, abbreviations, and broadcaster names.
+3. Export accepted spans to JSONL training data.
+
+For minimal first implementation, the interface can show:
+
+```text
+query: Radio-Paris
+language: fr
+date: 1942-...
+snippet: ...
+
+Choices: [y]es [n]o [s]kip [q]uit
+```
+
+Implementation tasks:
+
+- [ ] Add `make review-radiostation-snippets` for binary/ternary snippet triage.
+- [ ] Store decisions append-only in `data/curated/snippet-curation/radiostations/decisions.jsonl`.
+- [ ] Write `positive_snippets.jsonl`, `negative_snippets.jsonl`, and `skipped_snippets.jsonl`.
+- [ ] Add a later span-annotation queue generated only from `yes` snippets.
+- [ ] Require canonical `org.ent.radiostation.*` labels before any radio-station row enters training data.
+
+#### Training Integration
+
+Additional snippet-derived rows should not immediately replace the legacy dataset. Build them as a separate dataset component first:
+
+```text
+data/curated/snippets/
+  newsagencies/train.jsonl
+  radiostations/triage.jsonl
+  radiostations/span_annotated.jsonl
+  audit/
+```
+
+Then combine with the legacy JSONL through a deterministic merge command:
+
+```text
+make build-training-mixture
+```
+
+The mixture command should:
+
+- preserve `source_component`, for example `legacy_hipe`, `newsagency_snippet_auto`, `newsagency_snippet_manual`, `radiostation_snippet_manual`
+- keep validation/test frozen unless explicitly creating a new development set
+- cap auto-accepted news-agency snippets per label/date/language so frequent agencies do not dominate
+- oversample manually reviewed radio-station positives when training, rather than duplicating rows in the dataset file
+- write a mixture summary with row counts by source component, language, label, decade, and curation status
+
+Quality rule: auto-accepted news-agency snippets are acceptable as training expansion only after spot-checking a random sample per label/language/date bucket. Radio-station snippets require human `yes` triage and later span annotation before they become positive token-classification rows.
 
 ### Curation Policy
 
@@ -849,7 +1013,7 @@ Release config files in the workbench should pin:
 
 ```makefile
 MODEL := models/newsagency_radiostation_modernbert_v0.1.0
-DATASET := impresso-project/newsagency-radiostation-dataset
+DATASET := impresso-project/impresso-mediaagencies-ner-dataset
 DATASET_REVISION := <training-dataset-commit-sha>
 TESTSET := impresso-project/newsagency-radiostation-testset
 TESTSET_REVISION := <testset-commit-sha>
@@ -872,7 +1036,7 @@ Publish data, models, and inference code to Hugging Face so downstream users do 
 
 | Artifact | Proposed repo | Contents |
 | --- | --- | --- |
-| Training data | `impresso-project/newsagency-radiostation-dataset` | Curated JSONL training examples and metadata for both entity families |
+| Training data | `impresso-project/impresso-mediaagencies-ner-dataset` | Curated JSONL training examples and metadata for both entity families |
 | Official test set | `impresso-project/newsagency-radiostation-testset` | Frozen JSONL held-out benchmark with versioned membership |
 | Model payload | `impresso-project/mmbert-impresso-mediasources-ner` | Model weights, tokenizer, `config.json`, `README.md`, `pipeline.py`, `requirements.txt` |
 
@@ -892,7 +1056,7 @@ Publishing scripts copy these into the appropriate HF repos. Do not edit cards o
 
 ### Publishing Tasks
 
-- [ ] Add `hub/newsagency-radiostation-dataset` as a submodule pointing to the HF training dataset repo.
+- [ ] Add `hub/impresso-mediaagencies-ner-dataset` as a submodule pointing to the HF training dataset repo.
 - [ ] Add `hub/newsagency-radiostation-testset` as a submodule pointing to the HF testset repo.
 - [ ] Add `hub/mmbert-impresso-mediasources-ner` as a submodule pointing to the HF model repo.
 - [ ] Implement `lib.publish_dataset` with dry-run preflights.
@@ -991,7 +1155,7 @@ Example shape:
     "4": "I-org.ent.radiostation.bbc"
   },
   "training": {
-    "dataset_source": "hf:impresso-project/newsagency-radiostation-dataset@<sha>",
+    "dataset_source": "hf:impresso-project/impresso-mediaagencies-ner-dataset@<sha>",
     "hyperparameters": {
       "epochs": 3,
       "batch_size": 16,
