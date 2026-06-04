@@ -123,6 +123,12 @@ Use `org.ent.pressagency.ctk` for CTK/ČTK, Ceteka, the Czech/Czechoslovak News 
 
 In source phrases such as `Nach einer ... Meldung der tschechoslowakischen Nachrichtenagentur`, annotate the organization-name phrase only. Source nouns and prepositions such as `Meldung der` are context cues and stay outside the span.
 
+## ATA / Albanian Telegraphic Agency
+
+Use `org.ent.pressagency.ata` for ATA/ATSH, the Albanian Telegraphic Agency, `Agjencia Telegrafike Shqiptare`, and German/French historical renderings such as `albanische Nachrichtenagentur`, `albanischen Nachrichtenagentur`, or `Agence télégraphique albanaise`.
+
+In phrases such as `Die albanische Nachrichtenagentur ATA bestätigte ...`, annotate the resolved agency-name phrase. Prefer the full visible phrase `albanische Nachrichtenagentur ATA` when it is cleanly present; annotate `ATA` alone when only the acronym is present or when the descriptive phrase is outside the selected span.
+
 ## Radio Stations
 
 Annotate specific canonical radio-station mentions when the context is connected to broadcasting, media production, media organizations, programme schedules, news/source attribution, or institutional broadcaster activity.

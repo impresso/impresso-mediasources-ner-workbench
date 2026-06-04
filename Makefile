@@ -160,7 +160,7 @@ review-newsagency-snippets:
 	$(PYTHON) -m lib.review_newsagency_snippets --input "$(NEWSAGENCY_SCORED_SNIPPETS)" --output "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
 
 export-newsagency-snippets:
-	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --label-map "$(LABEL_MAP)" $(ARGS)
+	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
 
 score-radiostation-snippets:
 	$(PYTHON) -m lib.score_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --output "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" $(ARGS)
