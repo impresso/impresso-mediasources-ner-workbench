@@ -1,0 +1,63 @@
+{
+  "base_release": {
+    "hf_commit_sha": "d61b20c14342abbeac8e7628941d961f61ed6580",
+    "hf_revision": "v1.0.0",
+    "release_id": "dataset-v1.0.0"
+  },
+  "created_from": {
+    "curated_source_dir": "data/curated/legacy-import-curated",
+    "prerelease_path": "data/prereleases/dataset-v2.0.0",
+    "snippet_newsagencies_dir": "data/curated/snippets/newsagencies",
+    "snippet_radiostations_dir": "data/curated/snippets/radiostations"
+  },
+  "dataset_repo": "impresso-project/impresso-mediaagencies-ner-dataset",
+  "files": {
+    "base": [
+      "train.jsonl",
+      "validation.jsonl",
+      "test.jsonl",
+      "label_map.json",
+      "dataset_summary.json",
+      "curation_summary.json",
+      "curation_changes.jsonl",
+      "curation_changes_tags.tsv"
+    ],
+    "extensions": [
+      "extensions/newsagencies/train.jsonl",
+      "extensions/newsagencies/test.jsonl",
+      "extensions/radiostations/train.jsonl",
+      "extensions/radiostations/test.jsonl"
+    ]
+  },
+  "notes": "Mutable committed prerelease snapshot for dataset-v2.0.0. This candidate is still accumulating training data and has not been promoted to data/releases/ or published as a final Hugging Face dataset release. JSONL rows use the compact public Hugging Face projection; extension rows additionally keep source_component for release-candidate provenance.",
+  "release_id": "dataset-v2.0.0",
+  "status": "prerelease",
+  "summary": {
+    "documents_by_split": {
+      "test": 145,
+      "train": 1200,
+      "validation": 139
+    },
+    "entities_by_split": {
+      "test": 184,
+      "train": 1352,
+      "validation": 137
+    },
+    "label_count": 37,
+    "languages_by_split": {
+      "test": {
+        "de": 32,
+        "fr": 113
+      },
+      "train": {
+        "de": 325,
+        "fr": 875
+      },
+      "validation": {
+        "de": 32,
+        "fr": 107
+      }
+    }
+  },
+  "version": "2.0.0"
+}

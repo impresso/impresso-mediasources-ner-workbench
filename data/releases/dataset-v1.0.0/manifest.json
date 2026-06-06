@@ -1,0 +1,64 @@
+{
+  "created_from": {
+    "curated_source_dir": "data/curated/legacy-import",
+    "public_projection": "lib.publish_dataset.public_row"
+  },
+  "dataset_repo": "impresso-project/impresso-mediaagencies-ner-dataset",
+  "files": {
+    "hf_payload": [
+      "README.md",
+      "data/train.jsonl",
+      "data/validation.jsonl",
+      "data/test.jsonl",
+      "label_map.json",
+      "dataset_summary.json"
+    ],
+    "release_metadata": [
+      "manifest.json"
+    ]
+  },
+  "ignored_local_audit": [
+    "audit.d/conversion_report.json",
+    "audit.d/train.audit.jsonl",
+    "audit.d/validation.audit.jsonl",
+    "audit.d/test.audit.jsonl",
+    "audit.d/excluded_entities.jsonl"
+  ],
+  "notes": "Initial committed release snapshot for the converted HIPE-derived news-agency dataset that was used for the first Hugging Face dataset publication. Release JSONL files use the compact public Hugging Face projection with wikidata_url as the public entity link and optional ocr_correction for corrected OCR surfaces. Public entities omit synthetic entity IDs; stable references should use row id plus character offsets and label. Integer token label IDs are derived from token_labels and label_map.json when needed. Thesis-era news_agency_as_source provenance is kept in local/audit data and excluded from public rows. Full conversion audit/provenance files are kept locally under ignored audit.d/ and should be archived externally if long-term provenance is needed.",
+  "published_hf": {
+    "commit_sha": "d61b20c14342abbeac8e7628941d961f61ed6580",
+    "repo_id": "impresso-project/impresso-mediaagencies-ner-dataset",
+    "revision": "v1.0.0",
+    "tag": "v1.0.0"
+  },
+  "release_id": "dataset-v1.0.0",
+  "status": "published",
+  "summary": {
+    "documents_by_split": {
+      "test": 145,
+      "train": 1200,
+      "validation": 139
+    },
+    "entities_by_split": {
+      "test": 178,
+      "train": 1352,
+      "validation": 125
+    },
+    "label_count": 37,
+    "languages_by_split": {
+      "test": {
+        "de": 32,
+        "fr": 113
+      },
+      "train": {
+        "de": 325,
+        "fr": 875
+      },
+      "validation": {
+        "de": 32,
+        "fr": 107
+      }
+    }
+  },
+  "version": "1.0.0"
+}

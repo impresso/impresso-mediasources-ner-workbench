@@ -1,0 +1,12 @@
+{
+  "applied": 52,
+  "decisions": 52,
+  "disagreements": 52,
+  "input_dir": "data/curated/legacy-import",
+  "missing": 0,
+  "output_dir": "data/curated/legacy-import-curated",
+  "splits": [
+    "validation",
+    "test"
+  ]
+}
