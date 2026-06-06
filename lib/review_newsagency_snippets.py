@@ -31,6 +31,10 @@ def load_coverage(path: Path | None) -> dict[str, dict[str, Any]]:
     return {str(row.get("label")): row for row in rows if isinstance(row, dict) and row.get("label")}
 
 
+def row_language(row: dict[str, Any]) -> str:
+    return str(row.get("language") or row.get("search_language") or "unknown")
+
+
 def review_labels(row: dict[str, Any]) -> set[str]:
     labels = set()
     for value in (row.get("candidate_label"), row.get("curation", {}).get("label")):
@@ -43,8 +47,19 @@ def review_labels(row: dict[str, Any]) -> set[str]:
     return labels
 
 
-def coverage_missing(label: str, coverage: dict[str, dict[str, Any]]) -> int:
+def coverage_item(label: str, coverage: dict[str, dict[str, Any]], language: str | None = None) -> dict[str, Any]:
     row = coverage.get(label)
+    if not row:
+        return {}
+    if language:
+        languages = row.get("languages")
+        if isinstance(languages, dict) and isinstance(languages.get(language), dict):
+            return languages[language]
+    return row
+
+
+def coverage_missing(label: str, coverage: dict[str, dict[str, Any]], language: str | None = None) -> int:
+    row = coverage_item(label, coverage, language)
     if not row:
         return 1
     return int(row.get("missing_to_target") or 0)
@@ -54,16 +69,19 @@ def row_needs_coverage(row: dict[str, Any], coverage: dict[str, dict[str, Any]])
     labels = review_labels(row)
     if not labels:
         return False
-    return any(coverage_missing(label, coverage) > 0 for label in labels)
+    language = row_language(row)
+    return any(coverage_missing(label, coverage, language) > 0 for label in labels)
 
 
 def coverage_priority(row: dict[str, Any], coverage: dict[str, dict[str, Any]]) -> tuple[int, int, int, str]:
     labels = sorted(review_labels(row))
     if not coverage or not labels:
         return (0, 0, 0, str(row.get("id", "")))
-    missing = max(coverage_missing(label, coverage) for label in labels)
-    totals = [int(coverage.get(label, {}).get("total") or 0) for label in labels]
-    pending = [int(coverage.get(label, {}).get("pending_review") or 0) for label in labels]
+    language = row_language(row)
+    missing = max(coverage_missing(label, coverage, language) for label in labels)
+    items = [coverage_item(label, coverage, language) for label in labels]
+    totals = [int(item.get("total") or 0) for item in items]
+    pending = [int(item.get("pending_review") or 0) for item in items]
     return (-missing, min(totals or [0]), -max(pending or [0]), str(row.get("id", "")))
 
 

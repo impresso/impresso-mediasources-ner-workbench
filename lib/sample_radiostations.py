@@ -21,10 +21,12 @@ from .sample_newsagencies import (
     DEFAULT_RANDOM_SEED,
     DEFAULT_SAMPLE_REGISTRY,
     balanced_select,
+    bucket_is_undercovered,
     clean_aliases,
     collect_pool_for_bucket,
     import_runtime,
     load_sample_pairs,
+    load_undercovered_buckets,
     load_undercovered_labels,
     parse_labels,
     write_sample_registry,
@@ -132,10 +134,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     languages = [language.strip() for language in args.languages if language.strip()]
     labels = parse_labels(args.labels)
+    undercovered_buckets: set[tuple[str, str]] = set()
     if args.only_under_target:
         if not args.coverage_json:
             raise SystemExit("--only-under-target requires --coverage-json")
-        undercovered = load_undercovered_labels(args.coverage_json, family="radiostation", min_missing=args.min_missing)
+        undercovered_buckets = load_undercovered_buckets(args.coverage_json, family="radiostation", min_missing=args.min_missing)
+        undercovered = {label for label, _language in undercovered_buckets}
         labels = undercovered if labels is None else labels & undercovered
     queries = load_seed_queries(args.seeds, languages=languages, labels=labels, max_queries_per_label=args.max_queries_per_label)
     print("Seed file:", args.seeds)
@@ -143,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Languages:", languages)
     if args.only_under_target:
         print("Under-target labels:", len(labels or []))
+        print("Under-target label-language buckets:", len(undercovered_buckets))
     print("Output:", args.out)
     print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
@@ -164,6 +169,8 @@ def main(argv: list[str] | None = None) -> int:
     for query in queries:
         print(f"\n=== QUERY: {query['query']} [{query['label']}] ===")
         for language in languages:
+            if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
+                continue
             bucket = (query["label"], query["query"], language)
             pool, client = collect_pool_for_bucket(
                 client=client,
@@ -198,6 +205,9 @@ def main(argv: list[str] | None = None) -> int:
     write_jsonl(args.out, selected)
     registry_written = write_sample_registry(args.sample_registry, selected, existing_sample_pairs)
     summary["counts_by_label"] = dict(sorted(Counter(row["candidate_label"] for row in selected).items()))
+    summary["counts_by_label_language"] = dict(
+        sorted(Counter(f"{row.get('candidate_label')} || {row.get('search_language')}" for row in selected).items())
+    )
     summary["counts_by_query"] = dict(sorted(Counter(row["query"] for row in selected).items()))
     summary["counts_by_search_language"] = dict(sorted(Counter(row["search_language"] for row in selected).items()))
     summary["settings"] = {
@@ -206,6 +216,7 @@ def main(argv: list[str] | None = None) -> int:
         "labels": sorted(parse_labels(args.labels) or []),
         "coverage_json": str(args.coverage_json) if args.coverage_json else "",
         "only_under_target": args.only_under_target,
+        "undercovered_label_languages": [f"{label} || {language}" for label, language in sorted(undercovered_buckets)],
         "min_missing": args.min_missing,
         "max_queries_per_label": args.max_queries_per_label,
         "year_start": args.year_start,

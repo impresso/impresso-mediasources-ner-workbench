@@ -256,6 +256,32 @@ Useful overrides:
 - `AUTO_ACCEPT_MIN_MARGIN=0.30`
 - `REVIEW_MAX_ITEMS=20`
 
+### Language-Aware Coverage Targets
+
+`make annotation-stats` writes label-level and label-language coverage to `data/curated/annotation_coverage.json`. Targeted sampling and review prioritization use the label-language buckets, so a label with many German examples can still be sampled and reviewed for French, English, Luxembourgish, or Italian gaps.
+
+Default coverage targets are:
+
+- Main languages `de fr en`: 20 accepted examples per label and language.
+- Side languages `lb it`: 5 accepted examples per label and language.
+
+Configure these with:
+
+```bash
+make annotation-stats \
+  CFG=configs/model-v0.1.0.mk \
+  ANNOTATION_MAIN_LANGS="de fr en" \
+  ANNOTATION_SIDE_LANGS="lb it" \
+  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=20 \
+  ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=5
+```
+
+Use `ANNOTATION_LANGUAGE_TARGETS` for explicit per-language overrides, for example:
+
+```bash
+make annotation-stats CFG=configs/model-v0.1.0.mk ANNOTATION_LANGUAGE_TARGETS="de=30 fr=30 en=20 lb=8 it=8"
+```
+
 ### Radio-Station Snippets
 
 The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radiostations`. These rows contain `id`, `station`, `query`, `search_language`, `language`, `matches`, `snippet`, date/media metadata, and optional IIIF fields. The sampler uses the same `data/candidates/sample_entity_pairs.jsonl` issue/entity registry as news-agency sampling and defaults to at most five selected samples per entity in one round.

@@ -305,6 +305,23 @@ make curation-state-json CFG=configs/model-v0.1.0.mk
 
 `curation-state-json` writes `data/curated/curation_state.json` by default. To check the Hugging Face dataset repository over the network, pass `ARGS="--fetch-published"` to `dataset-state` or `curation-state`.
 
+## Language-Aware Coverage
+
+Coverage and targeted sampling are label-language aware. By default, `de`, `fr`, and `en` are main languages with a target of 20 accepted examples per label and language; `lb` and `it` are side languages with a target of 5. The default sampler language lists follow these configured main and side languages.
+
+```bash
+make annotation-stats CFG=configs/model-v0.1.0.mk
+make sample-needed-newsagencies CFG=configs/model-v0.1.0.mk
+make sample-radiostations CFG=configs/model-v0.1.0.mk RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
+```
+
+Override the defaults from the command line when needed:
+
+```bash
+make annotation-stats CFG=configs/model-v0.1.0.mk ANNOTATION_MAIN_LANGS="de fr en" ANNOTATION_SIDE_LANGS="lb it" ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=20 ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=5
+make annotation-stats CFG=configs/model-v0.1.0.mk ANNOTATION_LANGUAGE_TARGETS="de=30 fr=30 en=20 lb=8 it=8"
+```
+
 ## Plan
 
 See [WORKBENCH_PLAN.md](WORKBENCH_PLAN.md) for the implementation plan and thesis-derived requirements.

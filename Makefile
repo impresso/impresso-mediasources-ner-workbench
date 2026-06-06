@@ -16,12 +16,12 @@ help:
 	@echo "Targets:"
 	@echo "  make smoke                         Run lightweight contract checks"
 	@echo "  make validate-labels               Validate canonical label metadata"
-	@echo "  make annotation-stats              Summarize annotation coverage by label"
+	@echo "  make annotation-stats              Summarize annotation coverage by label/language"
 	@echo "  make curation-state                Summarize curation, snippets, and dataset state"
 	@echo "  make snippet-state                 Summarize sampled/scored/reviewed/exported snippets"
 	@echo "  make dataset-state                 Summarize staging and configured published dataset state"
 	@echo "  make sample-newsagencies ARGS=...  Sample real news-agency search snippets"
-	@echo "  make sample-needed-newsagencies    Sample only news-agency labels below target"
+	@echo "  make sample-needed-newsagencies    Sample news-agency label/language buckets below target"
 	@echo "  make sample-radiostations ARGS=... Sample radio-station candidates"
 	@echo "  make curate ARGS=...               Curate candidate JSONL"
 	@echo "  make import-legacy-hipe ARGS=...   Convert legacy HIPE TSV annotations to JSONL"
@@ -53,7 +53,7 @@ help:
 help-review:
 	@echo "Review and curation targets"
 	@echo ""
-	@echo "Legacy dev/test correction:"
+	@echo "HIPE-derived dev/test correction:"
 	@echo "  make curate-legacy-eval CURATION_MODEL=...   Score validation+test and build review queue"
 	@echo "  make curate-legacy-validation CURATION_MODEL=... Score validation only"
 	@echo "  make curate-legacy-test CURATION_MODEL=...   Score test only"
@@ -63,7 +63,7 @@ help-review:
 	@echo ""
 	@echo "News-agency snippet review:"
 	@echo "  make sample-newsagencies                    Sample real Impresso search snippets"
-	@echo "  make sample-needed-newsagencies             Sample labels below ANNOTATION_TARGET_PER_LABEL"
+	@echo "  make sample-needed-newsagencies             Sample label/language buckets below target"
 	@echo "  make build-newsagency-snippets-from-legacy   Bootstrap snippet candidates from legacy JSONL"
 	@echo "  make score-newsagency-snippets               Score sampled snippets with HF_MODEL"
 	@echo "  make review-newsagency-snippets              Review uncertain snippets; press i for label info"
@@ -77,13 +77,15 @@ help-review:
 	@echo "State summaries:"
 	@echo "  make curation-state                          Summarize all curation and dataset state"
 	@echo "  make snippet-state                           Summarize snippet sampling/review/export state"
-	@echo "  make legacy-curation-state                   Summarize legacy disagreement curation state"
+	@echo "  make legacy-curation-state                   Summarize HIPE-derived disagreement curation state"
 	@echo "  make dataset-state                           Summarize staging and published dataset config"
 	@echo "  make curation-state-json                     Write $(CURATION_STATE_JSON)"
 	@echo ""
 	@echo "Useful overrides:"
 	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., NEWSAGENCY_LEGACY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=true"
+	@echo "  ANNOTATION_MAIN_LANGS='$(ANNOTATION_MAIN_LANGS)', ANNOTATION_SIDE_LANGS='$(ANNOTATION_SIDE_LANGS)'"
+	@echo "  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG), ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)"
 	@echo "  AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
 	@echo "  CURATION_STATE_JSON=$(CURATION_STATE_JSON)"
 
@@ -95,7 +97,7 @@ validate-labels:
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json
 
 annotation-stats:
-	$(PYTHON) -m lib.annotation_stats --target-per-label "$(ANNOTATION_TARGET_PER_LABEL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --legacy-jsonl "$(TRAIN_JSONL)" --legacy-jsonl "$(VALIDATION_JSONL)" --legacy-jsonl "$(TEST_JSONL)" --newsagency-snippet-jsonl "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --newsagency-snippet-jsonl "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --radiostation-snippet-jsonl "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --radiostation-snippet-jsonl "$(RADIOSTATION_SNIPPET_TEST_JSONL)" --newsagency-reviewed-jsonl "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --radiostation-reviewed-jsonl "$(RADIOSTATION_REVIEWED_SNIPPETS)" --json-output "$(ANNOTATION_STATS_JSON)" --tsv-output "$(ANNOTATION_STATS_TSV)" $(ARGS)
+	$(PYTHON) -m lib.annotation_stats --target-per-label "$(ANNOTATION_TARGET_PER_LABEL)" --main-languages $(ANNOTATION_MAIN_LANGS) --side-languages $(ANNOTATION_SIDE_LANGS) --main-target-per-label-language "$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG)" --side-target-per-label-language "$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)" $(foreach target,$(ANNOTATION_LANGUAGE_TARGETS),--language-target "$(target)") --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --legacy-jsonl "$(TRAIN_JSONL)" --legacy-jsonl "$(VALIDATION_JSONL)" --legacy-jsonl "$(TEST_JSONL)" --newsagency-snippet-jsonl "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --newsagency-snippet-jsonl "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --radiostation-snippet-jsonl "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --radiostation-snippet-jsonl "$(RADIOSTATION_SNIPPET_TEST_JSONL)" --newsagency-reviewed-jsonl "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --radiostation-reviewed-jsonl "$(RADIOSTATION_REVIEWED_SNIPPETS)" --json-output "$(ANNOTATION_STATS_JSON)" --tsv-output "$(ANNOTATION_STATS_TSV)" $(ARGS)
 
 curation-state:
 	$(PYTHON) -m lib.curation_state --section all --dataset "$(DATASET)" --dataset-revision "$(DATASET_REVISION)" --dataset-source-dir "$(DATASET_SOURCE_DIR)" --dataset-output-dir "$(DATASET_OUTPUT_DIR)" --curation-output-dir "$(CURATION_OUTPUT_DIR)" --curation-input-dir "$(CURATION_INPUT_DIR)" --curation-applied-dir "$(CURATION_APPLIED_DIR)" --newsagency-snippets "$(NEWSAGENCY_SNIPPETS)" --newsagency-snippet-summary "$(NEWSAGENCY_SNIPPET_SUMMARY)" --newsagency-scored-snippets "$(NEWSAGENCY_SCORED_SNIPPETS)" --newsagency-reviewed-snippets "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --newsagency-snippet-decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --newsagency-snippet-train-jsonl "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --newsagency-snippet-test-jsonl "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --radiostation-snippets "$(RADIOSTATION_SNIPPETS)" --radiostation-snippet-summary "$(RADIOSTATION_SNIPPET_SUMMARY)" --radiostation-scored-snippets "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostation-reviewed-snippets "$(RADIOSTATION_REVIEWED_SNIPPETS)" --radiostation-snippet-decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --radiostation-snippet-train-jsonl "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --radiostation-snippet-test-jsonl "$(RADIOSTATION_SNIPPET_TEST_JSONL)" $(ARGS)

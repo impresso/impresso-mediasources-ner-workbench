@@ -16,10 +16,12 @@ from lib.review_newsagency_snippets import (
 from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
 from lib.sample_newsagencies import (
     balanced_select,
+    bucket_is_undercovered,
     expand_candidate_with_full_content,
     extract_candidate,
     load_sample_pairs,
     load_seed_queries,
+    load_undercovered_buckets,
     load_undercovered_labels,
     sample_pair_key,
     write_sample_registry,
@@ -280,8 +282,24 @@ def test_sample_newsagencies_loads_undercovered_labels_from_stats(tmp_path: Path
         json.dumps(
             {
                 "rows": [
-                    {"label": "org.ent.pressagency.ata", "family": "pressagency", "missing_to_target": 20},
-                    {"label": "org.ent.pressagency.havas", "family": "pressagency", "missing_to_target": 0},
+                    {
+                        "label": "org.ent.pressagency.ata",
+                        "family": "pressagency",
+                        "missing_to_target": 20,
+                        "languages": {
+                            "de": {"missing_to_target": 0},
+                            "fr": {"missing_to_target": 20},
+                        },
+                    },
+                    {
+                        "label": "org.ent.pressagency.havas",
+                        "family": "pressagency",
+                        "missing_to_target": 0,
+                        "languages": {
+                            "de": {"missing_to_target": 0},
+                            "fr": {"missing_to_target": 0},
+                        },
+                    },
                     {"label": "org.ent.radiostation.bbc", "family": "radiostation", "missing_to_target": 20},
                 ]
             }
@@ -290,6 +308,16 @@ def test_sample_newsagencies_loads_undercovered_labels_from_stats(tmp_path: Path
     )
 
     assert load_undercovered_labels(coverage) == {"org.ent.pressagency.ata"}
+    assert load_undercovered_buckets(coverage) == {("org.ent.pressagency.ata", "fr")}
+
+
+def test_sample_newsagencies_filters_undercovered_language_buckets() -> None:
+    buckets = {("org.ent.pressagency.havas", "fr"), ("org.ent.pressagency.reuters", "*")}
+
+    assert bucket_is_undercovered("org.ent.pressagency.havas", "fr", buckets)
+    assert not bucket_is_undercovered("org.ent.pressagency.havas", "de", buckets)
+    assert bucket_is_undercovered("org.ent.pressagency.reuters", "de", buckets)
+    assert bucket_is_undercovered("org.ent.pressagency.reuters", "en", buckets)
 
 
 def test_sample_newsagencies_extracts_search_candidate() -> None:
@@ -664,12 +692,12 @@ def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> 
     write_jsonl(
         legacy,
         [
-            {"id": "legacy-1", "entities": [{"label": "org.ent.pressagency.havas"}]},
-            {"id": "legacy-2", "entities": [{"label": "org.ent.pressagency.havas"}]},
+            {"id": "legacy-1", "language": "de", "entities": [{"label": "org.ent.pressagency.havas"}]},
+            {"id": "legacy-2", "language": "fr", "entities": [{"label": "org.ent.pressagency.havas"}]},
         ],
     )
-    write_jsonl(news, [{"id": "news-1", "entities": [{"label": "org.ent.pressagency.havas"}]}])
-    write_jsonl(radio, [{"id": "radio-1", "entities": [{"label": "org.ent.radiostation.bbc"}]}])
+    write_jsonl(news, [{"id": "news-1", "language": "fr", "entities": [{"label": "org.ent.pressagency.havas"}]}])
+    write_jsonl(radio, [{"id": "radio-1", "language": "en", "entities": [{"label": "org.ent.radiostation.bbc"}]}])
     write_jsonl(
         news_reviewed,
         [
@@ -687,6 +715,17 @@ def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> 
             [
                 "--target-per-label",
                 "4",
+                "--main-languages",
+                "de",
+                "fr",
+                "en",
+                "--side-languages",
+                "lb",
+                "it",
+                "--main-target-per-label-language",
+                "2",
+                "--side-target-per-label-language",
+                "1",
                 "--label-metadata",
                 str(news_meta),
                 "--label-metadata",
@@ -712,6 +751,15 @@ def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> 
     assert rows["org.ent.pressagency.havas"]["newsagency_snippets"] == 1
     assert rows["org.ent.pressagency.havas"]["total"] == 3
     assert rows["org.ent.pressagency.havas"]["missing_to_target"] == 1
+    assert rows["org.ent.pressagency.havas"]["languages"]["de"]["total"] == 1
+    assert rows["org.ent.pressagency.havas"]["languages"]["de"]["missing_to_target"] == 1
+    assert rows["org.ent.pressagency.havas"]["languages"]["fr"]["total"] == 2
+    assert rows["org.ent.pressagency.havas"]["languages"]["fr"]["missing_to_target"] == 0
+    assert stats["language_targets"] == {"de": 2, "en": 2, "fr": 2, "it": 1, "lb": 1}
+    assert any(
+        row["label"] == "org.ent.pressagency.havas" and row["language"] == "de" and row["missing_to_target"] == 1
+        for row in stats["language_rows"]
+    )
     assert rows["org.ent.pressagency.havas"]["pending_review"] == 1
     assert rows["org.ent.radiostation.bbc"]["radiostation_snippets"] == 1
     assert rows["org.ent.radiostation.bbc"]["missing_to_target"] == 3
@@ -738,6 +786,37 @@ def test_review_coverage_priority_prefers_undercovered_labels() -> None:
     assert row_needs_coverage(ata_row, coverage)
     assert not row_needs_coverage(havas_row, coverage)
     assert sorted([havas_row, ata_row], key=lambda row: coverage_priority(row, coverage))[0] == ata_row
+
+
+def test_review_coverage_priority_uses_row_language() -> None:
+    coverage = {
+        "org.ent.pressagency.havas": {
+            "label": "org.ent.pressagency.havas",
+            "missing_to_target": 0,
+            "total": 101,
+            "pending_review": 0,
+            "languages": {
+                "de": {"missing_to_target": 0, "total": 100, "pending_review": 0},
+                "fr": {"missing_to_target": 19, "total": 1, "pending_review": 2},
+            },
+        }
+    }
+    de_row = {
+        "id": "havas-de",
+        "language": "de",
+        "candidate_label": "org.ent.pressagency.havas",
+        "curation": {"status": "needs_review"},
+    }
+    fr_row = {
+        "id": "havas-fr",
+        "language": "fr",
+        "candidate_label": "org.ent.pressagency.havas",
+        "curation": {"status": "needs_review"},
+    }
+
+    assert not row_needs_coverage(de_row, coverage)
+    assert row_needs_coverage(fr_row, coverage)
+    assert sorted([de_row, fr_row], key=lambda row: coverage_priority(row, coverage))[0] == fr_row
 
 
 def test_radiostation_alias_scoring_and_export(tmp_path: Path) -> None:
@@ -1809,4 +1888,3 @@ def test_snippet_review_remove_is_final(tmp_path: Path, monkeypatch) -> None:
     assert second == 0
     assert decision["status"] == "removed"
     assert decision["notes"] == "bad sample"
-

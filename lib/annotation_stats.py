@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -49,27 +49,54 @@ def family_for_label(label: str) -> str:
     return "other"
 
 
-def count_training_file(path: Path) -> tuple[Counter[str], int, int]:
+def row_language(row: dict[str, Any]) -> str:
+    return str(row.get("language") or row.get("search_language") or "unknown")
+
+
+def parse_language_targets(args: argparse.Namespace) -> dict[str, int]:
+    targets: dict[str, int] = {}
+    for language in args.main_languages:
+        if language:
+            targets[language] = args.main_target_per_label_language
+    for language in args.side_languages:
+        if language:
+            targets[language] = args.side_target_per_label_language
+    for item in args.language_target:
+        if "=" not in item:
+            raise SystemExit(f"invalid --language-target {item!r}; expected LANG=COUNT")
+        language, value = item.split("=", 1)
+        language = language.strip()
+        if not language:
+            raise SystemExit(f"invalid --language-target {item!r}; empty language")
+        targets[language] = int(value)
+    return targets
+
+
+def count_training_file(path: Path) -> tuple[Counter[str], Counter[tuple[str, str]], int, int]:
     counts: Counter[str] = Counter()
+    language_counts: Counter[tuple[str, str]] = Counter()
     rows = 0
     entities = 0
     if not path.is_file():
-        return counts, rows, entities
+        return counts, language_counts, rows, entities
     for row in load_jsonl(path):
         rows += 1
+        language = row_language(row)
         for entity in row.get("entities") or []:
             label = str(entity.get("label") or "")
             if label.startswith("org.ent."):
                 counts[label] += 1
+                language_counts[(label, language)] += 1
                 entities += 1
-    return counts, rows, entities
+    return counts, language_counts, rows, entities
 
 
-def count_review_file(path: Path) -> tuple[Counter[str], Counter[str]]:
+def count_review_file(path: Path) -> tuple[Counter[str], Counter[str], Counter[tuple[str, str]]]:
     statuses: Counter[str] = Counter()
     pending_by_label: Counter[str] = Counter()
+    pending_by_label_language: Counter[tuple[str, str]] = Counter()
     if not path.is_file():
-        return statuses, pending_by_label
+        return statuses, pending_by_label, pending_by_label_language
     for row in load_jsonl(path):
         curation = row.get("curation") or {}
         status = str(curation.get("status") or "")
@@ -80,7 +107,8 @@ def count_review_file(path: Path) -> tuple[Counter[str], Counter[str]]:
             label = str(curation.get("label") or row.get("candidate_label") or "")
             if label.startswith("org.ent."):
                 pending_by_label[label] += 1
-    return statuses, pending_by_label
+                pending_by_label_language[(label, row_language(row))] += 1
+    return statuses, pending_by_label, pending_by_label_language
 
 
 def merge_counter(target: Counter[str], source: Counter[str]) -> None:
@@ -90,11 +118,14 @@ def merge_counter(target: Counter[str], source: Counter[str]) -> None:
 
 def build_stats(args: argparse.Namespace) -> dict[str, Any]:
     metadata = load_metadata(args.label_metadata)
+    language_targets = parse_language_targets(args)
     labels = set(metadata)
     by_source: dict[str, Counter[str]] = {}
+    by_source_language: dict[str, Counter[tuple[str, str]]] = {}
     source_rows: dict[str, int] = {}
     source_entities: dict[str, int] = {}
     total_counts: Counter[str] = Counter()
+    total_language_counts: Counter[tuple[str, str]] = Counter()
 
     sources = {
         "legacy": args.legacy_jsonl,
@@ -103,34 +134,67 @@ def build_stats(args: argparse.Namespace) -> dict[str, Any]:
     }
     for source_name, paths in sources.items():
         source_counts: Counter[str] = Counter()
+        source_language_counts: Counter[tuple[str, str]] = Counter()
         rows = 0
         entities = 0
         for path in paths:
-            counts, file_rows, file_entities = count_training_file(path)
+            counts, language_counts, file_rows, file_entities = count_training_file(path)
             merge_counter(source_counts, counts)
+            merge_counter(source_language_counts, language_counts)
             rows += file_rows
             entities += file_entities
         by_source[source_name] = source_counts
+        by_source_language[source_name] = source_language_counts
         source_rows[source_name] = rows
         source_entities[source_name] = entities
         merge_counter(total_counts, source_counts)
+        merge_counter(total_language_counts, source_language_counts)
         labels.update(source_counts)
+        labels.update(label for label, _language in source_language_counts)
 
     review_statuses: dict[str, dict[str, int]] = {}
     pending_by_label: Counter[str] = Counter()
+    pending_by_label_language: Counter[tuple[str, str]] = Counter()
     for source_name, path in {
         "newsagency_snippets": args.newsagency_reviewed_jsonl,
         "radiostation_snippets": args.radiostation_reviewed_jsonl,
     }.items():
-        statuses, pending = count_review_file(path)
+        statuses, pending, pending_language = count_review_file(path)
         review_statuses[source_name] = dict(sorted(statuses.items()))
         merge_counter(pending_by_label, pending)
+        merge_counter(pending_by_label_language, pending_language)
         labels.update(pending)
+        labels.update(label for label, _language in pending_language)
 
     rows_out = []
+    language_rows = []
     for label in sorted(labels):
         total = total_counts[label]
         missing = max(args.target_per_label - total, 0)
+        language_summary = {}
+        for language, target in sorted(language_targets.items()):
+            lang_total = total_language_counts[(label, language)]
+            lang_missing = max(target - lang_total, 0)
+            language_item = {
+                "legacy": by_source_language["legacy"][(label, language)],
+                "newsagency_snippets": by_source_language["newsagency_snippets"][(label, language)],
+                "radiostation_snippets": by_source_language["radiostation_snippets"][(label, language)],
+                "total": lang_total,
+                "target": target,
+                "missing_to_target": lang_missing,
+                "pending_review": pending_by_label_language[(label, language)],
+            }
+            language_summary[language] = language_item
+            language_rows.append(
+                {
+                    "label": label,
+                    "family": metadata.get(label, {}).get("family") or family_for_label(label),
+                    "canonical_id": metadata.get(label, {}).get("canonical_id") or label.rsplit(".", 1)[-1],
+                    "display_name": metadata.get(label, {}).get("display_name") or label,
+                    "language": language,
+                    **language_item,
+                }
+            )
         rows_out.append(
             {
                 "label": label,
@@ -144,11 +208,13 @@ def build_stats(args: argparse.Namespace) -> dict[str, Any]:
                 "target": args.target_per_label,
                 "missing_to_target": missing,
                 "pending_review": pending_by_label[label],
+                "languages": language_summary,
             }
         )
 
     summary = {
         "target_per_label": args.target_per_label,
+        "language_targets": dict(sorted(language_targets.items())),
         "sources": {
             source: {"rows": source_rows[source], "entities": source_entities[source]}
             for source in sorted(source_rows)
@@ -156,7 +222,9 @@ def build_stats(args: argparse.Namespace) -> dict[str, Any]:
         "review_statuses": review_statuses,
         "labels_total": len(rows_out),
         "labels_below_target": sum(1 for row in rows_out if row["missing_to_target"] > 0),
+        "label_languages_below_target": sum(1 for row in language_rows if row["missing_to_target"] > 0),
         "rows": rows_out,
+        "language_rows": language_rows,
     }
     return summary
 
@@ -213,16 +281,38 @@ def write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
         "missing_to_target",
         "pending_review",
     ]
+    languages = sorted({language for row in rows for language in (row.get("languages") or {})})
+    for language in languages:
+        fieldnames.extend(
+            [
+                f"{language}_total",
+                f"{language}_target",
+                f"{language}_missing",
+                f"{language}_pending",
+            ]
+        )
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
         for row in rows:
-            writer.writerow({field: row.get(field, "") for field in fieldnames})
+            out = {field: row.get(field, "") for field in fieldnames}
+            for language in languages:
+                item = (row.get("languages") or {}).get(language) or {}
+                out[f"{language}_total"] = item.get("total", 0)
+                out[f"{language}_target"] = item.get("target", 0)
+                out[f"{language}_missing"] = item.get("missing_to_target", 0)
+                out[f"{language}_pending"] = item.get("pending_review", 0)
+            writer.writerow(out)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Summarize media-source annotation coverage by label.")
     parser.add_argument("--target-per-label", type=int, default=20)
+    parser.add_argument("--main-languages", nargs="+", default=["de", "fr", "en"])
+    parser.add_argument("--side-languages", nargs="+", default=["lb", "it"])
+    parser.add_argument("--main-target-per-label-language", type=int, default=20)
+    parser.add_argument("--side-target-per-label-language", type=int, default=5)
+    parser.add_argument("--language-target", action="append", default=[], help="Explicit per-language target override such as de=20. Can be repeated.")
     parser.add_argument("--label-metadata", type=Path, action="append", default=[])
     parser.add_argument("--legacy-jsonl", type=Path, action="append", default=[])
     parser.add_argument("--newsagency-snippet-jsonl", type=Path, action="append", default=[])
@@ -251,7 +341,7 @@ def fill_defaults(args: argparse.Namespace) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = fill_defaults(parse_args(argv))
     summary = build_stats(args)
-    print(json.dumps({key: value for key, value in summary.items() if key != "rows"}, ensure_ascii=False, sort_keys=True))
+    print(json.dumps({key: value for key, value in summary.items() if key not in {"rows", "language_rows"}}, ensure_ascii=False, sort_keys=True))
     print_table(summary["rows"], limit=args.limit, family=args.family)
     if args.json_output:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
