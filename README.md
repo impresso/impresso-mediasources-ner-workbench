@@ -55,11 +55,13 @@ python -m pip install -e training/newsagency-radiostation-modernbert-classifier
 Workbench commands use a local Hugging Face cache by default:
 
 ```text
-HF_HOME=.hf
+HF_HOME=hf.d
 ```
 
 Override `HF_HOME` on the command line if you want to reuse another cache.
 If `HF_TOKEN` is set in the workbench `.env`, Hugging Face scoring, training, and publishing commands load it automatically.
+
+Local generated directory roots use the `*.d` suffix convention. Defaults include `hf.d/`, `mlm.d/`, `models.d/`, and `staging.d/`; these are ignored by git. See [GENERATED_DIRS.md](GENERATED_DIRS.md) for the convention.
 
 For Impresso API sampling workflows, install the sampling extras:
 
@@ -94,7 +96,7 @@ Optionally download the compiled Impresso source files for continued MLM pretrai
 make download-mlm-sources PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 ```
 
-The source URLs are configured in `configs/model-v0.1.0.mk` as `MLM_SOURCE_URL_DE`, `MLM_SOURCE_URL_FR`, `MLM_SOURCE_URL_EN`, and `MLM_SOURCE_URL_LB`. Files are written to `data/mlm/source/` by default, unless you override `MLM_DATASET_DIR`.
+The source URLs are configured in `configs/model-v0.1.0.mk` as `MLM_SOURCE_URL_DE`, `MLM_SOURCE_URL_FR`, `MLM_SOURCE_URL_EN`, and `MLM_SOURCE_URL_LB`. Files are written to `mlm.d/source/` by default, unless you override `MLM_DATASET_DIR`.
 
 Then build the multilingual MLM corpus. By default this samples up to 300,000 texts per language, exhausting smaller languages such as Luxembourgish, and keeps 1 percent for validation:
 
@@ -102,15 +104,15 @@ Then build the multilingual MLM corpus. By default this samples up to 300,000 te
 make build-mlm-data PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 ```
 
-Then continue MLM pretraining from `jhu-clsp/mmBERT-base` to create `models/multilingualmodernimpressoBERT_v0.1.0/final`:
+Then continue MLM pretraining from `jhu-clsp/mmBERT-base` to create `models.d/multilingualmodernimpressoBERT_v0.1.0/final`:
 
 ```bash
 make pretrain-mlm PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 ```
 
-The default MLM run keeps the sampled corpus on disk but trains on `MLM_MAX_TRAIN_SAMPLES=100000` rows and evaluates on `MLM_MAX_EVAL_SAMPLES=2000` rows. It uses one epoch, `MLM_MAX_LEN=256`, fixed max-length padding, `MLM_BATCH=1`, `MLM_GRADIENT_ACCUMULATION_STEPS=8`, gradient checkpointing, learning rate `2e-5`, weight decay `0.01`, and automatic warmup over 6 percent of the capped optimizer steps. Validation runs three times across the epoch plus one final evaluation. Intermediate checkpoint saving is disabled by default; the final model is always saved to `models/multilingualmodernimpressoBERT_v0.1.0/final`. Override these on the command line to match available GPU memory or to run a smaller smoke test.
+The default MLM run keeps the sampled corpus on disk but trains on `MLM_MAX_TRAIN_SAMPLES=100000` rows and evaluates on `MLM_MAX_EVAL_SAMPLES=2000` rows. It uses one epoch, `MLM_MAX_LEN=256`, fixed max-length padding, `MLM_BATCH=1`, `MLM_GRADIENT_ACCUMULATION_STEPS=8`, gradient checkpointing, learning rate `2e-5`, weight decay `0.01`, and automatic warmup over 6 percent of the capped optimizer steps. Validation runs three times across the epoch plus one final evaluation. Intermediate checkpoint saving is disabled by default; the final model is always saved to `models.d/multilingualmodernimpressoBERT_v0.1.0/final`. Override these on the command line to match available GPU memory or to run a smaller smoke test.
 
-MLM tokenization pads to the configured max length by default to keep tensor shapes stable on Apple MPS, and caches the tokenized dataset under `data/mlm/tokenized_multilingual_max300k_per_lang_len256_padded` by default. Delete that directory or override `MLM_TOKENIZED_CACHE_DIR` if you change tokenization-relevant settings such as `MLM_MAX_LEN` or `MLM_PAD_TO_MAX_LENGTH`.
+MLM tokenization pads to the configured max length by default to keep tensor shapes stable on Apple MPS, and caches the tokenized dataset under `mlm.d/tokenized_multilingual_max300k_per_lang_len256_padded` by default. Delete that directory or override `MLM_TOKENIZED_CACHE_DIR` if you change tokenization-relevant settings such as `MLM_MAX_LEN` or `MLM_PAD_TO_MAX_LENGTH`.
 
 Push the continued-MLM checkpoint and source model card to Hugging Face:
 
@@ -126,22 +128,22 @@ make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 
 Local Apple MPS training uses memory-conservative defaults: `BATCH=1`, `GRADIENT_ACCUMULATION_STEPS=4`, gradient checkpointing, `OPTIMIZER=adafactor`, and `FREEZE_BASE_MODEL=true`. This trains the token-classification head on top of the adapted encoder. Use `FREEZE_BASE_MODEL=false` only on hardware with enough memory for full-model optimizer updates.
 
-Validation is run after each epoch for early stopping. The default monitors `entity_f1` with `EARLY_STOPPING_PATIENCE=1` and writes the best checkpoint to `models/newsagency_radiostation_modernbert_v0.1.0/best`.
+Validation is run after each epoch for early stopping. The default monitors `entity_f1` with `EARLY_STOPPING_PATIENCE=1` and writes the best checkpoint to `models.d/newsagency_radiostation_modernbert_v0.1.0/best`.
 
 At startup, training prints and writes `training_start_report.json` with the model source, device, optimizer, trainable/frozen parameter counts, batch and window settings, early-stopping configuration, and train/validation dataset summaries. During validation and test evaluation, the trainer prints a compact NER summary with exact entity precision/recall/F1, non-`O` token precision/recall/F1, token accuracy, and the most frequent gold/predicted entity labels. The full metrics and prediction JSONL files are still written under the model output directory.
 
 To continue from an existing classifier checkpoint, pass `CHECKPOINT`. This loads the model weights but starts a fresh optimizer state, so use a lower learning rate for continuation runs. Prefer writing to a new `MODEL` directory unless you intentionally want to overwrite the previous output:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CHECKPOINT=models/newsagency_radiostation_modernbert_v0.1.0/best MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1 EPOCHS=2 LEARNING_RATE=1e-5
+make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CHECKPOINT=models.d/newsagency_radiostation_modernbert_v0.1.0/best MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1 EPOCHS=2 LEARNING_RATE=1e-5
 ```
 
 Select another base model on the command line when needed:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk BASE_MODEL=models/multilingualmodernimpressoBERT_v0.1.0/final
+make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk BASE_MODEL=models.d/multilingualmodernimpressoBERT_v0.1.0/final
 make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk BASE_MODEL=hf://impresso-project/mmbert-multilingual-impresso-continued-mlm
-make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk BASE_MODEL=jhu-clsp/mmBERT-base MODEL=models/newsagency_radiostation_mmbert_base_v0.1.0
+make train PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk BASE_MODEL=jhu-clsp/mmBERT-base MODEL=models.d/newsagency_radiostation_mmbert_base_v0.1.0
 ```
 
 For a quick one-step smoke test:
@@ -157,12 +159,12 @@ make test PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 make test-official PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 ```
 
-Metrics and prediction JSONL files are written under `models/newsagency_radiostation_modernbert_v0.1.0/eval/`.
+Metrics and prediction JSONL files are written under `models.d/newsagency_radiostation_modernbert_v0.1.0/eval/`.
 
 For basic curation of the existing HIPE-derived French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
 
 ```bash
-make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
 To build only one fold's review queue, use `make curate-legacy-validation ...` or `make curate-legacy-test ...` with the same arguments. The command names keep `legacy` for compatibility; the data itself is the active HIPE-derived baseline, not discarded material.
@@ -213,7 +215,7 @@ For a lightweight NER-tag overview, inspect `data/curated/legacy-import-curated/
 The fine-tuned Hugging Face model repository is configured as `HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner`. The v0.1 label space covers news agencies and radio stations; the repository name leaves room for future cited media-source families such as newspaper citations.
 
 ```bash
-make push-model PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+make push-model PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
 ## Common Commands
@@ -333,3 +335,5 @@ See [docs/curation.md](docs/curation.md) for the HIPE-derived dev/test curation 
 See [docs/jsonl_schema.md](docs/jsonl_schema.md) for the annotated JSONL field contract and its mapping from the HIPE TSV CoNLL-style format.
 
 See [docs/hipe_to_jsonl_conversion_plan.md](docs/hipe_to_jsonl_conversion_plan.md) for the concrete conversion workflow from the original HIPE data into the new JSONL dataset.
+
+See [GENERATED_DIRS.md](GENERATED_DIRS.md) for the local generated-directory convention.

@@ -1,6 +1,8 @@
+# Project-generated local directories use the *.d suffix convention.
+*.d/
+
+# Tool/runtime directories we do not control.
 .venv/
-.hf/
-.cache/
 .agents/
 .env
 .env.*
@@ -16,8 +18,11 @@ __pycache__/
 data/candidates/*
 data/curated/*
 data/testset/*
+
+# Legacy generated roots kept ignored for compatibility with earlier defaults.
+.cache/
+.hf/
 data/mlm/
-staging.d/
 models/
 outputs/
 results/

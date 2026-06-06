@@ -871,8 +871,8 @@ The old development workflow included continued masked-language-model pretrainin
 - Keep the full sampled MLM JSONL on disk, but allow capped training views. The local default trains on 100,000 sampled rows and validates on 2,000 rows.
 - Run MLM validation three times across the epoch plus one final evaluation, using only a 1 percent validation split.
 - Disable intermediate checkpoint saving by default and save only the final adapted model unless `MLM_SAVE_STRATEGY=steps` or `epoch` is explicitly requested.
-- Tokenize MLM data into a reusable Arrow cache under `data/mlm/`. Use fixed max-length padding by default for Apple MPS stability; dynamic padding can be re-enabled with `MLM_PAD_TO_MAX_LENGTH=false`.
-- Save the local adapted checkpoint under `models/multilingualmodernimpressoBERT_v0.1.0/final`.
+- Tokenize MLM data into a reusable Arrow cache under `mlm.d/`. Use fixed max-length padding by default for Apple MPS stability; dynamic padding can be re-enabled with `MLM_PAD_TO_MAX_LENGTH=false`.
+- Save the local adapted checkpoint under `models.d/multilingualmodernimpressoBERT_v0.1.0/final`.
 - Publish the adapted checkpoint to the separate HF model repo `impresso-project/mmbert-multilingual-impresso-continued-mlm`.
 - Use the published adapted checkpoint as the default `BASE_MODEL` for the supervised news-agency and radio-station token classifier: `hf://impresso-project/mmbert-multilingual-impresso-continued-mlm`. Allow users to override this with a local path or a plain Hugging Face model id.
 - Use memory-conservative local supervised training defaults on Apple MPS: microbatch 1, gradient accumulation, gradient checkpointing, Adafactor instead of AdamW, and frozen encoder/head-only training by default. Full encoder fine-tuning remains available with `FREEZE_BASE_MODEL=false` on hardware with enough memory.
@@ -887,21 +887,21 @@ The immediate implementation is based on the older root-level scripts:
 
 The new workbench equivalents are:
 
-- `make build-mlm-data`: writes `data/mlm/multilingual_50k_lbfix/train.json`, `validation.json`, and `dataset_report.json`.
-- `make download-mlm-sources`: downloads the compiled source files from configured Switch/S3 URLs into `data/mlm/source/`.
+- `make build-mlm-data`: writes `mlm.d/multilingual_50k_lbfix/train.json`, `validation.json`, and `dataset_report.json`.
+- `make download-mlm-sources`: downloads the compiled source files from configured Switch/S3 URLs into `mlm.d/source/`.
 - `make pretrain-mlm`: continues MLM training and writes the adapted checkpoint plus metrics.
 - `hf_mlm_model/README.md`: source model card for the future HF repository.
 
-The corpus input is expected at `data/mlm/source/{fr,de,en,lb}.compiled.jsonl.bz2` by default. The source directory is controlled by `MLM_DATASET_DIR`; the download URLs are controlled by `MLM_SOURCE_URL_DE`, `MLM_SOURCE_URL_FR`, `MLM_SOURCE_URL_EN`, `MLM_SOURCE_URL_LB`, and `MLM_SOURCE_URLS` in `configs/model-v0.1.0.mk`.
+The corpus input is expected at `mlm.d/source/{fr,de,en,lb}.compiled.jsonl.bz2` by default. The source directory is controlled by `MLM_DATASET_DIR`; the download URLs are controlled by `MLM_SOURCE_URL_DE`, `MLM_SOURCE_URL_FR`, `MLM_SOURCE_URL_EN`, `MLM_SOURCE_URL_LB`, and `MLM_SOURCE_URLS` in `configs/model-v0.1.0.mk`.
 
 Open implementation tasks:
 
 - [ ] Run `make download-mlm-sources PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk`, or override the `MLM_SOURCE_URL_*` variables if the source location changes.
 - [ ] Run `make build-mlm-data PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk`; override `MLM_MAX_PER_LANGUAGE` for smaller or larger MLM samples.
-- [ ] Inspect `data/mlm/multilingual_50k_lbfix/dataset_report.json` for language balance, skipped-record counts, and OCR-quality effects.
+- [ ] Inspect `mlm.d/multilingual_50k_lbfix/dataset_report.json` for language balance, skipped-record counts, and OCR-quality effects.
 - [ ] Run a short `make pretrain-mlm` smoke test with tiny `ARGS` before full training if compute is constrained.
 - [ ] Run full continued MLM pretraining and publish the resulting checkpoint to `impresso-project/mmbert-multilingual-impresso-continued-mlm`.
-- [ ] Train the supervised classifier from `models/multilingualmodernimpressoBERT_v0.1.0/final`.
+- [ ] Train the supervised classifier from `models.d/multilingualmodernimpressoBERT_v0.1.0/final`.
 - [ ] Compare supervised dev/test metrics against training directly from `jhu-clsp/mmBERT-base`.
 
 ### Training Repo Shape
@@ -1015,7 +1015,7 @@ make test-official CFG=configs/model-v0.1.0.mk
 Release config files in the workbench should pin:
 
 ```makefile
-MODEL := models/newsagency_radiostation_modernbert_v0.1.0
+MODEL := models.d/newsagency_radiostation_modernbert_v0.1.0
 DATASET := impresso-project/impresso-mediaagencies-ner-dataset
 DATASET_REVISION := <training-dataset-commit-sha>
 TESTSET := impresso-project/newsagency-radiostation-testset

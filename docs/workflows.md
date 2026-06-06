@@ -105,7 +105,7 @@ flowchart TD
 Primary commands:
 
 ```bash
-make curate-legacy-eval CFG=configs/model-v0.1.0.mk CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+make curate-legacy-eval CFG=configs/model-v0.1.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 make review-curation CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
 make validate-curation CFG=configs/model-v0.1.0.mk
 make apply-curation CFG=configs/model-v0.1.0.mk

@@ -14,7 +14,7 @@ Run the selected model over the HIPE-derived validation and test folds:
 make curate-legacy-eval \
   PYTHON=.venv/bin/python \
   CFG=configs/model-v0.1.0.mk \
-  CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
 `curate-legacy-eval` includes both the HIPE-derived dev/validation fold and the HIPE-derived test fold. To curate only one fold, use:
@@ -23,12 +23,12 @@ make curate-legacy-eval \
 make curate-legacy-validation \
   PYTHON=.venv/bin/python \
   CFG=configs/model-v0.1.0.mk \
-  CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 
 make curate-legacy-test \
   PYTHON=.venv/bin/python \
   CFG=configs/model-v0.1.0.mk \
-  CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
 The review files are written below:

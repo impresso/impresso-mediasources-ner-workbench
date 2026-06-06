@@ -313,7 +313,7 @@ def extract_candidate(
 
 
 def import_runtime() -> tuple[Any, Any]:
-    local_cache = Path(".cache")
+    local_cache = Path("cache.d")
     (local_cache / "matplotlib").mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("XDG_CACHE_HOME", str(local_cache))
     os.environ.setdefault("MPLCONFIGDIR", str(local_cache / "matplotlib"))
