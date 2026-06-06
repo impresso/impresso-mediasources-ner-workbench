@@ -39,11 +39,7 @@ The thesis used an explicit-attribution definition:
 - The annotation target is the agency mention when it signals source attribution.
 - Mentions of agencies as article subjects, for example a story about agency staff or an agency acquisition, should not be annotated as source mentions.
 
-For the new workbench, apply the same semantic rule to both entity families:
-
-- Annotate a press agency or radio station only when it is presented as the source, sender, broadcaster, or cited origin of the information.
-- Do not annotate an entity merely because the article is about that organization.
-- Keep this distinction in `resources/label_policy.md` and curation UI/help text.
+For the new workbench, use the broader rule documented in `docs/annotation_guidelines.md`: annotate explicit canonical media-source organization mentions in sampled contexts, including source attributions and article-topic or institutional mentions. Keep canonical trainable labels in `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`.
 
 ### Original Sampling Method
 
@@ -216,7 +212,6 @@ impresso-mediasources-ner-workbench/
   resources/
     newsagency_seeds.json
     radiostation_seeds.json
-    label_policy.md
 
   data/
     candidates/
@@ -1070,7 +1065,7 @@ Publishing scripts copy these into the appropriate HF repos. Do not edit cards o
 - [ ] Implement `lib.publish_dataset` with dry-run preflights.
 - [ ] Implement `lib.publish_testset` with stronger frozen-testset checks.
 - [ ] Implement `lib.push_model_to_hub` with model payload preflights.
-- [ ] Make publishing fail if labels do not match the canonical news-agency/radio-station label policy.
+- [ ] Make publishing fail if labels do not match canonical metadata in `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`.
 - [ ] Make model publishing fail if `config.json`, label map, tokenizer files, model weights, model card, requirements, or pipeline code are missing.
 - [ ] Add a smoke comparison between local inference and `hf_model/pipeline.py`.
 - [ ] Record published HF commit SHAs in release configs and model config.
@@ -1192,7 +1187,7 @@ Do not invent provenance for legacy checkpoints. If an old checkpoint is used fo
 4. Convert current resources into normalized seed/candidate files.
 5. Create the training-code repository and add it as a submodule.
 6. Migrate modernBERT-only training code from Nikki's repo into the training submodule.
-7. Define and test the joint news-agency/radio-station label policy.
+7. Define and test the joint news-agency/radio-station annotation guidelines and canonical metadata policy.
 8. Export a first curated JSONL dataset from accepted news-agency and radio-station material.
 9. Publish the training dataset and record the HF commit SHA.
 10. Freeze and publish an official held-out testset.
