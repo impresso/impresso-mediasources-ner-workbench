@@ -295,14 +295,16 @@ Status: todo unless marked otherwise.
 - [ ] Keep rejected and ambiguous radio-station/news-agency material as curation evidence, not trainable labels.
 - [ ] Add small fixtures and tests for candidate schema validation and export behavior.
 
-### Applying Legacy Evaluation Curation
+### Applying HIPE-Derived Evaluation Curation
 
-Implemented for the legacy French/German dev and test folds:
+Implemented for the HIPE-derived French/German dev and test folds:
 
 - Generate model-vs-gold disagreements with `make curate-legacy-eval`.
 - Store reviewer decisions append-only in `data/curated/legacy-eval-curation/review/decisions.jsonl`.
 - Validate completed decisions with `make validate-curation`.
 - Apply completed decisions with `make apply-curation`, writing revised JSONL to `data/curated/legacy-import-curated/`.
+
+The command and path names keep `legacy-*` for compatibility. Conceptually, this is still active HIPE-derived baseline data, not discarded data.
 
 The apply step is intentionally non-destructive. It reads `data/curated/legacy-import/` and writes a new output directory containing revised `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, and `curation_summary.json`.
 
@@ -418,7 +420,7 @@ Text source policy:
 
 #### News-Agency Snippets: Model-Assisted Active Learning
 
-News agencies already have a legacy-trained model and canonical labels. Use the current model as a proposal generator, not as an unquestioned annotator.
+News agencies already have a model trained from HIPE-derived agency annotations and canonical labels. Use the current model as a proposal generator, not as an unquestioned annotator.
 
 Pipeline:
 
@@ -478,7 +480,7 @@ Implementation tasks:
 - [ ] Add `make score-newsagency-snippets` to run the current model over sampled news-agency snippets.
 - [ ] Add configurable thresholds for `AUTO_ACCEPT_MIN_CONFIDENCE`, `AUTO_ACCEPT_MIN_MARGIN`, and `REVIEW_MAX_ITEMS`.
 - [ ] Add a review queue for low-confidence or mismatched news-agency snippets.
-- [ ] Add an export command that writes accepted snippet annotations into the same public JSONL schema as the legacy dataset.
+- [ ] Add an export command that writes accepted snippet annotations into the same public JSONL schema as the HIPE-derived baseline dataset.
 - [ ] Track the source model revision in every auto-accepted record.
 - [ ] Keep auto-accepted and manually accepted rows distinguishable in audit metadata.
 
@@ -514,7 +516,7 @@ Implementation tasks:
 
 #### Training Integration
 
-Additional snippet-derived rows should not immediately replace the legacy dataset. Build them as a separate dataset component first:
+Additional snippet-derived rows should not immediately replace the HIPE-derived baseline dataset. Build them as a separate dataset component first:
 
 ```text
 data/curated/snippets/
@@ -526,7 +528,7 @@ data/curated/snippets/
   audit/
 ```
 
-Then combine with the legacy JSONL through a deterministic merge command:
+Then combine with the HIPE-derived JSONL through a deterministic merge command:
 
 ```text
 make build-training-mixture
@@ -551,7 +553,7 @@ Quality rule: auto-accepted news-agency snippets are acceptable as training expa
 - Radio-station examples are first-class training material, but they must use `org.ent.radiostation.*` labels and must not expand the news-agency label vocabulary.
 - Curation tools must preserve the original candidate row and append decisions; avoid destructive rewrites.
 
-## Legacy HIPE TSV To JSONL Format
+## HIPE-Derived TSV To JSONL Format
 
 The standalone field reference is [docs/jsonl_schema.md](docs/jsonl_schema.md). The concrete migration workflow is [docs/hipe_to_jsonl_conversion_plan.md](docs/hipe_to_jsonl_conversion_plan.md). This plan section captures the implementation decisions and migration tasks.
 
@@ -589,7 +591,7 @@ Observed document metadata includes:
 
 The JSONL importer must preserve these fields and must not assume that file path language is sufficient. In multilingual files, the authoritative language is the per-document `# language = ...` comment.
 
-For the first legacy import, use only the six monolingual `annotated_data/de/*.tsv` and `annotated_data/fr/*.tsv` files. Ignore `annotated_data/multilingual/*.tsv`: those files are derived convenience concatenations and do not include the full `fr/dev` and `de/test` source material.
+For the first HIPE-derived import, use only the six monolingual `annotated_data/de/*.tsv` and `annotated_data/fr/*.tsv` files. Ignore `annotated_data/multilingual/*.tsv`: those files are derived convenience concatenations and do not include the full `fr/dev` and `de/test` source material.
 
 ### Hugging Face Dataset Layout
 
@@ -945,7 +947,7 @@ newsagency-radiostation-modernbert-classifier/
 
 ### Training Data Contract
 
-The final published and trainable data format is the document-level JSONL schema defined in `Legacy HIPE TSV To JSONL Format`. The training submodule may load a reduced projection of those rows, but it must preserve enough source metadata to write auditable prediction JSONL.
+The final published and trainable data format is the document-level JSONL schema defined in `HIPE-Derived TSV To JSONL Format`. The training submodule may load a reduced projection of those rows, but it must preserve enough source metadata to write auditable prediction JSONL.
 
 Minimum training projection per document:
 

@@ -9,9 +9,11 @@ The conversion has two goals:
 
 The target field contract is defined in [jsonl_schema.md](jsonl_schema.md).
 
+In this document, **HIPE-derived data** is the active baseline dataset imported from the earlier HIPE/CoNLL-style annotations. Existing output paths keep `legacy-import` for compatibility, but the converted rows are not obsolete.
+
 ## Inputs
 
-Authoritative legacy annotated files:
+Authoritative HIPE annotation files:
 
 ```text
 newsagency-classification-main-nikki/data/annotated_data/de/newsagency-data-train-de.tsv
@@ -22,7 +24,7 @@ newsagency-classification-main-nikki/data/annotated_data/fr/newsagency-data-dev-
 newsagency-classification-main-nikki/data/annotated_data/fr/newsagency-data-test-fr.tsv
 ```
 
-Ignore the legacy `annotated_data/multilingual/` files for the main import. They are derived convenience files, not the complete authoritative source set: the multilingual train file corresponds to `de/train` plus `fr/train`, the multilingual dev file corresponds to `de/dev`, and the multilingual test file corresponds to `fr/test`. Using only the multilingual files would omit `fr/dev` and `de/test`.
+Ignore the historical `annotated_data/multilingual/` files for the main import. They are derived convenience files, not the complete authoritative source set: the multilingual train file corresponds to `de/train` plus `fr/train`, the multilingual dev file corresponds to `de/dev`, and the multilingual test file corresponds to `fr/test`. Using only the multilingual files would omit `fr/dev` and `de/test`.
 
 Expected HIPE columns:
 
@@ -61,11 +63,11 @@ data/curated/legacy-import/audit/test.audit.jsonl
 data/curated/legacy-import/audit/excluded_entities.jsonl
 ```
 
-The public training files must contain only accepted real-agency labels. Removed or unresolved legacy labels are recorded in audit files.
+The public training files must contain only accepted real-agency labels. Removed or unresolved historical labels are recorded in audit files.
 
 ## Label Policy
 
-### Accepted Legacy Agency Labels
+### Accepted HIPE Agency Labels
 
 The converter should accept historical labels only if they resolve to trainable entries in `resources/newsagency_seeds.json`.
 
@@ -111,9 +113,9 @@ B-org.ent.pressagency.up-upi
 I-org.ent.pressagency.up-upi
 ```
 
-### Removed Legacy Categories
+### Removed Historical Categories
 
-The following legacy labels are not trainable labels in the new public dataset:
+The following historical HIPE labels are not trainable labels in the new public dataset:
 
 | Legacy label family | Reason | Public JSONL action | Audit action |
 | --- | --- | --- | --- |
@@ -167,7 +169,7 @@ Duplicate handling policy:
 - Preserve unknown comments in the audit record.
 - Track the active `segment_iiif_link` and assign segment IDs to following tokens.
 - Require `language`, `newspaper`, `date`, and `document_id`; missing values should fail unless `--allow-missing-metadata` is set.
-- If `language` is absent in legacy multilingual files, infer it from monolingual path components or known legacy newspaper IDs and add `inferred_language` to `quality_flags`.
+- If `language` is absent in historical multilingual HIPE files, infer it from monolingual path components or known historical newspaper IDs and add `inferred_language` to `quality_flags`.
 
 ### 3. Reconstruct Text And Offsets
 
@@ -331,7 +333,7 @@ python -m lib.import_legacy_hipe_tsv \
 - [ ] Add deterministic split detection and `dev` to `validation` mapping.
 - [ ] Add `--split` override for fixtures and one-off imports.
 - [ ] Add duplicate document detection with `error` and `keep-first` modes.
-- [ ] Add language inference for legacy multilingual files that lack `# language`.
+- [ ] Add language inference for historical multilingual HIPE files that lack `# language`.
 - [ ] Add text reconstruction and offset generation.
 - [ ] Add BIO span conversion and canonical label normalization.
 - [ ] Add forbidden-label removal for `unk`, `ag`, and `pers.ind.articleauthor`.

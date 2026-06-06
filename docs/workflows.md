@@ -2,18 +2,20 @@
 
 This document gives a compact view of the main workbench activities. The workbench is the control plane: it creates and curates local JSONL artifacts, trains/evaluates models, and stages published Hugging Face dataset and model repositories.
 
+In diagrams and prose, **HIPE-derived data** means the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. This data is still an active baseline training and evaluation source. Some local paths and commands keep the historical `legacy-*` name for compatibility.
+
 ## Overall Activities
 
 ```mermaid
 flowchart TD
   A[Canonical metadata and policy] --> B[Candidate sampling]
-  A --> C[Legacy HIPE import]
+  A --> C[HIPE source import]
   B --> D[Pre-annotate sampled candidates]
-  C --> E[Legacy JSONL folds]
+  C --> E[HIPE-derived JSONL folds]
   D --> F[Span review]
-  E --> G[Legacy dev/test correction]
+  E --> G[HIPE dev/test correction]
   F --> H[Snippet-derived JSONL rows]
-  G --> I[Curated legacy JSONL rows]
+  G --> I[Curated HIPE-derived JSONL rows]
   H --> J[Training dataset staging]
   I --> J
   J --> K[Publish training dataset]
@@ -30,8 +32,8 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A[Legacy HIPE TSV or curated JSONL] --> B[Import or apply corrections]
-  B --> C[Curated legacy JSONL]
+  A[HIPE TSV or curated HIPE-derived JSONL] --> B[Import or apply corrections]
+  B --> C[Curated HIPE-derived JSONL]
   D[Reviewed sampled spans] --> E[Snippet-derived train/test JSONL]
   C --> F[Dataset export]
   E --> F
@@ -83,11 +85,11 @@ make review-radiostation-spans CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
 make export-radiostation-snippets CFG=configs/model-v0.1.0.mk
 ```
 
-## Correct Legacy Dev/Test Data
+## Correct HIPE-Derived Dev/Test Data
 
 ```mermaid
 flowchart TD
-  A[Legacy validation/test JSONL] --> B[Run selected model]
+  A[HIPE-derived validation/test JSONL] --> B[Run selected model]
   B --> C[Prediction JSONL]
   A --> D[Gold spans]
   C --> E[Gold-vs-prediction disagreements]
@@ -96,7 +98,7 @@ flowchart TD
   F --> G[Append-only decisions]
   G --> H[Validate decisions]
   H --> I[Apply decisions non-destructively]
-  I --> J[Curated legacy validation/test JSONL]
+  I --> J[Curated HIPE-derived validation/test JSONL]
   I --> K[Audit files]
 ```
 

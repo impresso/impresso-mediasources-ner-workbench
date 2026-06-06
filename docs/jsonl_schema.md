@@ -91,7 +91,7 @@ The token-level representation is convenient for Hugging Face token-classificati
 | `token_label_ids` | list[int] | yes | Integer labels from `label_map.json`, aligned with `tokens`. |
 | `entities` | list[object] | yes | Accepted canonical entity spans. |
 | `quality_flags` | list[string] | no | Non-fatal warnings such as `has_ocr_corrections` or `has_forbidden_legacy_labels`. |
-| `legacy` | object | no | Minimal trace-back metadata from the original HIPE import. Not part of the training contract. |
+| `legacy` | object | no | Minimal trace-back metadata from the original HIPE import. The field name is kept for compatibility; it refers to source provenance, not obsolete data. Not part of the training contract. |
 
 The array fields `tokens`, `token_start_offsets`, `token_end_offsets`, `token_labels`, and `token_label_ids` must have exactly the same length.
 
@@ -161,7 +161,7 @@ The historical HIPE files are CoNLL-style TSV with document metadata comments an
 # global.columns = TOKEN NE-COARSE-LIT NE-COARSE-METO NE-FINE-LIT NE-FINE-METO NE-FINE-COMP NE-NESTED NEL-LIT NEL-METO RENDER SEG OCR-INFO MISC
 ```
 
-Mapping from HIPE TSV to JSONL. Targets marked `legacy` or `local import only` are preserved for traceability during conversion, but are not primary training fields in the published Hugging Face `data/*.jsonl` files.
+Mapping from HIPE TSV to JSONL. Targets marked `legacy` or `local import only` are preserved for traceability during conversion, but are not primary training fields in the published Hugging Face `data/*.jsonl` files. In this schema, `legacy` means HIPE source trace-back metadata retained for compatibility.
 
 | HIPE source | JSONL target | Notes |
 | --- | --- | --- |
@@ -180,7 +180,7 @@ Mapping from HIPE TSV to JSONL. Targets marked `legacy` or `local import only` a
 | Other token columns | audit JSONL | Preserve in optional audit records if needed, not in the primary HF dataset. |
 | Unknown comments | audit JSONL | Store under audit metadata rather than adding unstable public columns. |
 
-Some legacy multilingual files do not contain `# language = ...`. For those files, the importer may infer `language` from a monolingual path component or from known legacy newspaper IDs. Rows with inferred language must include `inferred_language` in `quality_flags`.
+Some historical multilingual HIPE files do not contain `# language = ...`. For those files, the importer may infer `language` from a monolingual path component or from known historical newspaper IDs. Rows with inferred language must include `inferred_language` in `quality_flags`.
 
 ## Text Reconstruction
 

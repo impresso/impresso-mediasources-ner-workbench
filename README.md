@@ -15,6 +15,8 @@ The workbench follows the control-plane pattern used by `impresso-frakturline-cl
 
 For a high-level view of the workbench activities and their sub-workflows, see [docs/workflows.md](docs/workflows.md).
 
+Terminology: **HIPE-derived data** refers to the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. It is still active baseline training and evaluation data. Some paths, commands, and trace-back fields keep `legacy-*` names for compatibility.
+
 ## Repository Map
 
 ```text
@@ -72,7 +74,7 @@ make smoke
 python tests/test_import_legacy_hipe_tsv.py
 ```
 
-To test the legacy HIPE converter on the fixture:
+To test the HIPE-derived data converter on the fixture:
 
 ```bash
 make import-legacy-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --source-root . --split validation --output /private/tmp/mediasources-fixture --newsagency-seeds resources/newsagency_seeds.json"
@@ -80,7 +82,7 @@ make import-legacy-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --so
 
 ## Training
 
-First create the cleaned JSONL dataset:
+First create the cleaned HIPE-derived JSONL dataset:
 
 ```bash
 make import-legacy-hipe ARGS="--input ../newsagency-classification-main-nikki/data/annotated_data/de --input ../newsagency-classification-main-nikki/data/annotated_data/fr --source-root ../newsagency-classification-main-nikki --output data/curated/legacy-import --newsagency-seeds resources/newsagency_seeds.json --forbidden-label-policy exclude --unknown-label-policy error --malformed-bio-policy error --duplicate-policy keep-first"
@@ -157,13 +159,13 @@ make test-official PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 
 Metrics and prediction JSONL files are written under `models/newsagency_radiostation_modernbert_v0.1.0/eval/`.
 
-For basic curation of the existing French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
+For basic curation of the existing HIPE-derived French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
 
 ```bash
 make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
-To build only one fold's review queue, use `make curate-legacy-validation ...` or `make curate-legacy-test ...` with the same arguments.
+To build only one fold's review queue, use `make curate-legacy-validation ...` or `make curate-legacy-test ...` with the same arguments. The command names keep `legacy` for compatibility; the data itself is the active HIPE-derived baseline, not discarded material.
 
 The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains a deterministic `review_id`, document metadata, gold entity, predicted entity, token context, and a `decision` block for manual curation.
 
@@ -194,7 +196,7 @@ After validation, apply the reviewed decisions to a new curated JSONL directory:
 make apply-curation PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 ```
 
-This writes revised folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Boundary corrections are parsed from notes such as `13:15 "Agence Wolff" label=org.ent.pressagency.wolff`.
+This writes revised HIPE-derived folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Boundary corrections are parsed from notes such as `13:15 "Agence Wolff" label=org.ent.pressagency.wolff`.
 
 To inspect the exact ground-truth changes before publishing or retraining, compare the original and curated JSONL files with `git diff --no-index`:
 
@@ -279,7 +281,7 @@ The publisher validates entity labels against `resources/newsagency_seeds.json` 
 make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk ARGS="--upload"
 ```
 
-The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
+The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. In that field name, `legacy` means HIPE import trace-back metadata retained for compatibility, not data that is obsolete. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
 
 To open a Hub pull request instead of pushing directly:
 
@@ -309,8 +311,8 @@ See [WORKBENCH_PLAN.md](WORKBENCH_PLAN.md) for the implementation plan and thesi
 
 See [docs/annotation_guidelines.md](docs/annotation_guidelines.md) for the news-agency and radio-station annotation rules.
 
-See [docs/curation.md](docs/curation.md) for the legacy dev/test curation and review workflow.
+See [docs/curation.md](docs/curation.md) for the HIPE-derived dev/test curation and review workflow.
 
-See [docs/jsonl_schema.md](docs/jsonl_schema.md) for the annotated JSONL field contract and its mapping from the legacy HIPE TSV CoNLL-style format.
+See [docs/jsonl_schema.md](docs/jsonl_schema.md) for the annotated JSONL field contract and its mapping from the HIPE TSV CoNLL-style format.
 
 See [docs/hipe_to_jsonl_conversion_plan.md](docs/hipe_to_jsonl_conversion_plan.md) for the concrete conversion workflow from the original HIPE data into the new JSONL dataset.

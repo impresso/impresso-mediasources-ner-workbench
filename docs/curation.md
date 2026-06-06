@@ -1,12 +1,14 @@
 # Curation Workflow
 
-This document describes how to review and apply corrections for the legacy French/German dev and test folds.
+This document describes how to review and apply corrections for the HIPE-derived French/German dev and test folds.
 
-The current workflow is model-assisted: run the trained model on the legacy validation/test data, build gold-vs-prediction disagreement records, review those records in the terminal, validate the decisions, and then write a non-destructive curated JSONL copy.
+The current workflow is model-assisted: run the trained model on the HIPE-derived validation/test data, build gold-vs-prediction disagreement records, review those records in the terminal, validate the decisions, and then write a non-destructive curated JSONL copy.
+
+Here, **HIPE-derived data** means the converted French/German news-agency annotations imported from earlier HIPE/CoNLL-style source files. This data is still part of the active training and evaluation base. Some paths and command names keep `legacy-*` for compatibility with the existing workbench layout.
 
 ## Build The Review Queue
 
-Run the selected model over the legacy validation and test folds:
+Run the selected model over the HIPE-derived validation and test folds:
 
 ```bash
 make curate-legacy-eval \
@@ -15,7 +17,7 @@ make curate-legacy-eval \
   CURATION_MODEL=models/newsagency_radiostation_modernbert_v0.1.0_continue1/best
 ```
 
-`curate-legacy-eval` includes both the legacy dev/validation fold and the legacy test fold. To curate only one fold, use:
+`curate-legacy-eval` includes both the HIPE-derived dev/validation fold and the HIPE-derived test fold. To curate only one fold, use:
 
 ```bash
 make curate-legacy-validation \
@@ -162,7 +164,7 @@ The TSV groups changes by review item and uses the HIPE `NoSpaceAfter` render me
 
 ## Sampled Snippet Curation
 
-Sampled snippets use a lighter workflow than the legacy dev/test correction pass. Candidate rows should be JSONL and contain at least `id` plus either `text` or `snippet`. The tools also accept rows with `matches` and optional pre-tokenized `tokens`, `token_start_offsets`, and `token_end_offsets`.
+Sampled snippets use a lighter workflow than the HIPE-derived dev/test correction pass. Candidate rows should be JSONL and contain at least `id` plus either `text` or `snippet`. The tools also accept rows with `matches` and optional pre-tokenized `tokens`, `token_start_offsets`, and `token_end_offsets`.
 
 The workflow still calls these short review units `snippets`, independent of which Impresso field produced the review text. Internally, sampling moved away from relying on the generic Impresso `snippet` field as the main annotation text. Those search-result previews are useful, but they can miss the highlighted query term or show a lead paragraph instead of the actual Solr hit context.
 
@@ -175,7 +177,7 @@ When API/content fetches are too slow or unavailable, use `NEWSAGENCY_SAMPLE_CON
 There are two different local data situations:
 
 - Real search snippets come from Impresso search results and follow the same basic shape as `../resources/radiostation_candidates_balanced_v2.jsonl`: `id`, `query`, `candidate_label`, `search_language`, `language`, `matches`, `snippet`, date/media metadata, and optional IIIF fields. This is the default workflow for new curation.
-- `data/curated/legacy-import-curated/*.jsonl` contains text, tokens, offsets, and accepted news-agency spans. It can still be converted into bootstrap snippet candidates for testing the scoring/review/export workflow, but those rows are not new evidence.
+- `data/curated/legacy-import-curated/*.jsonl` contains curated HIPE-derived text, tokens, offsets, and accepted news-agency spans. It can still be converted into bootstrap snippet candidates for testing the scoring/review/export workflow, but those rows are not new evidence.
 - The parent sampler file `../newsagencies_by_article.json` contains agency names mapped to Impresso article IDs only. It does not contain snippets or article text, so it cannot directly fill candidate snippet JSONL; it needs an Impresso API fetch step first.
 
 Sample real Impresso search snippets:
@@ -191,7 +193,7 @@ make sample-newsagencies \
 
 This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
 
-Build a local bootstrap snippet file from the curated legacy JSONL only when you explicitly want legacy-derived test material:
+Build a local bootstrap snippet file from the curated HIPE-derived JSONL only when you explicitly want test material from the baseline HIPE-derived folds:
 
 ```bash
 make build-newsagency-snippets-from-legacy \
@@ -246,7 +248,7 @@ make export-newsagency-snippets \
   CFG=configs/model-v0.1.0.mk
 ```
 
-The default outputs are `data/curated/snippets/newsagencies/train.jsonl` and `data/curated/snippets/newsagencies/test.jsonl`. They use the same token-label/entity schema as the legacy dataset and preserve `source_component` so snippet-derived examples can be mixed deterministically later. The split is deterministic and grouped by source issue/document so snippets from the same source issue do not leak across train and test. Override the holdout size with `SNIPPET_TEST_FRACTION=...`.
+The default outputs are `data/curated/snippets/newsagencies/train.jsonl` and `data/curated/snippets/newsagencies/test.jsonl`. They use the same token-label/entity schema as the HIPE-derived dataset and preserve `source_component` so snippet-derived examples can be mixed deterministically later. The split is deterministic and grouped by source issue/document so snippets from the same source issue do not leak across train and test. Override the holdout size with `SNIPPET_TEST_FRACTION=...`.
 
 Useful overrides:
 
@@ -258,7 +260,7 @@ Useful overrides:
 
 The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radiostations`. These rows contain `id`, `station`, `query`, `search_language`, `language`, `matches`, `snippet`, date/media metadata, and optional IIIF fields. The sampler uses the same `data/candidates/sample_entity_pairs.jsonl` issue/entity registry as news-agency sampling and defaults to at most five selected samples per entity in one round.
 
-Because the current NER model was trained from legacy news-agency annotations and the legacy label map does not contain radio-station labels yet, radio-station scoring combines two sources of span suggestions: deterministic radio-station seed-alias matching and the current NER model's media-agency predictions. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
+Because the current NER model was trained from HIPE-derived news-agency annotations and the current baseline label map does not contain radio-station labels yet, radio-station scoring combines two sources of span suggestions: deterministic radio-station seed-alias matching and the current NER model's media-agency predictions. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
 
 Score sampled radio-station snippets:
 
@@ -285,6 +287,6 @@ make export-radiostation-snippets \
   CFG=configs/model-v0.1.0.mk
 ```
 
-This writes `data/curated/snippets/radiostations/train.jsonl` and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the legacy label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The split is deterministic and grouped by source issue/document.
+This writes `data/curated/snippets/radiostations/train.jsonl` and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the baseline HIPE-derived label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The split is deterministic and grouped by source issue/document.
 
 Radio-station snippets use the same span-review model as news-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-radiostation-spans`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.
