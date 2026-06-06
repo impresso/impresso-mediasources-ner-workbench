@@ -51,6 +51,14 @@ def token_span_for_offsets(row: dict[str, Any], start: int, stop: int) -> tuple[
     return token_start, token_stop
 
 
+def char_offsets_for_token_span(row: dict[str, Any], token_start: int, token_stop: int) -> tuple[int, int]:
+    starts = [int(value) for value in row.get("token_start_offsets", [])]
+    stops = [int(value) for value in row.get("token_end_offsets", [])]
+    if token_start < 0 or token_stop <= token_start or token_stop > len(starts):
+        raise ValueError(f"{row_id(row)}: patch token span {token_start}:{token_stop} is out of range")
+    return starts[token_start], stops[token_stop - 1]
+
+
 def overlaps(a_start: int, a_stop: int, b_start: int, b_stop: int) -> bool:
     return a_start < b_stop and b_start < a_stop
 
@@ -96,18 +104,40 @@ def add_audit_mark(row: dict[str, Any], mark: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def patch_span(decision: dict[str, Any]) -> dict[str, Any]:
+def patch_span(row: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
     span = decision.get("span") if isinstance(decision.get("span"), dict) else {}
+    label = str(span.get("label") or decision.get("correct_label") or "")
+    if span.get("token_start") is not None and span.get("token_stop") is not None:
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+        start, stop = char_offsets_for_token_span(row, token_start, token_stop)
+        return {
+            "label": label,
+            "start": start,
+            "stop": stop,
+            "token_start": token_start,
+            "token_stop": token_stop,
+        }
     return {
-        "label": str(span.get("label") or decision.get("correct_label") or ""),
+        "label": label,
         "start": int(span["start"]),
         "stop": int(span["stop"]),
     }
 
 
 def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, replace_overlaps: bool) -> tuple[dict[str, Any], dict[str, Any]]:
-    span = patch_span(decision)
-    token_start, token_stop = token_span_for_offsets(row, span["start"], span["stop"])
+    span = patch_span(row, decision)
+    if span.get("token_start") is not None and span.get("token_stop") is not None:
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+    else:
+        try:
+            token_start, token_stop = token_span_for_offsets(row, span["start"], span["stop"])
+        except ValueError as exc:
+            raise ValueError(
+                f"{decision.get('review_id', '<unknown>')}: {exc}. "
+                "Re-review this item with token-based manual span syntax; old character-based decisions cannot be applied."
+            ) from exc
     text = str(row.get("text") or "")
     surface = text[span["start"] : span["stop"]]
     existing = list(row.get("entities") or [])

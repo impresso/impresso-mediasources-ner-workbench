@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import review_ui
 from .snippet_data import append_jsonl, latest_decisions, load_jsonl, write_jsonl
 
 
@@ -86,8 +87,7 @@ def coverage_priority(row: dict[str, Any], coverage: dict[str, dict[str, Any]]) 
 
 
 def clear_screen() -> None:
-    if sys.stdout.isatty() and os.environ.get("TERM") not in {"", "dumb"}:
-        print(CLEAR_SCREEN, end="")
+    review_ui.clear_screen()
 
 
 def review_id(row: dict[str, Any], *, prefix: str = "newsagency-snippet") -> str:
@@ -110,21 +110,11 @@ def span_line(span: dict[str, Any], index: int) -> str:
 
 
 def numbered_tokens(row: dict[str, Any]) -> str:
-    return " ".join(f"{index}:{token}" for index, token in enumerate(row.get("tokens", [])))
+    return review_ui.numbered_tokens(row)
 
 
 def load_label_metadata(path: Path) -> dict[str, dict[str, Any]]:
-    paths = [path, DEFAULT_LABEL_METADATA, *EXTRA_DEFAULT_LABEL_METADATA]
-    metadata: dict[str, dict[str, Any]] = {}
-    for current_path in paths:
-        if not current_path.is_file():
-            continue
-        rows = json.loads(current_path.read_text(encoding="utf-8"))
-        for row in rows:
-            label = str(row.get("label") or "")
-            if label and label not in metadata:
-                metadata[label] = row
-    return metadata
+    return review_ui.load_label_metadata(path)
 
 
 def impresso_article_id(row: dict[str, Any]) -> str:
@@ -194,6 +184,7 @@ def print_label_info(
             print(f"    description: {row_info['description']}")
         if row_info.get("annotation_note"):
             print(f"    annotation note: {row_info['annotation_note']}")
+        review_ui.print_mention_profile(row_info)
         aliases_by_language = row_info.get("aliases_by_language") or {}
         for lang in ("de", "fr", "en"):
             if aliases_by_language.get(lang):
@@ -234,46 +225,15 @@ def print_review_item(row: dict[str, Any], index: int, total: int, *, review_pre
 
 
 def target_label(row: dict[str, Any]) -> str:
-    return str(row.get("curation", {}).get("label") or row.get("candidate_label") or "")
+    return review_ui.target_label(row)
 
 
 def resolve_manual_label(raw_label: str, row: dict[str, Any], label_metadata: dict[str, dict[str, Any]] | None = None) -> str:
-    label = raw_label.strip()
-    if not label:
-        inferred = target_label(row)
-        if inferred:
-            return inferred
-        raise ValueError("cannot infer label; add a full label or canonical id, e.g. agence-radio")
-    if label.startswith(("org.ent.pressagency.", "org.ent.radiostation.")):
-        return label
-    label_metadata = label_metadata or {}
-    matches = []
-    for metadata_label, metadata_row in label_metadata.items():
-        canonical_id = str(metadata_row.get("canonical_id") or metadata_label.rsplit(".", 1)[-1])
-        if label == canonical_id or label == metadata_label.rsplit(".", 1)[-1]:
-            matches.append(metadata_label)
-    if len(matches) == 1:
-        return matches[0]
-    if len(matches) > 1:
-        raise ValueError(f"ambiguous canonical id {label}; use the full label")
-    target = target_label(row)
-    if target.startswith(("org.ent.pressagency.", "org.ent.radiostation.")):
-        family = ".".join(target.split(".")[:3])
-        return f"{family}.{label}"
-    raise ValueError(f"unknown canonical id {label}; use the full label")
+    return review_ui.resolve_manual_label(raw_label, row, label_metadata)
 
 
 def split_trailing_manual_label(raw: str) -> tuple[str, str]:
-    stripped = raw.strip()
-    if not stripped:
-        return "", ""
-    parts = stripped.rsplit(maxsplit=1)
-    if len(parts) == 1:
-        return stripped, ""
-    body, possible_label = parts
-    if ":" not in possible_label:
-        return body, possible_label
-    return stripped, ""
+    return review_ui.split_trailing_manual_label(raw)
 
 
 def parse_numbered_token_span(
@@ -281,25 +241,7 @@ def parse_numbered_token_span(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[int, int, str] | None:
-    body, raw_label = split_trailing_manual_label(raw)
-    raw = body or raw
-    matches = list(NUMBERED_TOKEN_RE.finditer(raw.strip()))
-    if not matches:
-        return None
-    indexes = [int(match.group("index")) for match in matches]
-    expected = list(range(indexes[0], indexes[-1] + 1))
-    if indexes != expected:
-        raise ValueError("pasted numbered tokens must be contiguous")
-    tokens = row["tokens"]
-    for match in matches:
-        index = int(match.group("index"))
-        if index < 0 or index >= len(tokens):
-            raise ValueError("token span out of range")
-        pasted = match.group("token")
-        if pasted != str(tokens[index]):
-            raise ValueError(f"pasted token {index}:{pasted} does not match current token {index}:{tokens[index]}")
-    label = resolve_manual_label(raw_label, row, label_metadata)
-    return indexes[0], indexes[-1] + 1, label
+    return review_ui.parse_numbered_token_span(raw, row, label_metadata)
 
 
 def parse_manual_span(
@@ -307,79 +249,18 @@ def parse_manual_span(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    match = SPAN_RE.match(raw.strip())
-    if match:
-        start = int(match.group("start"))
-        stop = int(match.group("stop"))
-        label = resolve_manual_label(match.group("label"), row, label_metadata)
-    else:
-        parsed = parse_numbered_token_span(raw, row, label_metadata)
-        if parsed is None:
-            raise ValueError('expected: 12:13 reuters or pasted tokens like 9:B 10:. 11:B bbc')
-        start, stop, label = parsed
-    tokens = row["tokens"]
-    starts = row["token_start_offsets"]
-    stops = row["token_end_offsets"]
-    text = row["text"]
-    if start < 0 or stop <= start or stop > len(tokens):
-        raise ValueError("token span out of range")
-    return {
-        "token_start": start,
-        "token_stop": stop,
-        "label": label,
-        "surface": text[starts[start] : stops[stop - 1]],
-        "start": starts[start],
-        "stop": stops[stop - 1],
-        "confidence": None,
-        "margin": None,
-    }
+    return review_ui.parse_manual_span(raw, row, label_metadata)
 
 
 def interpreted_span_line(span: dict[str, Any]) -> str:
-    return (
-        f"interpreted: {span['token_start']}:{span['token_stop']} "
-        f"\"{span['surface']}\" [{span['label']}]"
-    )
+    return review_ui.interpreted_span_line(span)
 
 
 def prompt_manual_spans(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]] | None:
-    accepted_spans = []
-    print("numbered tokens:")
-    print(numbered_tokens(row))
-    print('manual correction syntax: 12:13 reuters or 12:13 org.ent.pressagency.reuters')
-    print('or paste numbered tokens, e.g. 9:B 10:. 11:B 12:. 13:C 14:. bbc')
-    print('if no label is supplied, the current candidate label is used')
-    print('manual commands: N = show numbered tokens, q = cancel/finish manual entry')
-    while True:
-        raw_span = input("span> ").strip()
-        if raw_span == "N":
-            print("numbered tokens:")
-            print(numbered_tokens(row))
-            continue
-        if raw_span.lower() in {"q", "quit", "done"}:
-            return accepted_spans or None
-        try:
-            span = parse_manual_span(raw_span, row, label_metadata)
-        except ValueError as exc:
-            print(exc)
-            continue
-        accepted_spans.append(span)
-        print(interpreted_span_line(span))
-        while True:
-            raw = input("finished? [Y/n/v] ").strip().lower()
-            if raw in {"", "y", "yes"}:
-                return accepted_spans
-            if raw in {"n", "no"}:
-                break
-            if raw in {"v", "revise"}:
-                accepted_spans.pop()
-                print("removed last manual span; enter the revised span")
-                break
-            print("Invalid choice; use y to finish, n to add another span, or v to revise.")
-        continue
+    return review_ui.prompt_manual_spans(row, label_metadata)
 
 
 def prompt_prediction_spans(

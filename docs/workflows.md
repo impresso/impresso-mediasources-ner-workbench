@@ -45,7 +45,8 @@ flowchart TD
   B --> C[Review one target at a time]
   C --> D[Append span-patch decisions]
   D --> E[Apply accepted/corrected patches]
-  E --> F[Refresh prerelease snapshot]
+  E --> F[Promote patched split]
+  F --> G[Refresh prerelease snapshot]
 ```
 
 For future newspaper mentions, prefer target-scoped passes such as `org.ent.newspaper.nzz` first, then the next newspaper label. This keeps reviewer decisions consistent.
@@ -110,6 +111,7 @@ flowchart TD
   D --> E[Apply accepted/corrected patches]
   E --> F[Patched JSONL split]
   E --> G[Change audit JSONL/TSV]
+  F --> H[Promote into prerelease/source split]
 ```
 
 Primary commands:
@@ -118,7 +120,11 @@ Primary commands:
 make audit-empty-training-docs CFG=configs/model-v2.0.0.mk
 make review-span-patches CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
 make apply-span-patches CFG=configs/model-v2.0.0.mk
+make span-patch-status CFG=configs/model-v2.0.0.mk
+make promote-span-patches CFG=configs/model-v2.0.0.mk
 ```
+
+Use `make refresh-span-patches CFG=configs/model-v2.0.0.mk` when you want to apply accepted decisions and immediately promote the patched split into the configured prerelease/source split.
 
 For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 

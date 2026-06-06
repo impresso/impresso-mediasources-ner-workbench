@@ -21,7 +21,7 @@ For example, adding more French `org.ent.pressagency.havas` examples is horizont
 The span-patch review workflow supports vertical extension and missed-annotation repair:
 
 ```text
-audit candidates -> review span patches -> append decisions -> apply patches -> refresh prerelease
+audit candidates -> review span patches -> append decisions -> apply patches -> promote patched split -> refresh prerelease
 ```
 
 See `DATASET_EXTENSION_PLAN.md` for the operational model.
@@ -46,6 +46,8 @@ data/prereleases/<dataset-version>/
 ```
 
 Update that prerelease in place as the candidate changes, so collaborators can review normal git diffs.
+
+Audit-driven span-patch application writes ignored local patched files first. The prerelease only changes after `make promote-span-patches` or `make refresh-span-patches` copies the patched split into the configured prerelease/source split.
 
 When the dataset is published, promote the accepted prerelease to an immutable release snapshot under:
 

@@ -53,6 +53,30 @@ make apply-span-patches \
   CFG=configs/model-v2.0.0.mk
 ```
 
+This writes a local patched output first. It does not change the committed prerelease split yet. Inspect whether the patched output still differs from the configured promotion target:
+
+```bash
+make span-patch-status \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+Promote the patched output into the configured prerelease/source split:
+
+```bash
+make promote-span-patches \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+For the normal apply-and-promote sequence, use:
+
+```bash
+make refresh-span-patches \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
 The defaults point to the active v2.0.0 prerelease empty-training-doc audit. For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 
 Decisions are append-only under:
@@ -61,7 +85,7 @@ Decisions are append-only under:
 data/curated/span-patches/<audit-id>/decisions.jsonl
 ```
 
-Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json` under the configured span-patch output directory.
+Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json` under the configured span-patch output directory. Promotion copies `SPAN_PATCH_OUTPUT_JSONL` into `SPAN_PATCH_PROMOTE_JSONL`, which defaults to `SPAN_PATCH_SOURCE_JSONL`.
 
 ## Build The Review Queue
 
@@ -340,6 +364,35 @@ Use `ANNOTATION_LANGUAGE_TARGETS` for explicit per-language overrides, for examp
 ```bash
 make annotation-stats CFG=configs/model-v2.0.0.mk ANNOTATION_LANGUAGE_TARGETS="de=30 fr=30 en=20 lb=8 it=8"
 ```
+
+### Entity Mention Profiles
+
+Use empirical mention profiles to inspect how each label is actually annotated in the current dataset snapshot:
+
+```bash
+make mention-profiles CFG=configs/model-v2.0.0.mk PYTHON=.venv/bin/python
+```
+
+The default outputs are:
+
+- `reports.d/entity-mention-profiles/profiles.md`
+- `reports.d/entity-mention-profiles/profiles.json`
+- `reports.d/entity-mention-profiles/surfaces.tsv`
+
+These files are generated local evidence. They answer questions such as whether `Agence Havas` or just `Havas` is usually selected, which languages use which surface forms, and whether generic terms such as `agence`, `agency`, `Agentur`, or `radio` are commonly included in the accepted span.
+
+When a pattern becomes annotation guidance rather than just evidence, copy the distilled rule into the relevant row in `resources/newsagency_seeds.json` or `resources/radiostation_seeds.json`:
+
+```json
+"mention_profile": {
+  "typical_surfaces": ["Havas", "Agence Havas", "(Havas.)"],
+  "span_guidance": "Annotate Havas alone in source formulas. Include Agence when the visible phrase is Agence Havas.",
+  "include_generic_terms": "when part of the agency name",
+  "exclude_patterns": ["generic agence without resolvable agency"]
+}
+```
+
+The `i` info view in review and audit review displays this `mention_profile` field next to the existing label metadata.
 
 ### Radio-Station Snippets
 

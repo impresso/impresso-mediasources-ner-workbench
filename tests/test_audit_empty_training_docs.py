@@ -97,6 +97,9 @@ def test_summarize_predictions_writes_candidate_spans(tmp_path: Path) -> None:
             "token_stop": 2,
         }
     ]
+    assert rows[0]["tokens"] == ["foo", "Reuters", "bar"]
+    assert rows[0]["token_start_offsets"] == [0, 4, 12]
+    assert rows[0]["token_end_offsets"] == [3, 11, 15]
     assert tsv_lines[0].split("\t") == [
         "document_id",
         "language",

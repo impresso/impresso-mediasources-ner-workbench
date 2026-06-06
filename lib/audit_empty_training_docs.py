@@ -217,6 +217,9 @@ def summarize_predictions(
                 "newspaper": source.get("newspaper", ""),
                 "predicted_entities": entities,
                 "text": text,
+                "token_end_offsets": source.get("token_end_offsets", []),
+                "token_start_offsets": source.get("token_start_offsets", []),
+                "tokens": source.get("tokens", []),
             }
         )
 

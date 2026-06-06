@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from lib.apply_span_patch_decisions import apply_span_patches
-from lib.span_patch_review import decision_record, is_verified, load_span_patches, summarize_queue
+from lib.span_patch_review import decision_record, is_verified, load_span_patches, numbered_tokens, resolve_manual_correction, summarize_queue
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -75,13 +75,25 @@ def test_decision_record_adds_verified_audit_marker(tmp_path: Path) -> None:
     write_jsonl(
         candidates,
         [
-            {
-                "document_id": "doc-1",
-                "text": "foo Havas bar",
-                "predicted_entities": [{"label": "org.ent.pressagency.havas", "start": 4, "stop": 9, "surface": "Havas"}],
-            }
-        ],
-    )
+                {
+                    "document_id": "doc-1",
+                    "text": "foo Havas bar",
+                    "tokens": ["foo", "Havas", "bar"],
+                    "token_start_offsets": [0, 4, 10],
+                    "token_end_offsets": [3, 9, 13],
+                    "predicted_entities": [
+                        {
+                            "label": "org.ent.pressagency.havas",
+                            "start": 4,
+                            "stop": 9,
+                            "surface": "Havas",
+                            "token_start": 1,
+                            "token_stop": 2,
+                        }
+                    ],
+                }
+            ],
+        )
     patch = load_span_patches(candidates, audit_id="audit-1")[0]
 
     decision = decision_record(patch, choice="reject", reviewer="tester")
@@ -91,6 +103,8 @@ def test_decision_record_adds_verified_audit_marker(tmp_path: Path) -> None:
     assert decision["audit_marker"].endswith(":verified")
     assert decision["audit_status"] == "verified"
     assert is_verified(decision)
+    assert decision["span"]["token_start"] == patch["token_start"]
+    assert decision["span"]["token_stop"] == patch["token_stop"]
     assert skipped["audit_status"] == "skipped"
     assert not is_verified(skipped)
     assert summarize_queue([patch], {patch["review_id"]: decision})["pending"] == 0
@@ -280,6 +294,8 @@ def test_apply_span_patches_uses_modified_entity(tmp_path: Path) -> None:
                 correct_label="org.ent.pressagency.havas",
                 start=4,
                 stop=16,
+                token_start=1,
+                token_stop=3,
             )
         ],
     )
@@ -310,3 +326,176 @@ def test_apply_span_patches_uses_modified_entity(tmp_path: Path) -> None:
             "stop": 16,
         }
     ]
+
+
+def test_resolve_manual_correction_from_visible_surface_text(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    text = "foo Agence Havas bar Havas baz"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": text,
+                "predicted_entities": [{"label": "org.ent.pressagency.reuters", "start": 17, "stop": 22, "surface": "Havas"}],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+
+    assert resolve_manual_correction(patch, "Agence Havas org.ent.pressagency.havas") == (
+        4,
+        16,
+        "org.ent.pressagency.havas",
+    )
+    assert resolve_manual_correction(patch, '"Agence Havas" org.ent.pressagency.havas') == (
+        4,
+        16,
+        "org.ent.pressagency.havas",
+    )
+
+
+def test_resolve_manual_correction_supports_label_only_and_exact_offsets(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": "foo Havas bar",
+                "predicted_entities": [{"label": "org.ent.pressagency.reuters", "start": 4, "stop": 9, "surface": "Havas"}],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+
+    assert resolve_manual_correction(patch, "org.ent.pressagency.havas") == (4, 9, "org.ent.pressagency.havas")
+    assert resolve_manual_correction(patch, "0:9 org.ent.pressagency.havas") == (0, 9, "org.ent.pressagency.havas")
+
+
+def test_resolve_manual_correction_prefers_token_spans_when_offsets_are_available(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": "foo Agence Havas bar",
+                "tokens": ["foo", "Agence", "Havas", "bar"],
+                "token_start_offsets": [0, 4, 11, 17],
+                "token_end_offsets": [3, 10, 16, 20],
+                "predicted_entities": [{"label": "org.ent.pressagency.reuters", "start": 11, "stop": 16, "surface": "Havas"}],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+
+    assert resolve_manual_correction(patch, "1:3 org.ent.pressagency.havas") == (4, 16, "org.ent.pressagency.havas")
+
+
+def test_decision_record_preserves_token_span_for_manual_patch(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": "foo Agence Havas bar",
+                "tokens": ["foo", "Agence", "Havas", "bar"],
+                "token_start_offsets": [0, 4, 11, 17],
+                "token_end_offsets": [3, 10, 16, 20],
+                "predicted_entities": [{"label": "org.ent.pressagency.reuters", "start": 11, "stop": 16, "surface": "Havas"}],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+    decision = decision_record(
+        patch,
+        choice="modify",
+        reviewer="tester",
+        correct_label="org.ent.pressagency.havas",
+        start=4,
+        stop=16,
+        token_start=1,
+        token_stop=3,
+    )
+
+    assert decision["span"] == {
+        "label": "org.ent.pressagency.havas",
+        "start": 4,
+        "stop": 16,
+        "token_start": 1,
+        "token_stop": 3,
+    }
+
+
+def test_numbered_tokens_match_review_display_without_prediction_marker(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": "foo Havas bar",
+                "tokens": ["foo", "Havas", "bar"],
+                "token_start_offsets": [0, 4, 10],
+                "token_end_offsets": [3, 9, 13],
+                "predicted_entities": [
+                    {
+                        "label": "org.ent.pressagency.havas",
+                        "start": 4,
+                        "stop": 9,
+                        "surface": "Havas",
+                        "token_start": 1,
+                        "token_stop": 2,
+                    }
+                ],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+
+    assert numbered_tokens(patch) == "0:foo 1:Havas 2:bar"
+
+
+def test_numbered_tokens_focus_long_documents_around_prediction(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    tokens = [f"t{index}" for index in range(700)]
+    text = " ".join(tokens)
+    starts = []
+    ends = []
+    offset = 0
+    for token in tokens:
+        starts.append(offset)
+        offset += len(token)
+        ends.append(offset)
+        offset += 1
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": text,
+                "tokens": tokens,
+                "token_start_offsets": starts,
+                "token_end_offsets": ends,
+                "predicted_entities": [
+                    {
+                        "label": "org.ent.pressagency.havas",
+                        "start": starts[650],
+                        "stop": ends[650],
+                        "surface": "t650",
+                        "token_start": 650,
+                        "token_stop": 651,
+                    }
+                ],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+    rendered = numbered_tokens(patch)
+
+    assert "650:t650" in rendered
+    assert "0:t0" not in rendered
+    assert "earlier tokens omitted" in rendered
+    assert len([chunk for chunk in rendered.split() if ":" in chunk and chunk.split(":", 1)[0].isdigit()]) <= 513
