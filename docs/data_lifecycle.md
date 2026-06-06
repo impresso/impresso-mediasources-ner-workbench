@@ -49,6 +49,8 @@ Update that prerelease in place as the candidate changes, so collaborators can r
 
 Audit-driven span-patch application writes ignored local patched files first. The prerelease only changes after `make promote-span-patches` or `make refresh-span-patches` copies the patched split into the configured prerelease/source split.
 
+Snippet review follows the same boundary. `make export-newsagency-snippets` and `make export-radiostation-snippets` write ignored working JSONL files under `data/curated/snippets/`. The prerelease only changes after `make promote-snippets` or `make refresh-snippets` merges those exported rows into the configured dataset splits.
+
 When the dataset is published, promote the accepted prerelease to an immutable release snapshot under:
 
 ```text

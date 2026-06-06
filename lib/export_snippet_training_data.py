@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -181,27 +182,57 @@ def apply_split_assignments(rows: list[dict[str, Any]], *, test_fraction: float,
     return out
 
 
+def unique_row_id(base_id: str, text: str, spans: list[dict[str, Any]], id_counts: Counter[str]) -> str:
+    if id_counts[base_id] <= 1:
+        return base_id
+    payload = json.dumps(
+        {
+            "id": base_id,
+            "text": text,
+            "spans": [
+                {
+                    "label": span.get("label"),
+                    "start": span.get("start"),
+                    "stop": span.get("stop"),
+                    "token_start": span.get("token_start"),
+                    "token_stop": span.get("token_stop"),
+                }
+                for span in spans
+            ],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
+    return f"{base_id}#snippet-{digest}"
+
+
 def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata: list[Path] | None = None) -> list[dict[str, Any]]:
     label_map = load_label_map(label_map_path)
     if extra_label_metadata:
         label_map = extend_label_map(label_map, extra_label_metadata)
     label2id = label_map["label2id"]
-    exported = []
+    prepared = []
     for row in load_jsonl(input_path):
         curation = row.get("curation", {})
         if curation.get("status") not in ACCEPTED_STATUSES:
             continue
-        text, tokens, starts, stops = candidate_tokens(row)
-        labels = empty_labels(len(tokens))
         spans = selected_spans(row)
         if not spans:
             continue
+        text, tokens, starts, stops = candidate_tokens(row)
+        prepared.append((row, spans, text, tokens, starts, stops))
+    id_counts = Counter(str(row["id"]) for row, *_ in prepared)
+    exported = []
+    for row, spans, text, tokens, starts, stops in prepared:
+        labels = empty_labels(len(tokens))
         for span in spans:
             apply_span(labels, span)
         unknown = sorted(set(labels) - set(label2id))
         if unknown:
             raise ValueError(f"{row.get('id')}: labels missing from label map: {unknown}")
-        row_id = str(row["id"])
+        source_id = str(row["id"])
+        row_id = unique_row_id(source_id, text, spans, id_counts)
         split_group = source_split_group(row)
         source = row.get("source") if isinstance(row.get("source"), dict) else {}
         source_document_id = row.get("sample_document_id") or source.get("document_id") or ""
@@ -227,7 +258,7 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
                 "split_group": split_group,
                 "legacy": {
                     "source_format": "sampled-snippet-jsonl",
-                    "source_id": row.get("id", row_id),
+                    "source_id": source_id,
                     "source_document_id": source_document_id,
                     "source_issue_id": split_group,
                     "query": row.get("query", ""),

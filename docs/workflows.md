@@ -145,6 +145,7 @@ flowchart TD
   J --> I
   J --> K[Rejected, skipped, or removed audit rows]
   I --> L[Export train/test JSONL]
+  L --> M[Promote exported snippets into prerelease splits]
 ```
 
 Primary commands:
@@ -159,7 +160,11 @@ make sample-radiostations CFG=configs/model-v2.0.0.mk
 make score-radiostation-snippets CFG=configs/model-v2.0.0.mk
 make review-radiostation-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
 make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make snippet-promotion-status CFG=configs/model-v2.0.0.mk
+make promote-snippets CFG=configs/model-v2.0.0.mk
 ```
+
+Use `make refresh-snippets CFG=configs/model-v2.0.0.mk` when reviewed snippet files are current and you want to export both entity families and promote the exported train/test rows into the configured dataset splits. Promotion is idempotent by `document_id`: existing rows with the same ID are replaced, new rows are appended, and the split is sorted again.
 
 ## Correct HIPE-Derived Dev/Test Data
 

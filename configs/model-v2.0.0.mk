@@ -8,6 +8,10 @@ include configs/model-v1.0.0.mk
 MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0
 DATASET_SOURCE_DIR = data/prereleases/dataset-v2.0.0
 DATASET_REVISION = v1.0.0
+TRAIN_JSONL = data/prereleases/dataset-v2.0.0/train.jsonl
+VALIDATION_JSONL = data/prereleases/dataset-v2.0.0/validation.jsonl
+TEST_JSONL = data/prereleases/dataset-v2.0.0/test.jsonl
+LABEL_MAP = data/prereleases/dataset-v2.0.0/label_map.json
 
 EMPTY_TRAIN_SOURCE_JSONL = data/prereleases/dataset-v2.0.0/train.jsonl
 EMPTY_TRAIN_LABEL_MAP = data/prereleases/dataset-v2.0.0/label_map.json

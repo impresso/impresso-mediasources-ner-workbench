@@ -87,6 +87,46 @@ data/curated/span-patches/<audit-id>/decisions.jsonl
 
 Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json` under the configured span-patch output directory. Promotion copies `SPAN_PATCH_OUTPUT_JSONL` into `SPAN_PATCH_PROMOTE_JSONL`, which defaults to `SPAN_PATCH_SOURCE_JSONL`.
 
+## Snippet Promotion
+
+Snippet review produces ignored working files under `data/curated/snippets/`. Exporting snippets creates train/test JSONL rows for each entity family:
+
+```bash
+make export-newsagency-snippets \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+
+make export-radiostation-snippets \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+Check what would be merged into the configured dataset splits:
+
+```bash
+make snippet-promotion-status \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+Promote the exported snippet rows into the prerelease:
+
+```bash
+make promote-snippets \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+For the normal export-and-promote sequence, use:
+
+```bash
+make refresh-snippets \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+Promotion is idempotent by `document_id`: existing rows with the same ID are replaced, new rows are appended, and the destination split is sorted again.
+
 ## Build The Review Queue
 
 Run the selected model over the HIPE-derived validation and test folds:

@@ -872,6 +872,59 @@ def test_radiostation_alias_scoring_and_export(tmp_path: Path) -> None:
     assert rows[0]["source_component"] == "radiostation_snippet_manual"
 
 
+def test_export_snippet_rows_suffixes_duplicate_source_ids(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.radiostation.bbc": 1,
+                    "I-org.ent.radiostation.bbc": 2,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.radiostation.bbc",
+                    "2": "I-org.ent.radiostation.bbc",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    base = {
+        "id": "doc-1#match-0",
+        "curation": {"status": "accepted"},
+        "language": "fr",
+        "date": "1950-01-01",
+        "accepted_spans": [
+            {
+                "label": "org.ent.radiostation.bbc",
+                "start": 0,
+                "stop": 3,
+                "surface": "BBC",
+                "token_start": 0,
+                "token_stop": 1,
+            }
+        ],
+    }
+    write_jsonl(
+        input_path,
+        [
+            {**base, "snippet": "BBC annonce."},
+            {**base, "snippet": "BBC confirme."},
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert len(rows) == 2
+    assert rows[0]["document_id"].startswith("doc-1#match-0#snippet-")
+    assert rows[1]["document_id"].startswith("doc-1#match-0#snippet-")
+    assert rows[0]["document_id"] != rows[1]["document_id"]
+    assert {row["legacy"]["source_id"] for row in rows} == {"doc-1#match-0"}
+
+
 def test_radiostation_export_extends_label_map_for_mixed_pressagency_spans(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_reviewed.jsonl"
     radio_seeds_path = tmp_path / "radiostation_seeds.json"
