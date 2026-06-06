@@ -243,7 +243,10 @@ def write_split_outputs(rows: list[dict[str, Any]], *, output: Path, validation_
     for split, path in paths.items():
         if path is None:
             continue
-        split_rows = [{key: value for key, value in row.items() if key != "split_group"} for row in rows if row.get("split") == split]
+        split_rows = sorted(
+            ({key: value for key, value in row.items() if key != "split_group"} for row in rows if row.get("split") == split),
+            key=lambda row: (str(row.get("document_id") or row.get("id") or "").casefold(), str(row.get("document_id") or row.get("id") or "")),
+        )
         write_jsonl(path, split_rows)
         counts[split] = len(split_rows)
     return counts

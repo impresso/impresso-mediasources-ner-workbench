@@ -18,6 +18,13 @@ This plan intentionally separates three tracks:
 2. Training a modern token-classification model in a new training-code submodule.
 3. Deploying models and pipeline code to Hugging Face.
 
+Dataset curation also has two extension axes:
+
+- **Horizontal extension**: add more documents/examples for the current label space.
+- **Vertical extension**: add more annotation depth or new entity families inside existing documents.
+
+The distinction matters because the review unit differs. Horizontal extension is usually sampled-document or sampled-snippet review. Vertical extension should be target-entity review, for example patch all likely `org.ent.newspaper.nzz` mentions before moving to the next newspaper label. See `DATASET_EXTENSION_PLAN.md`.
+
 Resolved design decisions:
 
 - Train a single model that predicts both news-agency and radio-station labels.
@@ -97,7 +104,7 @@ The thesis post-processing step is directly relevant for the workbench:
 - Re-annotate documents where missed mentions are found.
 - Add derived metadata after curation, including article-level source flags and Wikidata IDs.
 
-In the thesis, this missed-annotation search added 14 German mentions and 71 French mentions. The new curation workflow should include an equivalent `make qa-candidates` or `make audit-missed-mentions` command over JSONL.
+In the thesis, this missed-annotation search added 14 German mentions and 71 French mentions. The workbench implements the equivalent repair path as a generic span-patch loop: audit candidates, review suspicious spans, append decisions, and apply accepted/corrected patches non-destructively to JSONL. The same loop supports future vertical extension for newspaper mentions.
 
 ### Dataset Facts And Risks
 
@@ -872,7 +879,7 @@ The old development workflow included continued masked-language-model pretrainin
 - Run MLM validation three times across the epoch plus one final evaluation, using only a 1 percent validation split.
 - Disable intermediate checkpoint saving by default and save only the final adapted model unless `MLM_SAVE_STRATEGY=steps` or `epoch` is explicitly requested.
 - Tokenize MLM data into a reusable Arrow cache under `mlm.d/`. Use fixed max-length padding by default for Apple MPS stability; dynamic padding can be re-enabled with `MLM_PAD_TO_MAX_LENGTH=false`.
-- Save the local adapted checkpoint under `models.d/multilingualmodernimpressoBERT_v0.1.0/final`.
+- Save the local adapted checkpoint under `models.d/multilingualmodernimpressoBERT_v1.0.0/final`.
 - Publish the adapted checkpoint to the separate HF model repo `impresso-project/mmbert-multilingual-impresso-continued-mlm`.
 - Use the published adapted checkpoint as the default `BASE_MODEL` for the supervised news-agency and radio-station token classifier: `hf://impresso-project/mmbert-multilingual-impresso-continued-mlm`. Allow users to override this with a local path or a plain Hugging Face model id.
 - Use memory-conservative local supervised training defaults on Apple MPS: microbatch 1, gradient accumulation, gradient checkpointing, Adafactor instead of AdamW, and frozen encoder/head-only training by default. Full encoder fine-tuning remains available with `FREEZE_BASE_MODEL=false` on hardware with enough memory.
@@ -901,7 +908,7 @@ Open implementation tasks:
 - [ ] Inspect `mlm.d/multilingual_50k_lbfix/dataset_report.json` for language balance, skipped-record counts, and OCR-quality effects.
 - [ ] Run a short `make pretrain-mlm` smoke test with tiny `ARGS` before full training if compute is constrained.
 - [ ] Run full continued MLM pretraining and publish the resulting checkpoint to `impresso-project/mmbert-multilingual-impresso-continued-mlm`.
-- [ ] Train the supervised classifier from `models.d/multilingualmodernimpressoBERT_v0.1.0/final`.
+- [ ] Train the supervised classifier from `models.d/multilingualmodernimpressoBERT_v1.0.0/final`.
 - [ ] Compare supervised dev/test metrics against training directly from `jhu-clsp/mmBERT-base`.
 
 ### Training Repo Shape

@@ -19,7 +19,7 @@ def test_clean_removes_generated_roots_and_local_data(tmp_path):
     touch(tmp_path / "data" / "candidates" / "sample.jsonl")
     touch(tmp_path / "data" / "curated" / "snippets" / "decisions.jsonl")
     touch(tmp_path / "data" / "testset" / "local.jsonl")
-    touch(tmp_path / "data" / "releases" / "dataset-v0.2.0" / "train.jsonl")
+    touch(tmp_path / "data" / "releases" / "dataset-v2.0.0" / "train.jsonl")
 
     result = clean(tmp_path, dry_run=False)
 
@@ -34,7 +34,7 @@ def test_clean_removes_generated_roots_and_local_data(tmp_path):
     assert not (tmp_path / "staging.d").exists()
     assert not (tmp_path / "data" / "curated" / "snippets").exists()
     assert (tmp_path / "data" / "candidates" / ".gitkeep").is_file()
-    assert (tmp_path / "data" / "releases" / "dataset-v0.2.0" / "train.jsonl").is_file()
+    assert (tmp_path / "data" / "releases" / "dataset-v2.0.0" / "train.jsonl").is_file()
 
 
 def test_clean_dry_run_reports_without_removing(tmp_path):

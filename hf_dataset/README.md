@@ -37,27 +37,31 @@ Each JSONL row represents one document/article. The published `data/*.jsonl` fil
 - `text`
 - `tokens`
 - `token_start_offsets`, `token_end_offsets`
-- `token_labels`, `token_label_ids`
+- `token_labels`
 - `entities`
 - `quality_flags`
 - `legacy`
 
-The canonical annotations are the BIO labels in `token_labels` plus the resolved span records in `entities`. The row-level `legacy` object is only for tracing back to the converted HIPE source and may contain `source_format`, `source_file`, and the original `news_agency_as_source` values. The latter is historical provenance from the thesis-era annotation semantics and should not be treated as the current target annotation.
+The canonical annotations are the BIO labels in `token_labels` plus the resolved span records in `entities`. The row-level `legacy` object is only for tracing back to the converted HIPE source and may contain `source_format` and `source_file`.
 
 Important metadata fields:
 
 - `newspaper`: source newspaper/media identifier from the original annotation metadata, for example `DTT`.
 - `legacy.source_format`: original annotation format, for example `hipe-tsv`.
 - `legacy.source_file`: original converted annotation file, for example `data/annotated_data/de/newsagency-data-dev-de.tsv`.
-- `legacy.news_agency_as_source`: document-level source-attribution QIDs from the thesis-era HIPE metadata. This is provenance only; the current gold annotation is in `token_labels` and `entities`.
 - `quality_flags`: non-fatal import or curation warnings. `has_forbidden_legacy_labels` means the original row contained labels excluded by the current label policy, such as `unk`, unresolved `ag`, or `pers.ind.articleauthor`; these labels were removed from the trainable annotation.
+- `entities[].wikidata_url`: canonical Wikidata URL when available. Raw NEL/QID provenance is not part of the public training contract.
+- `entities[].ocr_correction`: optional object present only when OCR/transcript evidence corrected the visible entity surface.
+- Public `entities[]` do not include synthetic entity IDs. If a stable entity reference is needed, derive it from row `id`, character offsets, and `label`.
 
 Fields intentionally excluded from the public training rows:
 
 - `token_nel`, `token_ocr`, `token_render`, `token_segment_ids`: token-level HIPE side channels used for conversion/debugging, not model training.
+- `token_label_ids`: integer labels are derived from `token_labels` and `label_map.json` by training code when needed.
 - `segments`: segment and IIIF metadata; useful for traceability, too large for the primary training table.
 - `sentences`: derived sentence spans; redundant for current token-window training.
-- `entities[].label_original` and `entities[].status`: legacy normalization/audit fields; the current label is `entities[].label`.
+- `legacy.news_agency_as_source`: thesis-era document-level source-attribution provenance. It mixes QIDs with sentinels such as `_`, `unk`, and `NIL`, and is not part of the current annotation target.
+- `entities[].entity_id`, `entities[].nel`, `entities[].normalized_surface`, `entities[].has_ocr_correction`, `entities[].max_ocr_levenshtein`, `entities[].label_original`, and `entities[].status`: legacy normalization/linking/OCR/audit fields. The current label is `entities[].label`; current entity links use `entities[].wikidata_url`; compact OCR corrections use `entities[].ocr_correction`.
 
 `audit/curation_changes_tags.tsv` is a compact CoNLL-like review file with `TOKEN`, `BEFORE_NERTAG`, and `AFTER_NERTAG` columns for the manually reviewed changes. It is intended for human audit, not model training.
 

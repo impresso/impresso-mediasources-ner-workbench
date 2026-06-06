@@ -29,12 +29,11 @@ PUBLIC_ROW_FIELDS = (
     "token_start_offsets",
     "token_end_offsets",
     "token_labels",
-    "token_label_ids",
     "entities",
+    "audit_marks",
     "quality_flags",
 )
 PUBLIC_ENTITY_FIELDS = (
-    "entity_id",
     "label",
     "entity_family",
     "token_start",
@@ -42,13 +41,9 @@ PUBLIC_ENTITY_FIELDS = (
     "start",
     "stop",
     "surface",
-    "normalized_surface",
-    "nel",
     "wikidata_url",
-    "has_ocr_correction",
-    "max_ocr_levenshtein",
 )
-LEGACY_TRACE_FIELDS = ("source_format", "source_file", "news_agency_as_source")
+LEGACY_TRACE_FIELDS = ("source_format", "source_file")
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -73,6 +68,11 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
             handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def row_sort_key(row: dict[str, Any]) -> tuple[str, str]:
+    identifier = str(row.get("document_id") or row.get("id") or "")
+    return (identifier.casefold(), identifier)
+
+
 def copy_file(source: Path, target: Path) -> None:
     if not source.is_file():
         raise FileNotFoundError(source)
@@ -81,7 +81,19 @@ def copy_file(source: Path, target: Path) -> None:
 
 
 def public_entity(entity: dict[str, Any]) -> dict[str, Any]:
-    return {field: entity[field] for field in PUBLIC_ENTITY_FIELDS if field in entity}
+    out = {field: entity[field] for field in PUBLIC_ENTITY_FIELDS if field in entity}
+    if out.get("wikidata_url") in ("", None):
+        out.pop("wikidata_url", None)
+    if entity.get("has_ocr_correction"):
+        correction: dict[str, Any] = {}
+        normalized = entity.get("normalized_surface")
+        if normalized and normalized != entity.get("surface"):
+            correction["surface"] = normalized
+        if entity.get("max_ocr_levenshtein") not in (None, "", 0, 0.0):
+            correction["max_levenshtein"] = float(entity["max_ocr_levenshtein"])
+        if correction:
+            out["ocr_correction"] = correction
+    return out
 
 
 def public_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -111,7 +123,7 @@ def prepare_dataset_repo(
     (output_dir / "data").mkdir(parents=True)
 
     for split in SPLITS:
-        rows = load_jsonl(input_dir / f"{split}.jsonl")
+        rows = sorted(load_jsonl(input_dir / f"{split}.jsonl"), key=row_sort_key)
         write_jsonl(output_dir / "data" / f"{split}.jsonl", (public_row(row) for row in rows))
     copy_file(input_dir / "label_map.json", output_dir / "label_map.json")
     copy_file(card_path, output_dir / "README.md")

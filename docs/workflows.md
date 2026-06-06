@@ -4,6 +4,52 @@ This document gives a compact view of the main workbench activities. The workben
 
 In diagrams and prose, **HIPE-derived data** means the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. This data is still an active baseline training and evaluation source. Some local paths and commands keep the historical `legacy-*` name for compatibility.
 
+## Dataset Extension Axes
+
+The workbench separates dataset growth into two axes:
+
+- **Horizontal extension** adds more documents/examples for existing labels.
+- **Vertical extension** adds more entity types or deeper annotations inside existing documents.
+
+This distinction is important for planning, review, metrics, and release notes. See `DATASET_EXTENSION_PLAN.md`.
+
+```mermaid
+flowchart LR
+  A[Dataset update] --> B{Extension axis}
+  B --> C[Horizontal: more documents]
+  B --> D[Vertical: more entity types]
+  B --> E[Repair: missed or corrected spans]
+  C --> F[Sampling and snippet review]
+  D --> G[Entity-first span patch review]
+  E --> G
+  F --> H[Prerelease update]
+  G --> H
+```
+
+### Horizontal Extension
+
+```mermaid
+flowchart TD
+  A[Coverage gaps by label and language] --> B[Sample more documents or snippets]
+  B --> C[Pre-annotate current media-source labels]
+  C --> D[Review sampled spans]
+  D --> E[Export additional train/test JSONL]
+  E --> F[Refresh prerelease snapshot]
+```
+
+### Vertical Extension
+
+```mermaid
+flowchart TD
+  A[Choose target family or label] --> B[Generate candidate spans in existing docs]
+  B --> C[Review one target at a time]
+  C --> D[Append span-patch decisions]
+  D --> E[Apply accepted/corrected patches]
+  E --> F[Refresh prerelease snapshot]
+```
+
+For future newspaper mentions, prefer target-scoped passes such as `org.ent.newspaper.nzz` first, then the next newspaper label. This keeps reviewer decisions consistent.
+
 ## Overall Activities
 
 ```mermaid
@@ -46,11 +92,35 @@ Primary commands:
 
 ```bash
 make import-legacy-hipe ARGS="..."
-make apply-curation CFG=configs/model-v0.1.0.mk
-make export-newsagency-snippets CFG=configs/model-v0.1.0.mk
-make export-radiostation-snippets CFG=configs/model-v0.1.0.mk
-make publish-dataset CFG=configs/model-v0.1.0.mk ARGS="--dry-run"
+make apply-curation CFG=configs/model-v2.0.0.mk
+make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--dry-run"
 ```
+
+## Audit-Driven Span Patches
+
+Use audit-driven span patches when suspicious missing annotations are found in existing documents, or when adding a new entity family inside existing documents.
+
+```mermaid
+flowchart TD
+  A[Audit candidates JSONL] --> B[Flatten candidate spans]
+  B --> C[Terminal span-patch review]
+  C --> D[Append-only decisions JSONL]
+  D --> E[Apply accepted/corrected patches]
+  E --> F[Patched JSONL split]
+  E --> G[Change audit JSONL/TSV]
+```
+
+Primary commands:
+
+```bash
+make audit-empty-training-docs CFG=configs/model-v2.0.0.mk
+make review-span-patches CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make apply-span-patches CFG=configs/model-v2.0.0.mk
+```
+
+For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 
 ## Create, Pre-Annotate, And Review Sampled Data
 
@@ -74,15 +144,15 @@ flowchart TD
 Primary commands:
 
 ```bash
-make sample-newsagencies CFG=configs/model-v0.1.0.mk
-make score-newsagency-snippets CFG=configs/model-v0.1.0.mk
-make review-newsagency-snippets CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
-make export-newsagency-snippets CFG=configs/model-v0.1.0.mk
+make sample-newsagencies CFG=configs/model-v2.0.0.mk
+make score-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make review-newsagency-snippets CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
 
-make sample-radiostations CFG=configs/model-v0.1.0.mk
-make score-radiostation-snippets CFG=configs/model-v0.1.0.mk
-make review-radiostation-spans CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
-make export-radiostation-snippets CFG=configs/model-v0.1.0.mk
+make sample-radiostations CFG=configs/model-v2.0.0.mk
+make score-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make review-radiostation-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
 ```
 
 ## Correct HIPE-Derived Dev/Test Data
@@ -105,10 +175,10 @@ flowchart TD
 Primary commands:
 
 ```bash
-make curate-legacy-eval CFG=configs/model-v0.1.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
-make review-curation CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
-make validate-curation CFG=configs/model-v0.1.0.mk
-make apply-curation CFG=configs/model-v0.1.0.mk
+make curate-legacy-eval CFG=configs/model-v2.0.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make review-curation CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make validate-curation CFG=configs/model-v2.0.0.mk
+make apply-curation CFG=configs/model-v2.0.0.mk
 ```
 
 ## Create Or Update Models
@@ -133,14 +203,14 @@ flowchart TD
 Primary commands:
 
 ```bash
-make download-mlm-sources CFG=configs/model-v0.1.0.mk
-make build-mlm-data CFG=configs/model-v0.1.0.mk
-make pretrain-mlm CFG=configs/model-v0.1.0.mk
-make push-mlm-model CFG=configs/model-v0.1.0.mk
-make train CFG=configs/model-v0.1.0.mk
-make test CFG=configs/model-v0.1.0.mk
-make test-official CFG=configs/model-v0.1.0.mk
-make push-model CFG=configs/model-v0.1.0.mk
+make download-mlm-sources CFG=configs/model-v2.0.0.mk
+make build-mlm-data CFG=configs/model-v2.0.0.mk
+make pretrain-mlm CFG=configs/model-v2.0.0.mk
+make push-mlm-model CFG=configs/model-v2.0.0.mk
+make train CFG=configs/model-v2.0.0.mk
+make test CFG=configs/model-v2.0.0.mk
+make test-official CFG=configs/model-v2.0.0.mk
+make push-model CFG=configs/model-v2.0.0.mk
 ```
 
 ## Publish Artifacts
@@ -161,7 +231,7 @@ flowchart TD
 Primary commands:
 
 ```bash
-make publish-dataset CFG=configs/model-v0.1.0.mk ARGS="--dry-run"
-make publish-testset CFG=configs/model-v0.1.0.mk ARGS="--dry-run"
-make push-model CFG=configs/model-v0.1.0.mk
+make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--dry-run"
+make publish-testset CFG=configs/model-v2.0.0.mk ARGS="--dry-run"
+make push-model CFG=configs/model-v2.0.0.mk
 ```

@@ -53,20 +53,20 @@ The token-level representation is convenient for Hugging Face token-classificati
       "start": 0,
       "stop": 12,
       "surface": "United Preß",
-      "normalized_surface": "United Press",
       "label": "org.ent.pressagency.up-upi",
       "entity_family": "pressagency",
-      "nel": "Q493845",
       "wikidata_url": "https://www.wikidata.org/wiki/Q493845",
-      "has_ocr_correction": false,
-      "max_ocr_levenshtein": 0.0
+      "ocr_correction": {
+        "surface": "United Press",
+        "max_levenshtein": 0.17
+      }
     }
   ],
   "quality_flags": [],
   "legacy": {
     "source_format": "hipe-tsv",
     "source_file": "data/annotated_data/de/newsagency-data-dev-de.tsv",
-    "news_agency_as_source": ["Q493845"]
+    "source_file": "data/annotated_data/de/newsagency-data-dev-de.tsv"
   }
 }
 ```
@@ -88,31 +88,56 @@ The token-level representation is convenient for Hugging Face token-classificati
 | `token_start_offsets` | list[int] | yes | Inclusive token start offsets into `text`. |
 | `token_end_offsets` | list[int] | yes | Exclusive token end offsets into `text`. |
 | `token_labels` | list[string] | yes | BIO labels aligned with `tokens`. |
-| `token_label_ids` | list[int] | yes | Integer labels from `label_map.json`, aligned with `tokens`. |
 | `entities` | list[object] | yes | Accepted canonical entity spans. |
+| `audit_marks` | list[object] | no | Reviewer-neutral verified audit markers for accepted, modified, or rejected suspicious spans. Used to avoid repeatedly suggesting the same audited span in later audit passes. |
 | `quality_flags` | list[string] | no | Non-fatal warnings such as `has_ocr_corrections` or `has_forbidden_legacy_labels`. |
-| `legacy` | object | no | Minimal trace-back metadata from the original HIPE import. The field name is kept for compatibility; it refers to source provenance, not obsolete data. Not part of the training contract. |
+| `legacy` | object | no | Minimal trace-back metadata from the original HIPE import, currently `source_format` and `source_file`. The field name is kept for compatibility; it refers to source provenance, not obsolete data. Not part of the training contract. |
 
-The array fields `tokens`, `token_start_offsets`, `token_end_offsets`, `token_labels`, and `token_label_ids` must have exactly the same length.
+The array fields `tokens`, `token_start_offsets`, `token_end_offsets`, and `token_labels` must have exactly the same length. Integer label IDs are derived from `token_labels` and `label_map.json` by training code when needed.
 
 ## Entity Fields
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `entity_id` | string | yes | Stable row-local entity ID. |
 | `token_start` | int | yes | Inclusive start token index. |
 | `token_stop` | int | yes | Exclusive stop token index. |
 | `start` | int | yes | Inclusive start character offset into `text`. |
 | `stop` | int | yes | Exclusive stop character offset into `text`. |
 | `surface` | string | yes | Surface form from `text[start:stop]`. |
-| `normalized_surface` | string | no | Corrected or normalized form when OCR or spelling warrants it. |
 | `label` | string | yes | Canonical span label without BIO prefix, for example `org.ent.pressagency.reuters`. |
 | `entity_family` | string | yes | `pressagency` or `radiostation`. |
-| `nel` | string | no | Entity-level QID or empty string. |
-| `wikidata_url` | string | no | URL derived from `nel` when available. |
-| `has_ocr_correction` | bool | no | True when any covered token has a transcript correction. |
-| `max_ocr_levenshtein` | float | no | Maximum parsed `LED` value across covered tokens. |
+| `wikidata_url` | string | no | Canonical Wikidata URL when available. Raw NEL/QID provenance belongs in audit data. |
+| `ocr_correction` | object | no | Present only when OCR/transcript evidence corrected the visible surface. |
 | `status` | string | yes | Usually `accepted`; other statuses belong in audit files unless deliberately published. |
+
+Public entity rows do not carry synthetic entity IDs. If a stable entity reference is needed, derive it from stable row and character-offset data such as `id`, `start`, `stop`, and `label`. Token spans are useful for training but are less stable than character offsets.
+
+`ocr_correction` may contain:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `surface` | string | no | Corrected surface/transcript evidence when it differs from `surface`. |
+| `max_levenshtein` | float | no | Maximum parsed `LED` value across the entity tokens. |
+
+## Audit Mark Fields
+
+`audit_marks` persists verified audit decisions in the public data without exposing reviewer names or local decision-file paths. The local append-only decision file remains the detailed provenance record.
+
+An audit mark is not a training entity. It may describe either an accepted/modified entity suggestion or a rejected false positive.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `audit_id` | string | yes | Stable audit pass identifier, for example `empty-training-docs-v2.0.0`. |
+| `status` | string | yes | Currently `verified`. |
+| `decision` | string | yes | `accept`, `reject`, or `modify`. |
+| `start` | int | yes | Start offset of the audited suggestion. |
+| `stop` | int | yes | Stop offset of the audited suggestion. |
+| `label` | string | yes | Suggested label that was audited. |
+| `applied_start` | int | no | Corrected start offset when `decision` is `modify`. |
+| `applied_stop` | int | no | Corrected stop offset when `decision` is `modify`. |
+| `applied_label` | string | no | Corrected label when `decision` is `modify`. |
+
+Do not publish reviewer names in `audit_marks`. If person-level provenance is needed, keep it in ignored local audit files or external audit storage.
 
 ## Segment And Sentence Fields
 
@@ -169,14 +194,14 @@ Mapping from HIPE TSV to JSONL. Targets marked `legacy` or `local import only` a
 | `# newspaper = DTT` | `newspaper` | Keep original media identifier. |
 | `# date = 1945-08-09` | `date`, `year` | Derive `year` from `date`. |
 | `# document_id = ...` | `id`, `document_id` | Use as `id` unless a better Impresso content item ID exists. |
-| `# news-agency-as-source = Q...` | `legacy.news_agency_as_source` | Split comma-separated values into a list. This is thesis-era source-attribution provenance, not the current mention target. |
+| `# news-agency-as-source = Q...` | local import/audit only: `news_agency_as_source` | Thesis-era source-attribution provenance, not the current mention target. It is excluded from public rows because values may contain mixed QIDs and sentinels such as `_`, `unk`, and `NIL`. |
 | `# segment_iiif_link = ...` | local import only: `segments[].iiif_link`, `token_segment_ids` | Applies to following tokens until the next segment link. Too large for the primary public training rows. |
 | `TOKEN` | `tokens[]` | Preserve token text exactly. |
 | `NE-FINE-LIT` | `token_labels[]`, `entities[]` | Main source for trainable labels. Normalize labels after import. |
-| `NEL-LIT` | local import only: `token_nel[]`; public: `entities[].nel` | Preserve entity QIDs; token-level arrays are conversion/debug side channels. |
+| `NEL-LIT` | local import/audit only: `token_nel[]`; public entity links come from `entities[].wikidata_url` | Preserve raw QIDs in audit data; token-level arrays are conversion/debug side channels. |
 | `RENDER` | local import only: `token_render[]`; public: reconstructed `text` and offsets | `NoSpaceAfter` suppresses following space. `EndOfLine` is layout evidence. |
 | `SEG` | local import only: `sentences[]` | `EndOfSentence` closes a sentence span. Redundant for current token-window training. |
-| `OCR-INFO` | local import only: `token_ocr[]`; public: entity OCR summary fields | Preserve raw values locally; publish compact entity-level OCR indicators. |
+| `OCR-INFO` | local import/audit only: `token_ocr[]`; public: optional `entities[].ocr_correction` | Preserve raw values locally; publish compact entity-level OCR correction evidence only when present. |
 | Other token columns | audit JSONL | Preserve in optional audit records if needed, not in the primary HF dataset. |
 | Unknown comments | audit JSONL | Store under audit metadata rather than adding unstable public columns. |
 

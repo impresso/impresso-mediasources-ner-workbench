@@ -1,0 +1,312 @@
+import json
+from pathlib import Path
+
+from lib.apply_span_patch_decisions import apply_span_patches
+from lib.span_patch_review import decision_record, is_verified, load_span_patches, summarize_queue
+
+
+def write_jsonl(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+
+
+def test_load_span_patches_flattens_audit_candidates(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "language": "fr",
+                "text": "foo Havas bar",
+                "predicted_entities": [
+                    {
+                        "label": "org.ent.pressagency.havas",
+                        "start": 4,
+                        "stop": 9,
+                        "surface": "Havas",
+                        "token_start": 1,
+                        "token_stop": 2,
+                    }
+                ],
+            }
+        ],
+    )
+
+    patches = load_span_patches(candidates, audit_id="audit-1")
+
+    assert len(patches) == 1
+    assert patches[0]["document_id"] == "doc-1"
+    assert patches[0]["suggested_label"] == "org.ent.pressagency.havas"
+    assert patches[0]["summary"] == 'doc-1: "Havas" -> org.ent.pressagency.havas'
+    assert patches[0]["left_context"] == "foo"
+    assert patches[0]["right_context"] == "bar"
+    assert patches[0]["review_id"].startswith("span-patch:audit-1:")
+
+
+def test_load_span_patches_skips_verified_audit_marks(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "audit_marks": [
+                    {
+                        "audit_id": "older-audit",
+                        "decision": "reject",
+                        "label": "org.ent.pressagency.havas",
+                        "start": 4,
+                        "status": "verified",
+                        "stop": 9,
+                    }
+                ],
+                "document_id": "doc-1",
+                "text": "foo Havas bar",
+                "predicted_entities": [{"label": "org.ent.pressagency.havas", "start": 4, "stop": 9, "surface": "Havas"}],
+            }
+        ],
+    )
+
+    assert load_span_patches(candidates, audit_id="audit-1") == []
+
+
+def test_decision_record_adds_verified_audit_marker(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": "foo Havas bar",
+                "predicted_entities": [{"label": "org.ent.pressagency.havas", "start": 4, "stop": 9, "surface": "Havas"}],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+
+    decision = decision_record(patch, choice="reject", reviewer="tester")
+    skipped = decision_record(patch, choice="skip", reviewer="tester")
+
+    assert decision["audit_marker"].startswith("tester:")
+    assert decision["audit_marker"].endswith(":verified")
+    assert decision["audit_status"] == "verified"
+    assert is_verified(decision)
+    assert skipped["audit_status"] == "skipped"
+    assert not is_verified(skipped)
+    assert summarize_queue([patch], {patch["review_id"]: decision})["pending"] == 0
+
+
+def test_apply_span_patches_adds_accepted_entity(tmp_path: Path) -> None:
+    source = tmp_path / "train.jsonl"
+    candidates = tmp_path / "candidates.jsonl"
+    decisions = tmp_path / "decisions.jsonl"
+    output = tmp_path / "patched.jsonl"
+    changes = tmp_path / "changes.jsonl"
+    changes_tsv = tmp_path / "changes.tsv"
+    summary = tmp_path / "summary.json"
+    write_jsonl(
+        source,
+        [
+            {
+                "document_id": "doc-1",
+                "id": "doc-1",
+                "language": "fr",
+                "text": "foo Havas bar",
+                "tokens": ["foo", "Havas", "bar"],
+                "token_start_offsets": [0, 4, 10],
+                "token_end_offsets": [3, 9, 13],
+                "token_labels": ["O", "O", "O"],
+                "entities": [],
+            }
+        ],
+    )
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "language": "fr",
+                "text": "foo Havas bar",
+                "predicted_entities": [
+                    {
+                        "label": "org.ent.pressagency.havas",
+                        "start": 4,
+                        "stop": 9,
+                        "surface": "Havas",
+                    }
+                ],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+    write_jsonl(decisions, [decision_record(patch, choice="accept", reviewer="tester")])
+
+    result = apply_span_patches(
+        input_jsonl=source,
+        output_jsonl=output,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="audit-1",
+        changes_jsonl=changes,
+        changes_tsv=changes_tsv,
+        summary_json=summary,
+    )
+
+    row = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert result["applied"] == 1
+    assert row["token_labels"] == ["O", "B-org.ent.pressagency.havas", "O"]
+    assert row["entities"] == [
+        {
+            "entity_family": "pressagency",
+            "label": "org.ent.pressagency.havas",
+            "start": 4,
+            "stop": 9,
+            "surface": "Havas",
+            "token_start": 1,
+            "token_stop": 2,
+        }
+    ]
+    assert row["audit_marks"] == [
+        {
+            "audit_id": "audit-1",
+            "decision": "accept",
+            "label": "org.ent.pressagency.havas",
+            "start": 4,
+            "status": "verified",
+            "stop": 9,
+        }
+    ]
+    assert "review_id\tdocument_id" in changes_tsv.read_text(encoding="utf-8")
+
+
+def test_apply_span_patches_persists_rejected_audit_mark_without_entity(tmp_path: Path) -> None:
+    source = tmp_path / "train.jsonl"
+    candidates = tmp_path / "candidates.jsonl"
+    decisions = tmp_path / "decisions.jsonl"
+    output = tmp_path / "patched.jsonl"
+    write_jsonl(
+        source,
+        [
+            {
+                "document_id": "doc-1",
+                "id": "doc-1",
+                "text": "foo Havas bar",
+                "tokens": ["foo", "Havas", "bar"],
+                "token_start_offsets": [0, 4, 10],
+                "token_end_offsets": [3, 9, 13],
+                "token_labels": ["O", "O", "O"],
+                "entities": [],
+            }
+        ],
+    )
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": "foo Havas bar",
+                "predicted_entities": [{"label": "org.ent.pressagency.havas", "start": 4, "stop": 9, "surface": "Havas"}],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+    write_jsonl(decisions, [decision_record(patch, choice="reject", reviewer="tester")])
+
+    result = apply_span_patches(
+        input_jsonl=source,
+        output_jsonl=output,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="audit-1",
+        changes_jsonl=tmp_path / "changes.jsonl",
+        changes_tsv=tmp_path / "changes.tsv",
+        summary_json=tmp_path / "summary.json",
+    )
+
+    row = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert result["applied"] == 0
+    assert row["entities"] == []
+    assert row["token_labels"] == ["O", "O", "O"]
+    assert row["audit_marks"] == [
+        {
+            "audit_id": "audit-1",
+            "decision": "reject",
+            "label": "org.ent.pressagency.havas",
+            "start": 4,
+            "status": "verified",
+            "stop": 9,
+        }
+    ]
+
+
+def test_apply_span_patches_uses_modified_entity(tmp_path: Path) -> None:
+    source = tmp_path / "train.jsonl"
+    candidates = tmp_path / "candidates.jsonl"
+    decisions = tmp_path / "decisions.jsonl"
+    output = tmp_path / "patched.jsonl"
+    write_jsonl(
+        source,
+        [
+            {
+                "document_id": "doc-1",
+                "id": "doc-1",
+                "text": "foo Agence Havas bar",
+                "tokens": ["foo", "Agence", "Havas", "bar"],
+                "token_start_offsets": [0, 4, 11, 17],
+                "token_end_offsets": [3, 10, 16, 20],
+                "token_labels": ["O", "O", "O", "O"],
+                "entities": [],
+            }
+        ],
+    )
+    write_jsonl(
+        candidates,
+        [
+            {
+                "document_id": "doc-1",
+                "text": "foo Agence Havas bar",
+                "predicted_entities": [{"label": "org.ent.pressagency.reuters", "start": 11, "stop": 16, "surface": "Havas"}],
+            }
+        ],
+    )
+    patch = load_span_patches(candidates, audit_id="audit-1")[0]
+    write_jsonl(
+        decisions,
+        [
+            decision_record(
+                patch,
+                choice="modify",
+                reviewer="tester",
+                correct_label="org.ent.pressagency.havas",
+                start=4,
+                stop=16,
+            )
+        ],
+    )
+
+    apply_span_patches(
+        input_jsonl=source,
+        output_jsonl=output,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="audit-1",
+        changes_jsonl=tmp_path / "changes.jsonl",
+        changes_tsv=tmp_path / "changes.tsv",
+        summary_json=tmp_path / "summary.json",
+    )
+
+    row = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert row["token_labels"] == ["O", "B-org.ent.pressagency.havas", "I-org.ent.pressagency.havas", "O"]
+    assert row["audit_marks"] == [
+        {
+            "applied_label": "org.ent.pressagency.havas",
+            "applied_start": 4,
+            "applied_stop": 16,
+            "audit_id": "audit-1",
+            "decision": "modify",
+            "label": "org.ent.pressagency.reuters",
+            "start": 11,
+            "status": "verified",
+            "stop": 16,
+        }
+    ]

@@ -6,6 +6,63 @@ The current workflow is model-assisted: run the trained model on the HIPE-derive
 
 Here, **HIPE-derived data** means the converted French/German news-agency annotations imported from earlier HIPE/CoNLL-style source files. This data is still part of the active training and evaluation base. Some paths and command names keep `legacy-*` for compatibility with the existing workbench layout.
 
+## Dataset Extension Modes
+
+There are two extension modes:
+
+- **Horizontal extension** adds more documents or snippets for existing labels.
+- **Vertical extension** adds more annotation depth or new entity families inside existing documents.
+
+Use sampled snippet review for horizontal extension. Use audit-driven span patches for vertical extension and missed-annotation repair. For example, future newspaper annotation should usually proceed entity by entity, such as reviewing all likely `org.ent.newspaper.nzz` spans before moving to the next newspaper.
+
+## Audit-Driven Span Patches
+
+Span patches start from an audit file that already contains suspicious candidate spans. The empty-training-doc audit is the first concrete use case: run the current classifier on documents with no gold entities, then review only documents where the classifier predicts a missing mention.
+
+Build or refresh the audit:
+
+```bash
+make audit-empty-training-docs \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+Review suggested span patches:
+
+```bash
+make review-span-patches \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk \
+  REVIEWER="$USER"
+```
+
+The review presents a concise suspicious-entity summary plus local context. The curator choices are:
+
+- `accept`: add the suggested span.
+- `reject`: mark the suggestion as a verified false positive.
+- `skip`: leave it unresolved for a later pass.
+- `modify`: correct the span offsets and/or label.
+
+Accepted, rejected, and modified decisions receive a local audit marker of the form `USER:DATE:verified`. Patch application also writes reviewer-neutral public `audit_marks` into the JSONL rows. Later audit queues can suppress verified suggestions with the same span and label, so the same false positive or accepted correction is not repeatedly presented. Skipped decisions are not verified and remain eligible for later review.
+
+Apply accepted and corrected span decisions to a JSONL split:
+
+```bash
+make apply-span-patches \
+  PYTHON=.venv/bin/python \
+  CFG=configs/model-v2.0.0.mk
+```
+
+The defaults point to the active v2.0.0 prerelease empty-training-doc audit. For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
+
+Decisions are append-only under:
+
+```text
+data/curated/span-patches/<audit-id>/decisions.jsonl
+```
+
+Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json` under the configured span-patch output directory.
+
 ## Build The Review Queue
 
 Run the selected model over the HIPE-derived validation and test folds:
@@ -13,8 +70,8 @@ Run the selected model over the HIPE-derived validation and test folds:
 ```bash
 make curate-legacy-eval \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
-  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+  CFG=configs/model-v2.0.0.mk \
+  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
 
 `curate-legacy-eval` includes both the HIPE-derived dev/validation fold and the HIPE-derived test fold. To curate only one fold, use:
@@ -22,13 +79,13 @@ make curate-legacy-eval \
 ```bash
 make curate-legacy-validation \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
-  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+  CFG=configs/model-v2.0.0.mk \
+  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 
 make curate-legacy-test \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
-  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v0.1.0_continue1/best
+  CFG=configs/model-v2.0.0.mk \
+  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
 
 The review files are written below:
@@ -53,7 +110,7 @@ Review all pending items:
 ```bash
 make review-curation \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   REVIEWER="$USER"
 ```
 
@@ -62,7 +119,7 @@ For a short test session:
 ```bash
 make review-curation \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   REVIEWER="$USER" \
   ARGS="--limit 20"
 ```
@@ -91,7 +148,7 @@ Validate that the current curation pass is internally consistent:
 ```bash
 make validate-curation \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk
+  CFG=configs/model-v2.0.0.mk
 ```
 
 `skip` decisions are treated as ignored for this pass and do not block completion. Use the stricter validator only when you intentionally want every disagreement resolved as a concrete correction:
@@ -99,7 +156,7 @@ make validate-curation \
 ```bash
 make validate-curation \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   ARGS="--require-complete"
 ```
 
@@ -108,7 +165,7 @@ For in-progress snapshots:
 ```bash
 make validate-curation \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   ARGS="--no-require-complete"
 ```
 
@@ -119,7 +176,7 @@ Apply completed decisions to a new curated JSONL directory:
 ```bash
 make apply-curation \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk
+  CFG=configs/model-v2.0.0.mk
 ```
 
 This is non-destructive. It reads:
@@ -185,7 +242,7 @@ Sample real Impresso search snippets:
 ```bash
 make sample-newsagencies \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 \
   NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 \
   NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
@@ -198,7 +255,7 @@ Build a local bootstrap snippet file from the curated HIPE-derived JSONL only wh
 ```bash
 make build-newsagency-snippets-from-legacy \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk
+  CFG=configs/model-v2.0.0.mk
 ```
 
 This writes `data/candidates/newsagency_legacy_snippets.jsonl` by default.
@@ -208,7 +265,7 @@ Score sampled snippets with the current model:
 ```bash
 make score-newsagency-snippets \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   NEWSAGENCY_SNIPPETS=data/candidates/newsagency_search_snippets.jsonl \
   HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner
 ```
@@ -225,7 +282,7 @@ Review uncertain rows:
 ```bash
 make review-newsagency-snippets \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   REVIEWER="$USER"
 ```
 
@@ -245,7 +302,7 @@ Export accepted rows into training JSONL:
 ```bash
 make export-newsagency-snippets \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk
+  CFG=configs/model-v2.0.0.mk
 ```
 
 The default outputs are `data/curated/snippets/newsagencies/train.jsonl` and `data/curated/snippets/newsagencies/test.jsonl`. They use the same token-label/entity schema as the HIPE-derived dataset and preserve `source_component` so snippet-derived examples can be mixed deterministically later. The split is deterministic and grouped by source issue/document so snippets from the same source issue do not leak across train and test. Override the holdout size with `SNIPPET_TEST_FRACTION=...`.
@@ -271,7 +328,7 @@ Configure these with:
 
 ```bash
 make annotation-stats \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   ANNOTATION_MAIN_LANGS="de fr en" \
   ANNOTATION_SIDE_LANGS="lb it" \
   ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=20 \
@@ -281,7 +338,7 @@ make annotation-stats \
 Use `ANNOTATION_LANGUAGE_TARGETS` for explicit per-language overrides, for example:
 
 ```bash
-make annotation-stats CFG=configs/model-v0.1.0.mk ANNOTATION_LANGUAGE_TARGETS="de=30 fr=30 en=20 lb=8 it=8"
+make annotation-stats CFG=configs/model-v2.0.0.mk ANNOTATION_LANGUAGE_TARGETS="de=30 fr=30 en=20 lb=8 it=8"
 ```
 
 ### Radio-Station Snippets
@@ -295,7 +352,7 @@ Score sampled radio-station snippets:
 ```bash
 make score-radiostation-snippets \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk
+  CFG=configs/model-v2.0.0.mk
 ```
 
 Review suggested radio-station spans:
@@ -303,7 +360,7 @@ Review suggested radio-station spans:
 ```bash
 make review-radiostation-spans \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
+  CFG=configs/model-v2.0.0.mk \
   REVIEWER="$USER"
 ```
 
@@ -312,7 +369,7 @@ Export accepted radio-station spans:
 ```bash
 make export-radiostation-snippets \
   PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk
+  CFG=configs/model-v2.0.0.mk
 ```
 
 This writes `data/curated/snippets/radiostations/train.jsonl` and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the baseline HIPE-derived label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The split is deterministic and grouped by source issue/document.

@@ -3,8 +3,28 @@
 The workbench has three data layers:
 
 - Local working data: ignored files used while sampling, scoring, reviewing, training, or staging.
-- Committed release snapshots: shared dataset material under `data/releases/<dataset-version>/`.
+- Committed prerelease snapshots: shared mutable release candidates under `data/prereleases/<dataset-version>/`.
+- Committed release snapshots: immutable published dataset material under `data/releases/<dataset-version>/`.
 - Published releases: Hugging Face dataset revisions built from committed release snapshots.
+
+See `RELEASE_MANAGEMENT_PLAN.md` for the full prerelease, release, staging, and audit-storage policy. Follow `RELEASE_PROCESS.md` for the operational checklist.
+
+## Dataset Extension Axes
+
+Dataset updates must distinguish two axes:
+
+- **Horizontal extension**: add more documents/examples for the current label space.
+- **Vertical extension**: add more annotation depth or new entity families inside existing documents.
+
+For example, adding more French `org.ent.pressagency.havas` examples is horizontal extension. Adding newspaper mentions such as `org.ent.newspaper.nzz` to already selected documents is vertical extension.
+
+The span-patch review workflow supports vertical extension and missed-annotation repair:
+
+```text
+audit candidates -> review span patches -> append decisions -> apply patches -> refresh prerelease
+```
+
+See `DATASET_EXTENSION_PLAN.md` for the operational model.
 
 ## Local Working Data
 
@@ -19,7 +39,15 @@ These files are useful for day-to-day work, but they are not shared source of tr
 
 ## Committed Release Snapshots
 
-When curation is ready to become shared project state, commit a full dataset snapshot under:
+When curation is ready for shared review but not final publication, commit one mutable prerelease snapshot under:
+
+```text
+data/prereleases/<dataset-version>/
+```
+
+Update that prerelease in place as the candidate changes, so collaborators can review normal git diffs.
+
+When the dataset is published, promote the accepted prerelease to an immutable release snapshot under:
 
 ```text
 data/releases/<dataset-version>/
@@ -39,6 +67,8 @@ curation_summary.json
 ```
 
 Use the files that are relevant for the release. The important rule is that the committed release folder is enough to reconstruct or audit the Hugging Face dataset revision without relying on ignored local working files.
+
+Large full-trace audit files should not be committed as normal git blobs. Keep them in an ignored `audit.d/` directory or external S3 audit storage, and reference them from `manifest.json` as audit evidence when they are useful for temporary inspection.
 
 ## Staging And Publishing
 
@@ -60,4 +90,4 @@ make clean-dry-run
 make clean
 ```
 
-`make clean` removes ignored generated roots and local working data. It preserves committed release snapshots under `data/releases/`.
+`make clean` removes ignored generated roots and local working data. It preserves committed prerelease and release snapshots under `data/prereleases/` and `data/releases/`.

@@ -25,18 +25,37 @@ def dataset_row(doc_id: str, split: str) -> dict:
         "token_end_offsets": [6, 12],
         "token_labels": ["B-org.ent.pressagency.havas", "I-org.ent.pressagency.havas"],
         "token_label_ids": [1, 2],
+        "audit_marks": [
+            {
+                "audit_id": "empty-training-docs-v2.0.0",
+                "decision": "reject",
+                "label": "org.ent.pressagency.tass",
+                "start": 21,
+                "status": "verified",
+                "stop": 28,
+            }
+        ],
         "token_nel": ["Q282656", "Q282656"],
         "token_ocr": ["", ""],
         "token_render": ["", ""],
         "token_segment_ids": [0, 0],
         "entities": [
             {
+                "entity_id": f"{doc_id}#ent-0",
                 "label": "org.ent.pressagency.havas",
+                "entity_family": "pressagency",
                 "label_original": "org.ent.pressagency.havas",
                 "status": "accepted",
                 "token_start": 0,
                 "token_stop": 2,
+                "start": 0,
+                "stop": 12,
                 "surface": "Agence Havas",
+                "normalized_surface": "Agence Havvas",
+                "nel": "Q282656",
+                "wikidata_url": "https://www.wikidata.org/wiki/Q282656",
+                "has_ocr_correction": split == "train",
+                "max_ocr_levenshtein": 0.25 if split == "train" else 0.0,
             }
         ],
     }
@@ -48,7 +67,7 @@ def test_prepare_dataset_repo_writes_hub_layout(tmp_path: Path) -> None:
     card = tmp_path / "README.md"
     card.write_text("---\npretty_name: Fixture\n---\n\n# Fixture\n", encoding="utf-8")
     for split in ("train", "validation", "test"):
-        write_jsonl(input_dir / f"{split}.jsonl", [dataset_row(f"doc-{split}", split)])
+        write_jsonl(input_dir / f"{split}.jsonl", [dataset_row(f"z-doc-{split}", split), dataset_row(f"a-doc-{split}", split)])
     (input_dir / "label_map.json").write_text(
         json.dumps(
             {
@@ -81,27 +100,46 @@ def test_prepare_dataset_repo_writes_hub_layout(tmp_path: Path) -> None:
     assert (output_dir / "data" / "train.jsonl").is_file()
     assert (output_dir / "label_map.json").is_file()
     assert (output_dir / "audit" / "curation_summary.json").is_file()
-    assert summary["splits"] == {"train": 1, "validation": 1, "test": 1}
-    assert summary["entity_labels"] == {"org.ent.pressagency.havas": 3}
-    assert summary["legacy_trace_fields"] == ["source_format", "source_file", "news_agency_as_source"]
+    assert summary["splits"] == {"train": 2, "validation": 2, "test": 2}
+    assert summary["entity_labels"] == {"org.ent.pressagency.havas": 6}
+    assert summary["legacy_trace_fields"] == ["source_format", "source_file"]
 
     public_train = json.loads((output_dir / "data" / "train.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert public_train["document_id"] == "a-doc-train"
     assert "segments" not in public_train
     assert "sentences" not in public_train
     assert "token_nel" not in public_train
     assert "token_ocr" not in public_train
     assert "token_render" not in public_train
     assert "token_segment_ids" not in public_train
+    assert "token_label_ids" not in public_train
+    assert public_train["audit_marks"] == [
+        {
+            "audit_id": "empty-training-docs-v2.0.0",
+            "decision": "reject",
+            "label": "org.ent.pressagency.tass",
+            "start": 21,
+            "status": "verified",
+            "stop": 28,
+        }
+    ]
     assert public_train["legacy"] == {
-        "news_agency_as_source": ["Q282656"],
         "source_file": "legacy/source.tsv",
         "source_format": "hipe-tsv",
     }
     assert public_train["entities"] == [
         {
+            "entity_family": "pressagency",
             "label": "org.ent.pressagency.havas",
+            "ocr_correction": {
+                "max_levenshtein": 0.25,
+                "surface": "Agence Havvas",
+            },
+            "start": 0,
+            "stop": 12,
             "surface": "Agence Havas",
             "token_start": 0,
             "token_stop": 2,
+            "wikidata_url": "https://www.wikidata.org/wiki/Q282656",
         }
     ]
