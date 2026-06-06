@@ -250,6 +250,8 @@ make export-newsagency-snippets \
 
 The default outputs are `data/curated/snippets/newsagencies/train.jsonl` and `data/curated/snippets/newsagencies/test.jsonl`. They use the same token-label/entity schema as the HIPE-derived dataset and preserve `source_component` so snippet-derived examples can be mixed deterministically later. The split is deterministic and grouped by source issue/document so snippets from the same source issue do not leak across train and test. Override the holdout size with `SNIPPET_TEST_FRACTION=...`.
 
+`data/curated/` is a local working area. When reviewed snippets are ready to become shared project state, include the resulting full dataset snapshot in `data/releases/<dataset-version>/` before cleaning local state or publishing a new Hugging Face dataset revision.
+
 Useful overrides:
 
 - `AUTO_ACCEPT_MIN_CONFIDENCE=0.95`
@@ -316,3 +318,5 @@ make export-radiostation-snippets \
 This writes `data/curated/snippets/radiostations/train.jsonl` and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the baseline HIPE-derived label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The split is deterministic and grouped by source issue/document.
 
 Radio-station snippets use the same span-review model as news-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-radiostation-spans`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.
+
+Before sharing a dataset extension, copy or generate the full release snapshot under `data/releases/<dataset-version>/`. Ignored local review files under `data/curated/` are not preserved by `make clean`.

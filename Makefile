@@ -8,13 +8,16 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-review smoke validate-labels annotation-stats curation-state curation-state-json snippet-state dataset-state legacy-curation-state sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets review-curation validate-curation apply-curation push-model
+.PHONY: help help-review smoke clean clean-dry-run clean-all-data validate-labels annotation-stats curation-state curation-state-json snippet-state dataset-state legacy-curation-state sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
 	@echo ""
 	@echo "Targets:"
 	@echo "  make smoke                         Run lightweight contract checks"
+	@echo "  make clean-dry-run                 Show ignored/generated local data that clean would remove"
+	@echo "  make clean                         Remove ignored/generated local data; keep data/releases"
+	@echo "  make clean-all-data                Alias for clean; release snapshots are still preserved"
 	@echo "  make validate-labels               Validate canonical label metadata"
 	@echo "  make annotation-stats              Summarize annotation coverage by label/language"
 	@echo "  make curation-state                Summarize curation, snippets, and dataset state"
@@ -92,6 +95,14 @@ help-review:
 smoke:
 	$(PYTHON) -m py_compile lib/*.py hf_model/pipeline.py
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json
+
+clean:
+	$(PYTHON) -m lib.clean_workbench
+
+clean-dry-run:
+	$(PYTHON) -m lib.clean_workbench --dry-run
+
+clean-all-data: clean
 
 validate-labels:
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json

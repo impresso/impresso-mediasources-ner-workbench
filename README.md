@@ -24,6 +24,7 @@ configs/       Release configs for publishable model runs
 lib/           Sampling, curation, export, publish, and pipeline helpers
 resources/     Canonical label metadata and curation policy
 data/          Local candidates, curated data, and held-out test data
+data/releases/ Committed dataset release snapshots
 hf_dataset/    Source training dataset card
 hf_testset/    Source testset card
 hf_model/      Source model card, requirements, and pipeline code
@@ -62,6 +63,8 @@ Override `HF_HOME` on the command line if you want to reuse another cache.
 If `HF_TOKEN` is set in the workbench `.env`, Hugging Face scoring, training, and publishing commands load it automatically.
 
 Local generated directory roots use the `*.d` suffix convention. Defaults include `hf.d/`, `mlm.d/`, `models.d/`, and `staging.d/`; these are ignored by git. See [GENERATED_DIRS.md](GENERATED_DIRS.md) for the convention.
+
+Local working data under `data/candidates/`, `data/curated/`, and `data/testset/` is ignored. Shared dataset release snapshots belong under `data/releases/<dataset-version>/` and are committed. See [docs/data_lifecycle.md](docs/data_lifecycle.md).
 
 For Impresso API sampling workflows, install the sampling extras:
 
@@ -223,6 +226,7 @@ make push-model PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk MODEL=models
 ```bash
 make help
 make smoke
+make clean-dry-run
 make validate-labels
 make sample-newsagencies ARGS="--dry-run --labels org.ent.pressagency.reuters --max-queries-per-label 1"
 make sample-radiostations ARGS="--dry-run --labels org.ent.radiostation.rtl --max-queries-per-label 1"
@@ -293,6 +297,12 @@ make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk ARGS="-
 
 Most commands are scaffolded and will become active as the implementation lands.
 
+## Cleaning Local State
+
+Use `make clean-dry-run` to inspect local generated workbench data that can be removed. Use `make clean` to remove ignored generated roots and local working data, including `staging.d/`, `models.d/`, `mlm.d/`, `hf.d/`, `cache.d/`, `data/candidates/`, `data/curated/`, and `data/testset/`.
+
+Committed release snapshots under `data/releases/` are preserved. Promote curation into `data/releases/<dataset-version>/` before cleaning if it should become shared project state.
+
 ## State Summaries
 
 Use these targets to check local curation progress and dataset staging state:
@@ -337,3 +347,5 @@ See [docs/jsonl_schema.md](docs/jsonl_schema.md) for the annotated JSONL field c
 See [docs/hipe_to_jsonl_conversion_plan.md](docs/hipe_to_jsonl_conversion_plan.md) for the concrete conversion workflow from the original HIPE data into the new JSONL dataset.
 
 See [GENERATED_DIRS.md](GENERATED_DIRS.md) for the local generated-directory convention.
+
+See [docs/data_lifecycle.md](docs/data_lifecycle.md) for local, committed, and published dataset state.
