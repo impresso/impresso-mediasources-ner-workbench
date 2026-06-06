@@ -261,7 +261,7 @@ The training dataset publisher prepares a Hugging Face-ready directory from the 
 make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk
 ```
 
-By default this reads `data/curated/legacy-import-curated/` and writes `/private/tmp/impresso-mediasources-ner-dataset/` with:
+By default this reads `data/curated/legacy-import-curated/` and writes `staging.d/datasets/impresso-mediaagencies-ner-dataset/` with:
 
 ```text
 README.md
@@ -303,7 +303,7 @@ make dataset-state CFG=configs/model-v0.1.0.mk
 make curation-state-json CFG=configs/model-v0.1.0.mk
 ```
 
-`curation-state-json` writes `data/curated/curation_state.json` by default. To check the Hugging Face dataset repository over the network, pass `ARGS="--fetch-published"` to `dataset-state` or `curation-state`.
+`curation-state-json` writes `staging.d/reports/curation_state.json` by default. To check the Hugging Face dataset repository over the network, pass `ARGS="--fetch-published"` to `dataset-state` or `curation-state`.
 
 ## Language-Aware Coverage
 

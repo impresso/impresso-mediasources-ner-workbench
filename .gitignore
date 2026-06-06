@@ -17,6 +17,7 @@ data/candidates/*
 data/curated/*
 data/testset/*
 data/mlm/
+staging.d/
 models/
 outputs/
 results/

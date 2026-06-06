@@ -198,7 +198,7 @@ def list_files(root: Path) -> list[str]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare and optionally upload the Hugging Face training dataset.")
     parser.add_argument("--input-dir", default="data/curated/legacy-import-curated")
-    parser.add_argument("--output-dir", default="/private/tmp/impresso-mediasources-ner-dataset")
+    parser.add_argument("--output-dir", default="staging.d/datasets/impresso-mediaagencies-ner-dataset")
     parser.add_argument("--card", default="hf_dataset/README.md")
     parser.add_argument("--repo-id", default="impresso-project/impresso-mediaagencies-ner-dataset")
     parser.add_argument("--newsagencies", default="resources/newsagency_seeds.json")
