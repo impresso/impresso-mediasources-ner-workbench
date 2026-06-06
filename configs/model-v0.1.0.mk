@@ -81,6 +81,7 @@ SNIPPET_SPLIT_SEED ?= $(SEED)
 ANNOTATION_STATS_JSON ?= data/curated/annotation_coverage.json
 ANNOTATION_STATS_TSV ?= data/curated/annotation_coverage.tsv
 ANNOTATION_TARGET_PER_LABEL ?= 20
+CURATION_STATE_JSON ?= data/curated/curation_state.json
 REVIEW_COVERAGE_JSON ?= $(ANNOTATION_STATS_JSON)
 REVIEW_ONLY_UNDER_TARGET ?= true
 AUTO_ACCEPT_MIN_CONFIDENCE ?= 0.99

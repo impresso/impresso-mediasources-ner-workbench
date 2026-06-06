@@ -13,6 +13,8 @@ The workbench follows the control-plane pattern used by `impresso-frakturline-cl
 - Inference output format: JSONL with offsets and provenance.
 - Deployment path: simple Hugging Face pipeline, no TorchServe for the initial implementation.
 
+For a high-level view of the workbench activities and their sub-workflows, see [docs/workflows.md](docs/workflows.md).
+
 ## Repository Map
 
 ```text
@@ -286,6 +288,20 @@ make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk ARGS="-
 ```
 
 Most commands are scaffolded and will become active as the implementation lands.
+
+## State Summaries
+
+Use these targets to check local curation progress and dataset staging state:
+
+```bash
+make curation-state CFG=configs/model-v0.1.0.mk
+make snippet-state CFG=configs/model-v0.1.0.mk
+make legacy-curation-state CFG=configs/model-v0.1.0.mk
+make dataset-state CFG=configs/model-v0.1.0.mk
+make curation-state-json CFG=configs/model-v0.1.0.mk
+```
+
+`curation-state-json` writes `data/curated/curation_state.json` by default. To check the Hugging Face dataset repository over the network, pass `ARGS="--fetch-published"` to `dataset-state` or `curation-state`.
 
 ## Plan
 
