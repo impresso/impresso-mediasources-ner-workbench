@@ -72,7 +72,6 @@ RADIOSTATION_SAMPLE_CONTEXT_CHARS ?= 256
 RADIOSTATION_SCORED_SNIPPETS ?= data/curated/snippets/radiostations/scored.jsonl
 RADIOSTATION_REVIEWED_SNIPPETS ?= data/curated/snippets/radiostations/reviewed.jsonl
 RADIOSTATION_SNIPPET_DECISIONS ?= data/curated/snippets/radiostations/decisions.jsonl
-RADIOSTATION_SNIPPET_OUTPUT_DIR ?= data/curated/snippets/radiostations
 RADIOSTATION_SNIPPET_TRAIN_JSONL ?= data/curated/snippets/radiostations/train.jsonl
 RADIOSTATION_SNIPPET_TEST_JSONL ?= data/curated/snippets/radiostations/test.jsonl
 RADIOSTATION_LABEL_METADATA ?= resources/radiostation_seeds.json

@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-review smoke validate-labels annotation-stats sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets review-radiostation-snippets review-curation validate-curation apply-curation push-model
+.PHONY: help help-review smoke validate-labels annotation-stats sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -42,7 +42,6 @@ help:
 	@echo "  make score-radiostation-snippets   Score sampled radio-station snippets with alias matching"
 	@echo "  make review-radiostation-spans     Review radio-station span suggestions"
 	@echo "  make export-radiostation-snippets  Export accepted radio-station snippets to training JSONL"
-	@echo "  make review-radiostation-snippets REVIEWER=... Triage radio-station snippets"
 	@echo "  make review-curation REVIEWER=...  Review pending curation disagreements in terminal"
 	@echo "  make validate-curation CFG=...     Validate reviewed curation decisions"
 	@echo "  make apply-curation CFG=...        Apply reviewed decisions to JSONL annotations"
@@ -71,7 +70,6 @@ help-review:
 	@echo "  make score-radiostation-snippets             Score existing sampled radio snippets by alias"
 	@echo "  make review-radiostation-spans               Review radio-station span suggestions"
 	@echo "  make export-radiostation-snippets            Export accepted spans to training JSONL"
-	@echo "  make review-radiostation-snippets            Triage snippets as yes/no/skip"
 	@echo ""
 	@echo "Useful overrides:"
 	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., NEWSAGENCY_LEGACY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
@@ -180,9 +178,6 @@ review-radiostation-spans:
 
 export-radiostation-snippets:
 	$(PYTHON) -m lib.export_snippet_training_data --input "$(RADIOSTATION_REVIEWED_SNIPPETS)" --output "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --test-output "$(RADIOSTATION_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
-
-review-radiostation-snippets:
-	$(PYTHON) -m lib.review_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --output-dir "$(RADIOSTATION_SNIPPET_OUTPUT_DIR)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" $(ARGS)
 
 review-curation:
 	$(PYTHON) -m lib.review_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/todo_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --reviewer "$(REVIEWER)" $(ARGS)

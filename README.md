@@ -236,7 +236,6 @@ make export-newsagency-snippets CFG=configs/model-v0.1.0.mk
 make score-radiostation-snippets CFG=configs/model-v0.1.0.mk
 make review-radiostation-spans CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
 make export-radiostation-snippets CFG=configs/model-v0.1.0.mk
-make review-radiostation-snippets CFG=configs/model-v0.1.0.mk REVIEWER="$USER"
 make push-model CFG=configs/model-v0.1.0.mk
 ```
 

@@ -96,7 +96,12 @@
     "canonical_id": "radio-free-europe",
     "label": "org.ent.radiostation.radio-free-europe",
     "display_name": "Radio Free Europe",
-    "aliases": ["Radio Free Europe"],
+    "aliases": ["Radio Free Europe", "Radio Europe libre", "Radio Europa Libera", "Radio Freies Europa"],
+    "aliases_by_language": {
+      "de": ["Radio Freies Europa"],
+      "fr": ["Radio Europe libre"],
+      "en": ["Radio Free Europe"]
+    },
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty",
     "wikidata_url": null,
     "trainable": true,

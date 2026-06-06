@@ -287,23 +287,4 @@ make export-radiostation-snippets \
 
 This writes `data/curated/snippets/radiostations/train.jsonl` and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the legacy label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The split is deterministic and grouped by source issue/document.
 
-For a lighter yes/no-only triage pass, use:
-
-```bash
-make review-radiostation-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v0.1.0.mk \
-  REVIEWER="$USER"
-```
-
-Choices:
-
-- `yes`: the snippet mentions the target radio station or another canonical radio station.
-- `no`: the snippet does not contain a radio-station mention in the annotation-policy sense.
-- `skip`: unclear, noisy, or needs more context.
-
-The command writes append-only decisions to `data/curated/snippets/radiostations/decisions.jsonl` and materializes:
-
-- `positive_snippets.jsonl`
-- `negative_snippets.jsonl`
-- `skipped_snippets.jsonl`
+Radio-station snippets use the same span-review model as news-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-radiostation-spans`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.

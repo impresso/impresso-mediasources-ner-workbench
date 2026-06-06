@@ -118,7 +118,7 @@ Examples:
 - Radio Bucarest / Radio Bucharest
 - Vatican Radio / Radio Vatican / Radio Vatikan
 - Voice of America
-- Radio Free Europe
+- Radio Free Europe / Radio Europe libre / Radio Freies Europa
 - Deutsche Welle
 - RTS / Radio Télévision Suisse / Radio Suisse Romande / RSR
 - RTL / Radio Luxembourg / Radio Télévision Luxembourg

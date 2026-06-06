@@ -13,7 +13,6 @@ from lib.review_newsagency_snippets import (
     review_loop,
     row_needs_coverage,
 )
-from lib.review_radiostation_snippets import materialize_views
 from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
 from lib.sample_newsagencies import (
     balanced_select,
@@ -904,6 +903,52 @@ def test_radiostation_scoring_resolves_query_alias_to_canonical_label(tmp_path: 
     assert scored["model"]["predicted_spans"][0]["surface"] == "Radio Londres"
 
 
+def test_radiostation_scoring_finds_radio_europe_libre_as_global_alias(tmp_path: Path) -> None:
+    input_path = tmp_path / "radio_candidates.jsonl"
+    scored_path = tmp_path / "radio_scored.jsonl"
+    seeds_path = tmp_path / "radiostation_seeds.json"
+    seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "deutsche-welle",
+                    "label": "org.ent.radiostation.deutsche-welle",
+                    "display_name": "Deutsche Welle",
+                    "aliases": ["Deutsche Welle"],
+                },
+                {
+                    "canonical_id": "radio-free-europe",
+                    "label": "org.ent.radiostation.radio-free-europe",
+                    "display_name": "Radio Free Europe",
+                    "aliases": ["Radio Free Europe", "Radio Europe libre"],
+                    "aliases_by_language": {"fr": ["Radio Europe libre"]},
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "dw-and-rfe",
+                "query": "Deutsche Welle",
+                "candidate_label": "org.ent.radiostation.deutsche-welle",
+                "text": "avec Radio Europe libre et Deutsche Welle.",
+            }
+        ],
+    )
+
+    score_radiostation_rows(
+        type("Args", (), {"input": str(input_path), "output": str(scored_path), "radiostations": str(seeds_path)})
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    labels = {span["label"] for span in scored["model"]["predicted_spans"]}
+    assert "org.ent.radiostation.radio-free-europe" in labels
+    assert "org.ent.radiostation.deutsche-welle" in labels
+
+
 def test_radiostation_scoring_matches_voice_of_america_german_alias(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_candidates.jsonl"
     scored_path = tmp_path / "radio_scored.jsonl"
@@ -1765,24 +1810,3 @@ def test_snippet_review_remove_is_final(tmp_path: Path, monkeypatch) -> None:
     assert decision["status"] == "removed"
     assert decision["notes"] == "bad sample"
 
-
-def test_radiostation_materialize_views(tmp_path: Path) -> None:
-    input_rows = [
-        {"id": "radio-1", "snippet": "Radio-Paris annonce le programme.", "query": "Radio-Paris"},
-        {"id": "radio-2", "snippet": "Aucune station ici.", "query": "Radio-Paris"},
-    ]
-    decisions_path = tmp_path / "decisions.jsonl"
-    output_dir = tmp_path / "views"
-    write_jsonl(
-        decisions_path,
-        [
-            {"review_id": "radiostation-snippet:radio-1", "status": "yes", "reviewer": "tester"},
-            {"review_id": "radiostation-snippet:radio-2", "status": "no", "reviewer": "tester"},
-        ],
-    )
-
-    counts = materialize_views(input_rows, decisions_path, output_dir)
-
-    assert counts == {"yes": 1, "no": 1, "skip": 0}
-    assert "Radio-Paris" in (output_dir / "positive_snippets.jsonl").read_text(encoding="utf-8")
-    assert "Aucune station" in (output_dir / "negative_snippets.jsonl").read_text(encoding="utf-8")

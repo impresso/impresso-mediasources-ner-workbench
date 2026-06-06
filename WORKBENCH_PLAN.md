@@ -482,41 +482,34 @@ Implementation tasks:
 - [ ] Track the source model revision in every auto-accepted record.
 - [ ] Keep auto-accepted and manually accepted rows distinguishable in audit metadata.
 
-#### Radio-Station Snippets: Human Triage First
+#### Radio-Station Snippets: Pre-Annotated Span Review
 
-Radio stations do not yet have reliable span annotations in the current training data. Start with a very lightweight human decision on sampled snippets before attempting full NER annotation.
+Radio stations do not yet have reliable model-only span annotations in the current training data. Use deterministic seed-alias matching as the primary proposal generator, optionally add ModernBERT media-source predictions, and send the resulting candidate spans to the same span-review workflow used for news-agency snippets.
 
-First-pass human choices:
+The reviewer should see proposed spans with canonical `org.ent.radiostation.*` labels and enough provenance to decide whether each span is valid. Search windows without a valid radio-station span should be rejected or skipped in the reviewed JSONL stream; they remain useful audit and negative evidence, but they do not become positive token-classification rows.
 
-- `yes`: the snippet mentions the target radio station or another canonical radio station.
-- `no`: the snippet does not mention a radio station in the annotation-policy sense.
-- `skip`: unclear, noisy, needs context, or not worth deciding now.
+Review cases should include:
 
-This pass is intentionally not a full boundary annotation. It creates a high-precision pool of positive snippets and a useful set of negative/irrelevant examples.
+- no alias span matched in a snippet sampled for a concrete station
+- multiple possible stations are present
+- a press-agency span is also proposed by the current NER model
+- the alias boundary is suspicious because of OCR, punctuation, or abbreviation noise
+- the canonical label cannot be resolved from `resources/radiostation_seeds.json`
 
-Second pass for `yes` snippets:
-
-1. Identify the radio-station span and canonical label.
-2. Apply the annotation guidelines for station names, programme schedules, abbreviations, and broadcaster names.
-3. Export accepted spans to JSONL training data.
-
-For minimal first implementation, the interface can show:
+For minimal first implementation, the workflow is:
 
 ```text
-query: Radio-Paris
-language: fr
-date: 1942-...
-snippet: ...
-
-Choices: [y]es [n]o [s]kip [q]uit
+make score-radiostation-snippets
+make review-radiostation-spans
+make export-radiostation-snippets
 ```
 
 Implementation tasks:
 
-- [ ] Add `make review-radiostation-snippets` for binary/ternary snippet triage.
-- [ ] Store decisions append-only in `data/curated/snippet-curation/radiostations/decisions.jsonl`.
-- [ ] Write `positive_snippets.jsonl`, `negative_snippets.jsonl`, and `skipped_snippets.jsonl`.
-- [ ] Add a later span-annotation queue generated only from `yes` snippets.
+- [ ] Score sampled radio-station snippets with deterministic alias spans and optional ModernBERT token-classification spans.
+- [ ] Reuse the span-review command with radio-station label metadata.
+- [ ] Store decisions append-only in `data/curated/snippets/radiostations/decisions.jsonl`.
+- [ ] Write reviewed rows to `data/curated/snippets/radiostations/reviewed.jsonl`.
 - [ ] Require canonical `org.ent.radiostation.*` labels before any radio-station row enters training data.
 
 #### Training Integration
@@ -527,8 +520,7 @@ Additional snippet-derived rows should not immediately replace the legacy datase
 data/curated/snippets/
   newsagencies/train.jsonl
   newsagencies/test.jsonl
-  radiostations/triage.jsonl
-  radiostations/span_annotated.jsonl
+  radiostations/reviewed.jsonl
   radiostations/train.jsonl
   radiostations/test.jsonl
   audit/
@@ -549,7 +541,7 @@ The mixture command should:
 - oversample manually reviewed radio-station positives when training, rather than duplicating rows in the dataset file
 - write a mixture summary with row counts by source component, language, label, decade, and curation status
 
-Quality rule: auto-accepted news-agency snippets are acceptable as training expansion only after spot-checking a random sample per label/language/date bucket. Radio-station snippets require human `yes` triage and later span annotation before they become positive token-classification rows.
+Quality rule: auto-accepted news-agency snippets are acceptable as training expansion only after spot-checking a random sample per label/language/date bucket. Radio-station snippets require accepted spans from the span-review workflow before they become positive token-classification rows.
 
 ### Curation Policy
 
