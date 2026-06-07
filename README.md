@@ -96,6 +96,8 @@ make smoke
 python tests/test_import_legacy_hipe_tsv.py
 ```
 
+Command examples in this file assume the virtual environment is activated (`source .venv/bin/activate`) and the default release config `CFG=configs/model-v2.0.0.mk` is in effect. Pass `CFG=` or `PYTHON=` only when you need a non-default value. See [docs/curation.md](docs/curation.md) for the full curation workflow and command assumptions.
+
 To test the HIPE-derived data converter on the fixture:
 
 ```bash
@@ -113,7 +115,7 @@ make import-legacy-hipe ARGS="--input ../newsagency-classification-main-nikki/da
 Optionally download the compiled Impresso source files for continued MLM pretraining:
 
 ```bash
-make download-mlm-sources PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make download-mlm-sources
 ```
 
 The source URLs are configured in `configs/model-v2.0.0.mk` as `MLM_SOURCE_URL_DE`, `MLM_SOURCE_URL_FR`, `MLM_SOURCE_URL_EN`, and `MLM_SOURCE_URL_LB`. Files are written to `mlm.d/source/` by default, unless you override `MLM_DATASET_DIR`.
@@ -121,13 +123,13 @@ The source URLs are configured in `configs/model-v2.0.0.mk` as `MLM_SOURCE_URL_D
 Then build the multilingual MLM corpus. By default this samples up to 300,000 texts per language, exhausting smaller languages such as Luxembourgish, and keeps 1 percent for validation:
 
 ```bash
-make build-mlm-data PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make build-mlm-data
 ```
 
 Then continue MLM pretraining from `jhu-clsp/mmBERT-base` to create `models.d/multilingualmodernimpressoBERT_v1.0.0/final`:
 
 ```bash
-make pretrain-mlm PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make pretrain-mlm
 ```
 
 The default MLM run keeps the sampled corpus on disk but trains on `MLM_MAX_TRAIN_SAMPLES=100000` rows and evaluates on `MLM_MAX_EVAL_SAMPLES=2000` rows. It uses one epoch, `MLM_MAX_LEN=256`, fixed max-length padding, `MLM_BATCH=1`, `MLM_GRADIENT_ACCUMULATION_STEPS=8`, gradient checkpointing, learning rate `2e-5`, weight decay `0.01`, and automatic warmup over 6 percent of the capped optimizer steps. Validation runs three times across the epoch plus one final evaluation. Intermediate checkpoint saving is disabled by default; the final model is always saved to `models.d/multilingualmodernimpressoBERT_v1.0.0/final`. Override these on the command line to match available GPU memory or to run a smaller smoke test.
@@ -137,13 +139,13 @@ MLM tokenization pads to the configured max length by default to keep tensor sha
 Push the continued-MLM checkpoint and source model card to Hugging Face:
 
 ```bash
-make push-mlm-model PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make push-mlm-model
 ```
 
 Then train the media-source NER model. The default base model in `configs/model-v2.0.0.mk` is the pushed continued-MLM checkpoint `hf://impresso-project/mmbert-multilingual-impresso-continued-mlm`.
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make train
 ```
 
 Local Apple MPS training uses memory-conservative defaults: `BATCH=1`, `GRADIENT_ACCUMULATION_STEPS=4`, gradient checkpointing, `OPTIMIZER=adafactor`, and `FREEZE_BASE_MODEL=true`. This trains the token-classification head on top of the adapted encoder. Use `FREEZE_BASE_MODEL=false` only on hardware with enough memory for full-model optimizer updates.
@@ -155,28 +157,28 @@ At startup, training prints and writes `training_start_report.json` with the mod
 To continue from an existing classifier checkpoint, pass `CHECKPOINT`. This loads the model weights but starts a fresh optimizer state, so use a lower learning rate for continuation runs. Prefer writing to a new `MODEL` directory unless you intentionally want to overwrite the previous output:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk CHECKPOINT=models.d/newsagency_radiostation_modernbert_v2.0.0/best MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1 EPOCHS=2 LEARNING_RATE=1e-5
+make train CHECKPOINT=models.d/newsagency_radiostation_modernbert_v2.0.0/best MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1 EPOCHS=2 LEARNING_RATE=1e-5
 ```
 
 Select another base model on the command line when needed:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk BASE_MODEL=models.d/multilingualmodernimpressoBERT_v1.0.0/final
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk BASE_MODEL=hf://impresso-project/mmbert-multilingual-impresso-continued-mlm
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk BASE_MODEL=jhu-clsp/mmBERT-base MODEL=models.d/newsagency_radiostation_mmbert_base_v2.0.0
+make train BASE_MODEL=models.d/multilingualmodernimpressoBERT_v1.0.0/final
+make train BASE_MODEL=hf://impresso-project/mmbert-multilingual-impresso-continued-mlm
+make train BASE_MODEL=jhu-clsp/mmBERT-base MODEL=models.d/newsagency_radiostation_mmbert_base_v2.0.0
 ```
 
 For a quick one-step smoke test:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS="--max-steps 1 --device cpu --epochs 1 --train-batch-size 1 --eval-batch-size 1 --max-words-per-window 64 --stride-words 0 --output-dir /private/tmp/mediaagency-modernbert-smoke"
+make train ARGS="--max-steps 1 --device cpu --epochs 1 --train-batch-size 1 --eval-batch-size 1 --max-words-per-window 64 --stride-words 0 --output-dir /private/tmp/mediaagency-modernbert-smoke"
 ```
 
 After training, evaluate consistency against validation and test:
 
 ```bash
-make test PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
-make test-official PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make test
+make test-official
 ```
 
 Metrics and prediction JSONL files are written under `models.d/newsagency_radiostation_modernbert_v2.0.0/eval/`.
@@ -184,7 +186,7 @@ Metrics and prediction JSONL files are written under `models.d/newsagency_radios
 For basic curation of the existing HIPE-derived French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
 
 ```bash
-make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make curate-legacy-eval CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
 
 To build only one fold's review queue, use `make curate-legacy-validation ...` or `make curate-legacy-test ...` with the same arguments. The command names keep `legacy` for compatibility; the data itself is the active HIPE-derived baseline, not discarded material.
@@ -196,9 +198,9 @@ For iterative or multi-reviewer curation, store decisions in `data/curated/legac
 To test a short terminal curation session:
 
 ```bash
-make review-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk REVIEWER="$USER" ARGS="--limit 1"
-make curation-review PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
-make validate-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS=--no-require-complete
+make review-curation REVIEWER="$USER" ARGS="--limit 1"
+make curation-review
+make validate-curation ARGS=--no-require-complete
 ```
 
 The reviewer appends to `decisions.jsonl`; it does not modify the generated disagreement files.
@@ -206,8 +208,8 @@ The reviewer appends to `decisions.jsonl`; it does not modify the generated disa
 Before committing curation decisions, validate that every current disagreement has exactly one completed decision:
 
 ```bash
-make curation-review PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
-make validate-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make curation-review
+make validate-curation
 ```
 
 Use `ARGS=--no-require-complete` only for in-progress review snapshots.
@@ -215,7 +217,7 @@ Use `ARGS=--no-require-complete` only for in-progress review snapshots.
 After validation, apply the reviewed decisions to a new curated JSONL directory:
 
 ```bash
-make apply-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make apply-curation
 ```
 
 This writes revised HIPE-derived folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Boundary corrections are parsed from notes such as `13:15 "Agence Wolff" label=org.ent.pressagency.wolff`.
@@ -235,8 +237,10 @@ For a lightweight NER-tag overview, inspect `data/curated/legacy-import-curated/
 The fine-tuned Hugging Face model repository is configured as `HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner`. The v0.1 label space covers news agencies and radio stations; the repository name leaves room for future cited media-source families such as newspaper citations.
 
 ```bash
-make push-model PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make push-model MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
+
+See [docs/curation.md](docs/curation.md) for full curation workflows, path selection, and command assumptions.
 
 ## Common Commands
 
@@ -281,7 +285,7 @@ By default `IMPRESSO_PERSISTED_TOKEN=false`, so the `impresso` client prompts fo
 The training dataset publisher prepares a Hugging Face-ready directory from the curated JSONL without uploading by default:
 
 ```bash
-make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make publish-dataset
 ```
 
 By default this reads `data/curated/legacy-import-curated/` and writes `staging.d/datasets/impresso-mediaagencies-ner-dataset/` with:
@@ -301,7 +305,7 @@ audit/curation_changes_tags.tsv
 The publisher validates entity labels against `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`. To upload after inspecting the staged directory:
 
 ```bash
-make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS="--upload"
+make publish-dataset ARGS="--upload"
 ```
 
 The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. In that field name, `legacy` means HIPE import trace-back metadata retained for compatibility, not data that is obsolete. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
@@ -309,7 +313,7 @@ The staged `data/*.jsonl` files are compact public training files, not byte-for-
 To open a Hub pull request instead of pushing directly:
 
 ```bash
-make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS="--upload --create-pr"
+make publish-dataset ARGS="--upload --create-pr"
 ```
 
 Most commands are scaffolded and will become active as the implementation lands.

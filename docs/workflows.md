@@ -128,6 +128,33 @@ Use `make refresh-span-patches CFG=configs/model-v2.0.0.mk` when you want to app
 
 For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 
+## Existing Span Boundary Audit
+
+Use an existing-span boundary audit to verify one already annotated label occurrence by occurrence.
+
+```mermaid
+flowchart TD
+  A[Choose one existing label] --> B[Extract all existing occurrences]
+  B --> C[Review with shared span-patch UI]
+  C --> D{Decision}
+  D -->|accept| E[Mark verified unchanged]
+  D -->|modify| F[Replace boundary or label]
+  D -->|reject| G[Remove existing annotation]
+  E --> H[Apply decisions to patched split]
+  F --> H
+  G --> H
+  H --> I[Promote patched split into prerelease]
+```
+
+Primary commands:
+
+```bash
+make audit-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make review-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas REVIEWER="$USER"
+make apply-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make promote-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
+
 ## Create, Pre-Annotate, And Review Sampled Data
 
 ```mermaid

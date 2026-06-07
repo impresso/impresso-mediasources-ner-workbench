@@ -351,10 +351,43 @@ def is_auth_error(exc: Exception) -> bool:
     return status == 401 or "401" in text or "unauthorized" in text or "jwt expired" in text
 
 
-def sleep_backoff(attempt: int) -> None:
+def is_rate_limit_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    status = getattr(exc, "status", None)
+    return status == 429 or "429" in text or "rate limit" in text
+
+
+class RateLimitThrottle:
+    def __init__(
+        self,
+        *,
+        cooldown_seconds: float = 30.0,
+        steady_pause_seconds: float = 3.0,
+        sleep_fn: Any = time.sleep,
+    ) -> None:
+        self.cooldown_seconds = cooldown_seconds
+        self.steady_pause_seconds = steady_pause_seconds
+        self.sleep_fn = sleep_fn
+        self.enabled = False
+
+    def before_request(self, request_label: str = "request") -> None:
+        if self.enabled and self.steady_pause_seconds > 0:
+            print(f"rate-limit throttle -> sleeping {self.steady_pause_seconds:.1f}s before {request_label}")
+            self.sleep_fn(self.steady_pause_seconds)
+
+    def after_rate_limit(self) -> None:
+        if self.cooldown_seconds > 0:
+            print(f"rate limit detected -> sleeping {self.cooldown_seconds:.1f}s")
+            self.sleep_fn(self.cooldown_seconds)
+        if self.steady_pause_seconds > 0 and not self.enabled:
+            print(f"rate-limit throttle enabled: {self.steady_pause_seconds:.1f}s between requests")
+        self.enabled = True
+
+
+def sleep_backoff(attempt: int, *, sleep_fn: Any = time.sleep) -> None:
     wait = min(20.0, 2.0**attempt) + 0.2
     print(f"search error -> sleeping {wait:.1f}s")
-    time.sleep(wait)
+    sleep_fn(wait)
 
 
 def safe_search(
@@ -369,9 +402,12 @@ def safe_search(
     year_end: int,
     max_retries: int,
     connect_fn: Any,
+    throttle: RateLimitThrottle | None = None,
 ) -> tuple[Any, Any]:
     for attempt in range(max_retries):
         try:
+            if throttle:
+                throttle.before_request(f"search request ({term!r}, {language}, offset={offset})")
             result = client.search.find(
                 term=term,
                 language=language,
@@ -383,6 +419,9 @@ def safe_search(
             return result, client
         except Exception as exc:
             print(f"search failed ({term!r}, {language}, offset={offset}) attempt {attempt + 1}/{max_retries}: {exc}")
+            if throttle and is_rate_limit_error(exc):
+                throttle.after_rate_limit()
+                continue
             if is_auth_error(exc):
                 print("Authentication problem detected; reconnecting Impresso client...")
                 try:
@@ -391,6 +430,17 @@ def safe_search(
                     print(f"Reconnect failed: {reconnect_exc}")
             sleep_backoff(attempt)
     return None, client
+
+
+def safe_content_text(client: Any, document_id: str, *, throttle: RateLimitThrottle | None = None) -> str:
+    try:
+        if throttle:
+            throttle.before_request(f"full-content request ({document_id})")
+        return content_text_from_raw(client.content_items.get(document_id).raw)
+    except Exception as exc:
+        if throttle and is_rate_limit_error(exc):
+            throttle.after_rate_limit()
+        raise
 
 
 def collect_pool_for_bucket(
@@ -413,6 +463,7 @@ def collect_pool_for_bucket(
     context_chars: int = DEFAULT_CONTEXT_CHARS,
     existing_sample_pairs: set[tuple[str, str]] | None = None,
     rng: random.Random | None = None,
+    throttle: RateLimitThrottle | None = None,
 ) -> tuple[list[dict[str, Any]], Any]:
     pool: list[dict[str, Any]] = []
     seen = set()
@@ -433,6 +484,7 @@ def collect_pool_for_bucket(
             year_end=year_end,
             max_retries=max_retries,
             connect_fn=connect_fn,
+            throttle=throttle,
         )
         time.sleep(pause)
         pages_seen += 1
@@ -456,7 +508,7 @@ def collect_pool_for_bucket(
             rows = [row]
             if context_source == "full-content":
                 try:
-                    content = content_text_from_raw(client.content_items.get(row["id"]).raw)
+                    content = safe_content_text(client, row["id"], throttle=throttle)
                     if content:
                         rows = expand_candidate_with_full_content(row, content, context_chars=context_chars, rng=rng)
                 except Exception as exc:
@@ -682,6 +734,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-empty-pages", type=int, default=DEFAULT_MAX_EMPTY_PAGES)
     parser.add_argument("--pause", type=float, default=DEFAULT_PAUSE)
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
+    parser.add_argument("--rate-limit-cooldown", type=float, default=30.0, help="Seconds to sleep immediately after an HTTP 429/rate-limit response.")
+    parser.add_argument("--rate-limit-pause", type=float, default=3.0, help="Seconds to sleep before each later request after the first 429/rate-limit response.")
     parser.add_argument("--random-seed", type=int, default=DEFAULT_RANDOM_SEED)
     parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default=DEFAULT_CONTEXT_SOURCE)
     parser.add_argument(
@@ -740,37 +794,47 @@ def main(argv: list[str] | None = None) -> int:
     date_range_cls, connect_fn = import_runtime()
     client = connect_fn()
     rng = random.Random(args.random_seed)
+    throttle = RateLimitThrottle(cooldown_seconds=args.rate_limit_cooldown, steady_pause_seconds=args.rate_limit_pause)
     require_matches = not args.allow_snippet_only
     target_pool_size = args.target_per_query_lang * args.pool_factor
     pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
-    for query in queries:
-        print(f"\n=== QUERY: {query['query']} [{query['label']}] ===")
-        for language in languages:
-            if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
-                continue
-            bucket = (query["label"], query["query"], language)
-            pool, client = collect_pool_for_bucket(
-                client=client,
-                date_range_cls=date_range_cls,
-                connect_fn=connect_fn,
-                query=query,
-                search_language=language,
-                target_pool_size=target_pool_size,
-                page_size=args.page_size,
-                max_pages=args.max_pages,
-                max_empty_pages=args.max_empty_pages,
-                pause=args.pause,
-                year_start=args.year_start,
-                year_end=args.year_end,
-                max_retries=args.max_retries,
-                require_matches=require_matches,
-                context_source=args.context_source,
-                context_chars=args.context_chars,
-                existing_sample_pairs=existing_sample_pairs,
-                rng=rng,
-            )
-            pools[bucket] = pool
-            print(f"  collected pool: {len(pool)}")
+    interrupted = False
+    interrupted_at = ""
+    try:
+        for query in queries:
+            print(f"\n=== QUERY: {query['query']} [{query['label']}] ===")
+            for language in languages:
+                if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
+                    continue
+                bucket = (query["label"], query["query"], language)
+                interrupted_at = f"{query['label']} || {query['query']} || {language}"
+                pool, client = collect_pool_for_bucket(
+                    client=client,
+                    date_range_cls=date_range_cls,
+                    connect_fn=connect_fn,
+                    query=query,
+                    search_language=language,
+                    target_pool_size=target_pool_size,
+                    page_size=args.page_size,
+                    max_pages=args.max_pages,
+                    max_empty_pages=args.max_empty_pages,
+                    pause=args.pause,
+                    year_start=args.year_start,
+                    year_end=args.year_end,
+                    max_retries=args.max_retries,
+                    require_matches=require_matches,
+                    context_source=args.context_source,
+                    context_chars=args.context_chars,
+                    existing_sample_pairs=existing_sample_pairs,
+                    rng=rng,
+                    throttle=throttle,
+                )
+                pools[bucket] = pool
+                print(f"  collected pool: {len(pool)}")
+                interrupted_at = ""
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\nInterrupted by user; writing output from completed sampling buckets.", file=sys.stderr)
 
     selected, summary = balanced_select(
         pools,
@@ -815,6 +879,9 @@ def main(argv: list[str] | None = None) -> int:
         "registry_pairs_added": registry_written,
         "deduplication": "global_by_issue_id_and_candidate_label",
     }
+    summary["interrupted"] = interrupted
+    summary["interrupted_at"] = interrupted_at
+    summary["completed_pool_buckets"] = len(pools)
     args.summary_out.parent.mkdir(parents=True, exist_ok=True)
     args.summary_out.write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
@@ -831,5 +898,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        print("\nInterrupted by user.", file=sys.stderr)
+        print("\nInterrupted by user before sampler output could be finalized.", file=sys.stderr)
         raise SystemExit(130)

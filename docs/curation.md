@@ -1,155 +1,337 @@
 # Curation Workflow
 
-This document describes how to review and apply corrections for the HIPE-derived French/German dev and test folds.
+This document describes the curation workflows used to improve the Impresso media-source NER dataset. It covers three related but separate tasks:
 
-The current workflow is model-assisted: run the trained model on the HIPE-derived validation/test data, build gold-vs-prediction disagreement records, review those records in the terminal, validate the decisions, and then write a non-destructive curated JSONL copy.
+1. **Audit and improve existing annotations.** Use audits to find missed spans, false positives, boundary problems, or label mistakes in data that is already part of the dataset.
+2. **Add new snippets and annotate them.** Use Impresso search sampling to collect new short contexts for existing or newly scoped labels, then review the proposed spans before exporting them as additional training/test rows. This is the main **horizontal extension** path.
+3. **Add new annotations to existing data items.** Use span-patch or targeted audit workflows to add another layer of annotation to documents that are already in the dataset, for example when adding a new entity family or repairing systematic false negatives. This is the main **vertical extension** path.
 
-Here, **HIPE-derived data** means the converted French/German news-agency annotations imported from earlier HIPE/CoNLL-style source files. This data is still part of the active training and evaluation base. Some paths and command names keep `legacy-*` for compatibility with the existing workbench layout.
+All workflows are model-assisted where possible: candidate spans are proposed by a model, seed-alias matching, or an audit query; a curator then accepts, rejects, modifies, or skips each candidate. Review decisions are append-only. Applying or promoting decisions writes revised JSONL data without editing the original evidence files in place.
 
-## Dataset Extension Modes
+Here, **HIPE-derived data** means the converted French/German news-agency annotations imported from earlier HIPE/CoNLL-style source files. This data is still part of the active training and evaluation base, but it is only one source of curation evidence. The current workbench also supports curation and sampling for English, plus side-language coverage for Luxembourgish and Italian. Some paths and command names keep `legacy-*` for compatibility with the existing workbench layout.
 
-There are two extension modes:
+## Command Assumptions
 
-- **Horizontal extension** adds more documents or snippets for existing labels.
-- **Vertical extension** adds more annotation depth or new entity families inside existing documents.
-
-Use sampled snippet review for horizontal extension. Use audit-driven span patches for vertical extension and missed-annotation repair. For example, future newspaper annotation should usually proceed entity by entity, such as reviewing all likely `org.ent.newspaper.nzz` spans before moving to the next newspaper.
-
-## Audit-Driven Span Patches
-
-Span patches start from an audit file that already contains suspicious candidate spans. The empty-training-doc audit is the first concrete use case: run the current classifier on documents with no gold entities, then review only documents where the classifier predicts a missing mention.
-
-Build or refresh the audit:
+The command examples below assume you run them from the repository root with the virtual environment activated:
 
 ```bash
-make audit-empty-training-docs \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+source .venv/bin/activate
+```
+
+They also assume the default release config:
+
+```
+CFG ?= configs/model-v2.0.0.mk
+```
+
+For readability, examples omit repeated `PYTHON=.venv/bin/python` and `CFG=configs/model-v2.0.0.mk` overrides. Pass them only when you intentionally want a non-default interpreter or release config, for example:
+
+```bash
+make curation-state CFG=configs/model-v2.1.0.mk
+```
+
+Review targets require a `REVIEWER` override to tag decisions with the curator's identity. The examples use the shell variable `$USER`, which expands to your login name:
+
+```bash
+make review-newsagency-snippets REVIEWER="$USER"
+```
+
+You can substitute any short identifier instead of `$USER`.
+
+## Dataset Extension Concepts
+
+Curation changes the dataset in three ways:
+
+- **Audit and correction** improves annotations that are already present, such as wrong boundaries, wrong labels, or false positives.
+- **Horizontal extension** adds more documents or snippets for existing labels, languages, time periods, or newly scoped canonical entities. This includes the newer English coverage and side-language coverage for Luxembourgish and Italian, not only the original French/German HIPE-derived base.
+- **Vertical extension** adds more annotation depth inside existing documents, such as missing spans, new labels, or future entity families.
+
+Use sampled snippet review for horizontal extension. Use existing-span audits for audit and correction. Use audit-driven span patches for vertical extension and missed-annotation repair. For example, future newspaper annotation should usually proceed entity by entity, such as reviewing all likely `org.ent.newspaper.nzz` spans before moving to the next newspaper.
+
+## From Evidence To Updated Dataset Splits
+
+Most curation paths follow the same lifecycle:
+
+```text
+diagnostics/state
+  -> sample or audit
+  -> score or build candidates
+  -> review decisions
+  -> materialize reviewed decisions
+  -> promote into the configured prerelease/source split
+```
+
+Use **promote** as the consistent name for the moment when reviewed changes become part of the dataset split used by training, export, and later publishing. Earlier steps only prepare local working artifacts: snippet review decisions are **exported** to standalone JSONL rows, while span-patch decisions are **applied** to a patched JSONL split. Those prepared artifacts are not integrated into the dataset until a `promote-*` or `refresh-*` target runs.
+
+The `refresh-*` targets are convenience shortcuts that materialize reviewed decisions and then promote them:
+
+- `refresh-span-patches` applies reviewed span-patch decisions, then promotes the patched split.
+- `refresh-existing-spans` applies reviewed existing-span decisions, then promotes the patched split.
+- `refresh-snippets` exports reviewed news-agency and radio-station snippets, then promotes the exported rows.
+
+Promotion updates the configured local prerelease/source split that later feeds training, export, or publishing. It is separate from Hugging Face publishing.
+
+## Which Curation Path Should I Use?
+
+Start by choosing the path that matches the kind of dataset change you want to make.
+
+| Situation                                                                    | Use this path                           | Main commands                                                                                                                           |
+| ---------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| You want to inspect coverage, state, and mention surfaces before deciding.   | Diagnostics and state inspection        | `curation-dashboard` or individual state/statistics targets                                                                             |
+| You want to audit already accepted annotations for boundary or label errors. | Existing-annotation audit               | `audit-existing-spans` -> `review-existing-spans` -> `refresh-existing-spans`                                                           |
+| You want to add missed annotations to existing documents.                    | Vertical span-patch audit               | `audit-empty-training-docs` -> `review-span-patches` -> `refresh-span-patches`                                                          |
+| You want new examples from Impresso search for news agencies.                | News-agency snippet curation            | `annotation-stats` -> `sample-needed-newsagencies` -> `score-newsagency-snippets` -> `review-newsagency-snippets` -> `refresh-snippets` |
+| You want new examples from Impresso search for radio stations.               | Radio-station snippet curation          | `annotation-stats` -> `sample-radiostations` -> `score-radiostation-snippets` -> `review-radiostation-spans` -> `refresh-snippets`      |
+| You want to clean the old HIPE-derived validation/test disagreement files.   | Legacy evaluation disagreement curation | `curate-legacy-eval` -> `review-curation` -> `validate-curation` -> `apply-curation`                                                    |
+
+For new dataset growth, use the snippet paths for horizontal extension and the span-patch paths for vertical extension. Use the legacy evaluation path only when you are deliberately correcting gold-vs-model disagreements in the HIPE-derived validation or test folds.
+
+Run `make help-review` when you only need the curation-related targets and common overrides. Run `make curation-dashboard` before a new session for a full read-only overview.
+
+## Quick Recipes
+
+### 0. Inspect current state
+
+Use this before starting or resuming curation. It does not change data.
+
+```bash
+make curation-dashboard
+```
+
+`curation-dashboard` chains `annotation-stats`, `mention-profiles`, `curation-state`, `snippet-state`, `legacy-curation-state`, and `dataset-state` in sequence. Run individual targets when you only want one section:
+
+```bash
+make annotation-stats
+make mention-profiles
+make curation-state
+make snippet-state
+make legacy-curation-state
+make dataset-state
+```
+
+### A. Audit existing annotations for one label
+
+Use this audit path when a label is already present but may have inconsistent span boundaries or label assignments, for example whether `Agence Havas` or only `Havas` was selected.
+
+```bash
+make audit-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas REVIEWER="$USER"
+make refresh-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
+
+Use this path one canonical label at a time. It is the safest way to normalize annotation style after a guideline decision.
+
+### B. Add missed annotations to existing documents
+
+Use this vertical-extension path when an audit has found likely false negatives, for example a missing agency or station in a document that already belongs to the training base.
+
+```bash
+make audit-empty-training-docs
+make review-span-patches REVIEWER="$USER"
+make refresh-span-patches
+```
+
+Use `accept` for a correct suggested span, `modify` for a correct entity with wrong boundary or label, `reject` for a verified false positive, and `skip` when the case needs later research.
+
+### C. Add new news-agency snippets
+
+Use this horizontal-extension path for more examples of existing agencies, language gaps, or newly added canonical agencies. The main coverage languages are German, French, and English; Luxembourgish and Italian are side languages with lower default targets.
+
+```bash
+make annotation-stats
+make sample-needed-newsagencies
+make score-newsagency-snippets
+make review-newsagency-snippets REVIEWER="$USER"
+make refresh-snippets
+```
+
+Use `sample-needed-newsagencies` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-newsagencies` instead when you deliberately want unconstrained sampling or when no coverage report is available yet.
+
+### D. Add new radio-station snippets
+
+Use this horizontal-extension path for radio-station coverage across the same language setup.
+
+```bash
+make annotation-stats
+make sample-radiostations RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
+make score-radiostation-snippets
+make review-radiostation-spans REVIEWER="$USER"
+make refresh-snippets
+```
+
+Set `RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true` for routine coverage work. Omit it when you intentionally want broader radio-station sampling.
+
+### E. Correct HIPE-derived validation/test disagreements
+
+Use this only for the older gold-vs-prediction disagreement workflow.
+
+```bash
+make curate-legacy-eval CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make review-curation REVIEWER="$USER"
+make validate-curation
+make apply-curation
+```
+
+This path writes a non-destructive curated copy under `data/curated/legacy-import-curated/`. It is separate from snippet promotion and span-patch promotion.
+
+## Path A: Audit Existing Annotations
+
+Use an existing-span boundary audit when you want to select one agency or station label and systematically verify every already annotated occurrence. This is useful for checking whether boundaries consistently include words such as `agence`, or whether a label was applied too broadly.
+
+Build the audit queue for one label:
+
+```bash
+make audit-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
+
+Review with the same span-patch interface:
+
+```bash
+make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas REVIEWER="$USER"
+```
+
+Choice meanings in this audit mode are:
+
+- `accept`: verify the existing span unchanged.
+- `modify`: correct boundary and/or label with the token-based manual interface.
+- `reject`: remove this existing annotation.
+- `skip`: leave the occurrence unresolved.
+
+Apply reviewed decisions to a local patched split:
+
+```bash
+make apply-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
+
+This writes a local patched output file. It does not change the prerelease split yet. Inspect whether the patched output still differs from the configured promotion target:
+
+```bash
+make existing-span-status SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
+
+Promote the patched output into the configured prerelease/source split, which is the file that feeds into training and export:
+
+```bash
+make promote-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
+
+Promotion overwrites the configured source split with the patched version. The patched file also writes `changes.jsonl` and `changes.tsv` alongside it so you can review what changed before committing.
+
+For the normal apply-and-promote sequence, use:
+
+```bash
+make refresh-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
+
+`refresh-existing-spans` is the normal shortcut for applying and promoting in one step. Use `existing-span-status` beforehand if you want to confirm that there are pending changes worth promoting.
+
+## Path B: Add Missed Annotations To Existing Documents
+
+Use this vertical-extension path when an audit has found likely false negatives — documents that are already in the training base but are missing an annotation entirely.
+
+Build or refresh the empty-training-doc audit. This runs the current classifier over training documents that have no gold entities and collects suspicious predicted spans:
+
+```bash
+make audit-empty-training-docs
 ```
 
 Review suggested span patches:
 
 ```bash
-make review-span-patches \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  REVIEWER="$USER"
+make review-span-patches REVIEWER="$USER"
 ```
 
-The review presents a concise suspicious-entity summary plus local context. The curator choices are:
+The review presents a concise suspicious-entity summary plus local context. Curator choices:
 
 - `accept`: add the suggested span.
+- `modify`: correct span offsets and/or label with the token-based manual interface.
 - `reject`: mark the suggestion as a verified false positive.
 - `skip`: leave it unresolved for a later pass.
-- `modify`: correct the span offsets and/or label.
 
-Accepted, rejected, and modified decisions receive a local audit marker of the form `USER:DATE:verified`. Patch application also writes reviewer-neutral public `audit_marks` into the JSONL rows. Later audit queues can suppress verified suggestions with the same span and label, so the same false positive or accepted correction is not repeatedly presented. Skipped decisions are not verified and remain eligible for later review.
+Accepted, rejected, and modified decisions receive a local audit marker of the form `USER:DATE:verified`. Patch application also writes reviewer-neutral public `audit_marks` into the JSONL rows. Later audit queues suppress verified suggestions with the same span and label, so the same false positive or accepted correction is not repeatedly presented. Skipped decisions remain eligible for later review.
 
-Apply accepted and corrected span decisions to a JSONL split:
+Apply accepted and corrected span decisions to a local patched split:
 
 ```bash
-make apply-span-patches \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make apply-span-patches
 ```
 
 This writes a local patched output first. It does not change the committed prerelease split yet. Inspect whether the patched output still differs from the configured promotion target:
 
 ```bash
-make span-patch-status \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make span-patch-status
 ```
 
 Promote the patched output into the configured prerelease/source split:
 
 ```bash
-make promote-span-patches \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make promote-span-patches
 ```
 
 For the normal apply-and-promote sequence, use:
 
 ```bash
-make refresh-span-patches \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make refresh-span-patches
 ```
+
+Decisions are append-only under `data/curated/span-patches/<audit-id>/decisions.jsonl`. Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json`. Promotion copies the patched output into `SPAN_PATCH_PROMOTE_JSONL`, which defaults to `SPAN_PATCH_SOURCE_JSONL`.
 
 The defaults point to the active v2.0.0 prerelease empty-training-doc audit. For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 
-Decisions are append-only under:
+## Path C/D: Add New Sampled Snippets
 
-```text
-data/curated/span-patches/<audit-id>/decisions.jsonl
-```
+Snippet curation is the horizontal-extension path. News-agency and radio-station snippets share the same review/export/promotion logic; the main difference is how candidate spans are proposed and which metadata file supplies canonical labels.
 
-Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json` under the configured span-patch output directory. Promotion copies `SPAN_PATCH_OUTPUT_JSONL` into `SPAN_PATCH_PROMOTE_JSONL`, which defaults to `SPAN_PATCH_SOURCE_JSONL`.
-
-## Snippet Promotion
-
-Snippet review produces ignored working files under `data/curated/snippets/`. Exporting snippets creates train/test JSONL rows for each entity family:
+Snippet review produces ignored working files under `data/curated/snippets/`. Exporting snippets converts accepted review decisions into train/test JSONL rows for each entity family:
 
 ```bash
-make export-newsagency-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
-
-make export-radiostation-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make export-newsagency-snippets
+make export-radiostation-snippets
 ```
 
-Check what would be merged into the configured dataset splits:
+The exported rows are not yet part of the training data. Promotion merges them into the configured prerelease/source split, which is the file that feeds into training and dataset export. Check what would be merged before committing:
 
 ```bash
-make snippet-promotion-status \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make snippet-promotion-status
 ```
 
-Promote the exported snippet rows into the prerelease:
+Promote the exported snippet rows into the prerelease/source split:
 
 ```bash
-make promote-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make promote-snippets
 ```
+
+Promotion is idempotent by `document_id`: existing rows with the same ID are replaced, new rows are appended, and the destination split is sorted again. The prerelease split is the file you later publish or pass to the training pipeline.
 
 For the normal export-and-promote sequence, use:
 
 ```bash
-make refresh-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make refresh-snippets
 ```
 
-Promotion is idempotent by `document_id`: existing rows with the same ID are replaced, new rows are appended, and the destination split is sorted again.
+`refresh-snippets` exports both reviewed news-agency and reviewed radio-station snippets before promotion. If only one family currently has reviewed rows, run the family-specific export target first and then promote separately, or make sure the other family's configured export file exists and is intentionally empty:
 
-## Build The Review Queue
+```bash
+make export-newsagency-snippets
+make promote-snippets
+```
+
+## Path E: Legacy Evaluation Disagreement Curation
+
+This section documents the older gold-vs-prediction disagreement workflow for HIPE-derived validation and test folds. It is useful for correcting evaluation data, but it is not the main path for adding new sampled examples or repairing missed spans in training documents.
 
 Run the selected model over the HIPE-derived validation and test folds:
 
 ```bash
-make curate-legacy-eval \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make curate-legacy-eval CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
 
 `curate-legacy-eval` includes both the HIPE-derived dev/validation fold and the HIPE-derived test fold. To curate only one fold, use:
 
 ```bash
-make curate-legacy-validation \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make curate-legacy-validation CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 
-make curate-legacy-test \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make curate-legacy-test CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
 
 The review files are written below:
@@ -167,25 +349,18 @@ Important files:
 
 Each row has a deterministic `review_id`, document metadata, the gold span, the predicted span, token context, and any existing saved decision.
 
-## Review In The Terminal
+### Review In The Terminal
 
 Review all pending items:
 
 ```bash
-make review-curation \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  REVIEWER="$USER"
+make review-curation REVIEWER="$USER"
 ```
 
 For a short test session:
 
 ```bash
-make review-curation \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  REVIEWER="$USER" \
-  ARGS="--limit 20"
+make review-curation REVIEWER="$USER" ARGS="--limit 20"
 ```
 
 The review UI clears the screen for each example, highlights the target tokens, and shows numbered tokens only when requested with `N`.
@@ -205,42 +380,32 @@ Use notes for real corrections, especially boundary corrections. The apply step 
 13:15 "Agence Wolff" label=org.ent.pressagency.wolff
 ```
 
-## Validate Decisions
+### Validate Decisions
 
 Validate that the current curation pass is internally consistent:
 
 ```bash
-make validate-curation \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make validate-curation
 ```
 
 `skip` decisions are treated as ignored for this pass and do not block completion. Use the stricter validator only when you intentionally want every disagreement resolved as a concrete correction:
 
 ```bash
-make validate-curation \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  ARGS="--require-complete"
+make validate-curation ARGS="--require-complete"
 ```
 
 For in-progress snapshots:
 
 ```bash
-make validate-curation \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  ARGS="--no-require-complete"
+make validate-curation ARGS="--no-require-complete"
 ```
 
-## Apply Decisions
+### Apply Decisions
 
 Apply completed decisions to a new curated JSONL directory:
 
 ```bash
-make apply-curation \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make apply-curation
 ```
 
 This is non-destructive. It reads:
@@ -265,7 +430,7 @@ Output files:
 
 Ignored decisions are recorded in the audit files and leave the corresponding annotation unchanged.
 
-## Inspect Changes
+### Inspect Changes
 
 Compare original and curated folds:
 
@@ -283,7 +448,7 @@ data/curated/legacy-import-curated/curation_changes_tags.tsv
 
 The TSV groups changes by review item and uses the HIPE `NoSpaceAfter` render metadata where available, so abbreviations and elisions appear in natural form such as `D.N.B.` or `l'Agence`.
 
-## Sampled Snippet Curation
+## Snippet Details And Sampling Options
 
 Sampled snippets use a lighter workflow than the HIPE-derived dev/test correction pass. Candidate rows should be JSONL and contain at least `id` plus either `text` or `snippet`. The tools also accept rows with `matches` and optional pre-tokenized `tokens`, `token_start_offsets`, and `token_end_offsets`.
 
@@ -295,21 +460,19 @@ When API/content fetches are too slow or unavailable, use `NEWSAGENCY_SAMPLE_CON
 
 ### News-Agency Snippets
 
-There are two different local data situations:
-
-- Real search snippets come from Impresso search results and follow the same basic shape as `../resources/radiostation_candidates_balanced_v2.jsonl`: `id`, `query`, `candidate_label`, `search_language`, `language`, `matches`, `snippet`, date/media metadata, and optional IIIF fields. This is the default workflow for new curation.
-- `data/curated/legacy-import-curated/*.jsonl` contains curated HIPE-derived text, tokens, offsets, and accepted news-agency spans. It can still be converted into bootstrap snippet candidates for testing the scoring/review/export workflow, but those rows are not new evidence.
-- The parent sampler file `../newsagencies_by_article.json` contains agency names mapped to Impresso article IDs only. It does not contain snippets or article text, so it cannot directly fill candidate snippet JSONL; it needs an Impresso API fetch step first.
+Use real Impresso search snippets for new curation. Bootstrap snippets built from HIPE-derived JSONL are useful for testing the scoring/review/export workflow, but they are not new evidence. The parent sampler file `../newsagencies_by_article.json` maps agency names to article IDs only and must be combined with an Impresso API fetch before it can produce candidate snippets.
 
 Sample real Impresso search snippets:
 
 ```bash
-make sample-newsagencies \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 \
-  NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 \
-  NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
+make sample-newsagencies NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
+```
+
+For routine coverage-driven sampling, first update coverage statistics and then sample only buckets below target:
+
+```bash
+make annotation-stats
+make sample-needed-newsagencies
 ```
 
 This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
@@ -317,9 +480,7 @@ This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query
 Build a local bootstrap snippet file from the curated HIPE-derived JSONL only when you explicitly want test material from the baseline HIPE-derived folds:
 
 ```bash
-make build-newsagency-snippets-from-legacy \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make build-newsagency-snippets-from-legacy
 ```
 
 This writes `data/candidates/newsagency_legacy_snippets.jsonl` by default.
@@ -327,11 +488,7 @@ This writes `data/candidates/newsagency_legacy_snippets.jsonl` by default.
 Score sampled snippets with the current model:
 
 ```bash
-make score-newsagency-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  NEWSAGENCY_SNIPPETS=data/candidates/newsagency_search_snippets.jsonl \
-  HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner
+make score-newsagency-snippets NEWSAGENCY_SNIPPETS=data/candidates/newsagency_search_snippets.jsonl HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner
 ```
 
 The scorer writes `data/curated/snippets/newsagencies/scored.jsonl` by default. Rows are marked:
@@ -344,10 +501,7 @@ By default, `AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE` inherits `AUTO_ACCEPT_MIN_CONF
 Review uncertain rows:
 
 ```bash
-make review-newsagency-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  REVIEWER="$USER"
+make review-newsagency-snippets REVIEWER="$USER"
 ```
 
 Choices are accept/review prediction spans, enter a manual token span, reject a suggested annotation, remove a bad sample, skip temporarily, or show info. If several agencies are predicted in the same snippet, choosing `a` reviews them one after another so multiple spans can be accepted in one decision. During per-span review, `a` accepts the predicted span and predicted label. If the boundary is correct but the label should be the candidate label, use `c`; for example, in `Telegraphen-Union berichtet:`, keep `Telegraphen-Union` as `org.ent.pressagency.telegraphen-union` and reject `berichtet`. In manual mode, the numbered tokens are shown automatically and you can add several spans before saving. You can type an explicit span with a full label or canonical id, such as `12:13 org.ent.pressagency.reuters` or `12:13 reuters`. You can also paste the numbered tokens themselves, for example `9:B 10:. 11:B 12:. 13:C 14:. bbc` or `33:Radio 34:. agence-radio`; the review tool infers the contiguous token range, resolves the canonical id to the full label, and prints an `interpreted:` line with the final span and label. If no label is supplied, the tool uses the current candidate label when one is available. Press `i` to print the current review input file, the local label metadata from `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`, the agency description, active period, multilingual aliases, annotation notes, contextual aliases, source links, the source file when known, and a direct Impresso article URL such as `https://impresso-project.ch/app/article/ARTICLEID` when the source document ID is known. Decisions are append-only in `data/curated/snippets/newsagencies/decisions.jsonl`, and the reviewed rows are materialized to `data/curated/snippets/newsagencies/reviewed.jsonl`.
@@ -364,12 +518,12 @@ The review target defaults to 20 items per run. Override with `REVIEW_MAX_ITEMS=
 Export accepted rows into training JSONL:
 
 ```bash
-make export-newsagency-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make export-newsagency-snippets
 ```
 
 The default outputs are `data/curated/snippets/newsagencies/train.jsonl` and `data/curated/snippets/newsagencies/test.jsonl`. They use the same token-label/entity schema as the HIPE-derived dataset and preserve `source_component` so snippet-derived examples can be mixed deterministically later. The split is deterministic and grouped by source issue/document so snippets from the same source issue do not leak across train and test. Override the holdout size with `SNIPPET_TEST_FRACTION=...`.
+
+Use `refresh-snippets` when the reviewed snippet rows are ready to be exported and promoted into the configured prerelease/source split.
 
 `data/curated/` is a local working area. When reviewed snippets are ready to become shared project state, include the resulting full dataset snapshot in `data/releases/<dataset-version>/` before cleaning local state or publishing a new Hugging Face dataset revision.
 
@@ -381,7 +535,7 @@ Useful overrides:
 
 ### Language-Aware Coverage Targets
 
-`make annotation-stats` writes label-level and label-language coverage to `data/curated/annotation_coverage.json`. Targeted sampling and review prioritization use the label-language buckets, so a label with many German examples can still be sampled and reviewed for French, English, Luxembourgish, or Italian gaps.
+`make annotation-stats` writes label-level and label-language coverage to `data/curated/annotation_coverage.json`. Targeted sampling and review prioritization use the label-language buckets, so a label with many German examples can still be sampled and reviewed for French, English, Luxembourgish, or Italian gaps. The original HIPE-derived base is French/German, but the current curation target is broader.
 
 Default coverage targets are:
 
@@ -391,18 +545,13 @@ Default coverage targets are:
 Configure these with:
 
 ```bash
-make annotation-stats \
-  CFG=configs/model-v2.0.0.mk \
-  ANNOTATION_MAIN_LANGS="de fr en" \
-  ANNOTATION_SIDE_LANGS="lb it" \
-  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=20 \
-  ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=5
+make annotation-stats ANNOTATION_MAIN_LANGS="de fr en" ANNOTATION_SIDE_LANGS="lb it" ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=20 ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=5
 ```
 
 Use `ANNOTATION_LANGUAGE_TARGETS` for explicit per-language overrides, for example:
 
 ```bash
-make annotation-stats CFG=configs/model-v2.0.0.mk ANNOTATION_LANGUAGE_TARGETS="de=30 fr=30 en=20 lb=8 it=8"
+make annotation-stats ANNOTATION_LANGUAGE_TARGETS="de=30 fr=30 en=20 lb=8 it=8"
 ```
 
 ### Entity Mention Profiles
@@ -410,7 +559,7 @@ make annotation-stats CFG=configs/model-v2.0.0.mk ANNOTATION_LANGUAGE_TARGETS="d
 Use empirical mention profiles to inspect how each label is actually annotated in the current dataset snapshot:
 
 ```bash
-make mention-profiles CFG=configs/model-v2.0.0.mk PYTHON=.venv/bin/python
+make mention-profiles
 ```
 
 The default outputs are:
@@ -436,36 +585,36 @@ The `i` info view in review and audit review displays this `mention_profile` fie
 
 ### Radio-Station Snippets
 
-The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radiostations`. These rows contain `id`, `station`, `query`, `search_language`, `language`, `matches`, `snippet`, date/media metadata, and optional IIIF fields. The sampler uses the same `data/candidates/sample_entity_pairs.jsonl` issue/entity registry as news-agency sampling and defaults to at most five selected samples per entity in one round.
+The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radiostations`. For routine coverage-driven sampling, run `make annotation-stats` first and pass `RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true`.
+
+```bash
+make annotation-stats
+make sample-radiostations RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
+```
 
 Because the current NER model was trained from HIPE-derived news-agency annotations and the current baseline label map does not contain radio-station labels yet, radio-station scoring combines two sources of span suggestions: deterministic radio-station seed-alias matching and the current NER model's media-agency predictions. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
 
 Score sampled radio-station snippets:
 
 ```bash
-make score-radiostation-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make score-radiostation-snippets
 ```
 
 Review suggested radio-station spans:
 
 ```bash
-make review-radiostation-spans \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk \
-  REVIEWER="$USER"
+make review-radiostation-spans REVIEWER="$USER"
 ```
 
 Export accepted radio-station spans:
 
 ```bash
-make export-radiostation-snippets \
-  PYTHON=.venv/bin/python \
-  CFG=configs/model-v2.0.0.mk
+make export-radiostation-snippets
 ```
 
 This writes `data/curated/snippets/radiostations/train.jsonl` and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the baseline HIPE-derived label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The split is deterministic and grouped by source issue/document.
+
+Use `refresh-snippets` when the reviewed radio-station rows are ready to be exported and promoted into the configured prerelease/source split.
 
 Radio-station snippets use the same span-review model as news-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-radiostation-spans`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.
 

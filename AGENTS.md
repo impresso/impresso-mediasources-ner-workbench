@@ -14,6 +14,7 @@ The workbench is the control plane. It owns sampling, curation, dataset export, 
 When running local project commands yourself, use `remake` instead of `make`.
 
 Examples:
+
 - Use `remake test`
 - Use `remake smoke`
 - Use `remake publish-dataset ARGS="--dry-run"`
@@ -50,6 +51,23 @@ tests/               # smoke and contract tests
 - Radio-station metadata starts from `resources/radiostation_seeds.json`.
 - Wikipedia/Wikidata links are metadata requirements for concrete news-agency labels.
 - Curation must preserve original candidate rows and append decisions instead of destructively rewriting evidence.
+
+## Curation Terminology
+
+Use these terms consistently in code, comments, and documentation:
+
+- **export**: convert reviewed snippet decisions into standalone JSONL rows (`export-newsagency-snippets`, `export-radiostation-snippets`).
+- **apply**: convert reviewed span-patch or existing-span decisions into a patched JSONL split (`apply-span-patches`, `apply-existing-spans`).
+- **promote**: integrate the materialized result (exported rows or patched split) into the configured prerelease/source split that training, export, and publishing will use (`promote-snippets`, `promote-span-patches`, `promote-existing-spans`).
+- **refresh-\***: convenience shortcut that materializes reviewed decisions and then promotes them in one step.
+
+Promotion is the single integration point. Nothing enters the dataset split until a `promote-*` or `refresh-*` target runs.
+
+See [docs/curation.md](docs/curation.md) for the full workflow, path selection table, and quick recipes.
+
+## Command Defaults
+
+Command examples in this repo omit `PYTHON=.venv/bin/python` and `CFG=configs/model-v2.0.0.mk` because both are the Makefile defaults. Pass them only when you need a non-default interpreter or release config. Review targets require `REVIEWER="$USER"` (or any short identifier) to tag decisions.
 
 ## Implementation Notes
 

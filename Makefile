@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-review smoke clean clean-dry-run clean-all-data validate-labels annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state legacy-curation-state audit-empty-training-docs review-span-patches apply-span-patches span-patch-status promote-span-patches refresh-span-patches sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets snippet-promotion-status promote-snippets refresh-snippets review-curation validate-curation apply-curation push-model
+.PHONY: help help-review smoke clean clean-dry-run clean-all-data validate-labels annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state legacy-curation-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans refresh-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches refresh-span-patches sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets snippet-promotion-status promote-snippets refresh-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -21,15 +21,19 @@ help:
 	@echo "  make validate-labels               Validate canonical label metadata"
 	@echo "  make annotation-stats              Summarize annotation coverage by label/language"
 	@echo "  make mention-profiles              Generate empirical entity mention-surface profiles"
+	@echo "  make curation-dashboard            Run all read-only state/stats targets in sequence"
 	@echo "  make curation-state                Summarize curation, snippets, and dataset state"
 	@echo "  make snippet-state                 Summarize sampled/scored/reviewed/exported snippets"
 	@echo "  make dataset-state                 Summarize staging and configured published dataset state"
 	@echo "  make audit-empty-training-docs     Score training docs with no gold entities for missing mentions"
+	@echo "  make audit-existing-spans          Build boundary-review audit for SPAN_BOUNDARY_TARGET_LABEL"
+	@echo "  make review-existing-spans         Review existing span boundaries with the span-patch UI"
+	@echo "  make apply-existing-spans          Apply existing-span boundary decisions to a patched split"
 	@echo "  make review-span-patches           Review audit-suggested span patches"
 	@echo "  make apply-span-patches            Apply accepted audit span patch decisions to JSONL"
 	@echo "  make span-patch-status             Show whether the patched split differs from the target split"
 	@echo "  make promote-span-patches          Copy the patched split into the configured prerelease/source split"
-	@echo "  make refresh-span-patches          Apply accepted span patches and promote the patched split"
+	@echo "  make refresh-span-patches          Apply span-patch decisions, then promote the patched split"
 	@echo "  make sample-newsagencies ARGS=...  Sample real news-agency search snippets"
 	@echo "  make sample-needed-newsagencies    Sample news-agency label/language buckets below target"
 	@echo "  make sample-radiostations ARGS=... Sample radio-station candidates"
@@ -57,7 +61,7 @@ help:
 	@echo "  make export-radiostation-snippets  Export accepted radio-station snippets to training JSONL"
 	@echo "  make snippet-promotion-status      Summarize snippet promotion into configured dataset splits"
 	@echo "  make promote-snippets              Merge exported snippets into configured dataset splits"
-	@echo "  make refresh-snippets              Export reviewed snippets and promote them into dataset splits"
+	@echo "  make refresh-snippets              Export reviewed snippets, then promote them into dataset splits"
 	@echo "  make review-curation REVIEWER=...  Review pending curation disagreements in terminal"
 	@echo "  make validate-curation CFG=...     Validate reviewed curation decisions"
 	@echo "  make apply-curation CFG=...        Apply reviewed decisions to JSONL annotations"
@@ -76,11 +80,16 @@ help-review:
 	@echo ""
 	@echo "Audit-driven span patches:"
 	@echo "  make audit-empty-training-docs                Score empty-gold training docs for suspicious missed spans"
+	@echo "  make audit-existing-spans                     Build target-label boundary review from existing annotations"
+	@echo "  make review-existing-spans                    Verify/correct/remove existing span boundaries"
+	@echo "  make apply-existing-spans                     Apply existing-span boundary decisions to a patched split"
+	@echo "  make promote-existing-spans                   Promote existing-span patched output into the source split"
+	@echo "  make refresh-existing-spans                   Apply existing-span decisions, then promote the patched split"
 	@echo "  make review-span-patches                      Review audit-suggested span patches"
 	@echo "  make apply-span-patches                       Apply accepted/corrected span patches to JSONL"
 	@echo "  make span-patch-status                        Compare patched output with the configured promotion target"
 	@echo "  make promote-span-patches                     Promote patched output into the prerelease/source split"
-	@echo "  make refresh-span-patches                     Apply and promote accepted/corrected span patches"
+	@echo "  make refresh-span-patches                     Apply span-patch decisions, then promote the patched split"
 	@echo ""
 	@echo "News-agency snippet review:"
 	@echo "  make sample-newsagencies                    Sample real Impresso search snippets"
@@ -90,7 +99,7 @@ help-review:
 	@echo "  make review-newsagency-snippets              Review uncertain snippets; press i for label info"
 	@echo "  make export-newsagency-snippets              Export accepted snippets to training JSONL"
 	@echo "  make promote-snippets                        Merge exported snippets into configured dataset splits"
-	@echo "  make refresh-snippets                        Export and promote reviewed snippets"
+	@echo "  make refresh-snippets                        Export reviewed snippets, then promote them into dataset splits"
 	@echo ""
 	@echo "Radio-station snippet review:"
 	@echo "  make score-radiostation-snippets             Score existing sampled radio snippets by alias"
@@ -98,6 +107,7 @@ help-review:
 	@echo "  make export-radiostation-snippets            Export accepted spans to training JSONL"
 	@echo ""
 	@echo "State summaries:"
+	@echo "  make curation-dashboard                      Run all read-only state/stats targets in sequence"
 	@echo "  make curation-state                          Summarize all curation and dataset state"
 	@echo "  make snippet-state                           Summarize snippet sampling/review/export state"
 	@echo "  make legacy-curation-state                   Summarize HIPE-derived disagreement curation state"
@@ -133,6 +143,14 @@ annotation-stats:
 mention-profiles:
 	$(PYTHON) -m lib.entity_mention_profiles $(foreach input,$(MENTION_PROFILE_JSONL),--input-jsonl "$(input)") --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --top-n "$(MENTION_PROFILE_TOP_N)" --json-output "$(MENTION_PROFILE_JSON)" --tsv-output "$(MENTION_PROFILE_TSV)" --md-output "$(MENTION_PROFILE_MD)" $(ARGS)
 
+curation-dashboard:
+	$(MAKE) annotation-stats
+	$(MAKE) mention-profiles
+	$(MAKE) curation-state
+	$(MAKE) snippet-state
+	$(MAKE) legacy-curation-state
+	$(MAKE) dataset-state
+
 curation-state:
 	$(PYTHON) -m lib.curation_state --section all --dataset "$(DATASET)" --dataset-revision "$(DATASET_REVISION)" --dataset-source-dir "$(DATASET_SOURCE_DIR)" --dataset-output-dir "$(DATASET_OUTPUT_DIR)" --curation-output-dir "$(CURATION_OUTPUT_DIR)" --curation-input-dir "$(CURATION_INPUT_DIR)" --curation-applied-dir "$(CURATION_APPLIED_DIR)" --newsagency-snippets "$(NEWSAGENCY_SNIPPETS)" --newsagency-snippet-summary "$(NEWSAGENCY_SNIPPET_SUMMARY)" --newsagency-scored-snippets "$(NEWSAGENCY_SCORED_SNIPPETS)" --newsagency-reviewed-snippets "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --newsagency-snippet-decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --newsagency-snippet-train-jsonl "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --newsagency-snippet-test-jsonl "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --radiostation-snippets "$(RADIOSTATION_SNIPPETS)" --radiostation-snippet-summary "$(RADIOSTATION_SNIPPET_SUMMARY)" --radiostation-scored-snippets "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostation-reviewed-snippets "$(RADIOSTATION_REVIEWED_SNIPPETS)" --radiostation-snippet-decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --radiostation-snippet-train-jsonl "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --radiostation-snippet-test-jsonl "$(RADIOSTATION_SNIPPET_TEST_JSONL)" $(ARGS)
 
@@ -152,6 +170,35 @@ audit-empty-training-docs:
 	$(PYTHON) -m lib.audit_empty_training_docs prepare --input-jsonl "$(EMPTY_TRAIN_SOURCE_JSONL)" --label-map "$(EMPTY_TRAIN_LABEL_MAP)" --output-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --summary-json "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prepare_summary.json"
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(EMPTY_TRAIN_MODEL)" --eval-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --label-map "$(EMPTY_TRAIN_LABEL_MAP)" --output-dir "$(EMPTY_TRAIN_AUDIT_DIR)/eval" --split-name empty_train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	$(PYTHON) -m lib.audit_empty_training_docs summarize --source-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --predictions-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/eval/empty_train_predictions.jsonl" --candidates-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.jsonl" --candidates-tsv "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.tsv" --summary-json "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_summary.json"
+
+audit-existing-spans:
+	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
+	$(PYTHON) -m lib.audit_existing_spans --input-jsonl "$(TRAIN_JSONL)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --candidates-jsonl "$(SPAN_BOUNDARY_CANDIDATES)" --candidates-tsv "$(SPAN_BOUNDARY_CANDIDATES_TSV)" --summary-json "$(SPAN_BOUNDARY_SUMMARY_JSON)" $(ARGS)
+
+review-existing-spans:
+	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
+	$(PYTHON) -m lib.span_patch_review --candidates "$(SPAN_BOUNDARY_CANDIDATES)" --decisions "$(SPAN_BOUNDARY_DECISIONS)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(SPAN_BOUNDARY_REVIEW_SUMMARY_JSON)" --queue-jsonl "$(SPAN_BOUNDARY_QUEUE_JSONL)" $(ARGS)
+
+apply-existing-spans:
+	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
+	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(TRAIN_JSONL)" --output-jsonl "$(SPAN_BOUNDARY_OUTPUT_JSONL)" --candidates "$(SPAN_BOUNDARY_CANDIDATES)" --decisions "$(SPAN_BOUNDARY_DECISIONS)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --changes-jsonl "$(SPAN_BOUNDARY_CHANGES_JSONL)" --changes-tsv "$(SPAN_BOUNDARY_CHANGES_TSV)" --summary-json "$(SPAN_BOUNDARY_APPLY_SUMMARY_JSON)" --replace-overlaps $(ARGS)
+
+existing-span-status:
+	@echo "audit id:        $(SPAN_BOUNDARY_AUDIT_ID)"
+	@echo "target label:    $(SPAN_BOUNDARY_TARGET_LABEL)"
+	@echo "source split:    $(TRAIN_JSONL)"
+	@echo "patched output:  $(SPAN_BOUNDARY_OUTPUT_JSONL)"
+	@echo "promote target:  $(SPAN_BOUNDARY_PROMOTE_JSONL)"
+	@test -f "$(SPAN_BOUNDARY_OUTPUT_JSONL)" || { echo "patched output:  missing; run make apply-existing-spans first"; exit 1; }
+	@test -f "$(SPAN_BOUNDARY_PROMOTE_JSONL)" || { echo "promote target:  missing"; exit 1; }
+	@if cmp -s "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"; then echo "state:           promoted target is up to date"; else echo "state:           patched output differs from promote target"; fi
+
+promote-existing-spans:
+	@test -f "$(SPAN_BOUNDARY_OUTPUT_JSONL)" || { echo "Missing patched output: $(SPAN_BOUNDARY_OUTPUT_JSONL). Run make apply-existing-spans first."; exit 1; }
+	@echo "Promoting $(SPAN_BOUNDARY_OUTPUT_JSONL) -> $(SPAN_BOUNDARY_PROMOTE_JSONL)"
+	cp "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"
+
+refresh-existing-spans: apply-existing-spans promote-existing-spans
 
 review-span-patches:
 	$(PYTHON) -m lib.span_patch_review --candidates "$(SPAN_PATCH_CANDIDATES)" --decisions "$(SPAN_PATCH_DECISIONS)" --audit-id "$(SPAN_PATCH_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(SPAN_PATCH_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(SPAN_PATCH_SUMMARY_JSON)" --queue-jsonl "$(SPAN_PATCH_QUEUE_JSONL)" $(ARGS)

@@ -2,6 +2,7 @@ import json
 import random
 from pathlib import Path
 
+import lib.sample_newsagencies as sample_newsagencies
 from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
 from lib.export_snippet_training_data import apply_split_assignments, export_rows, write_split_outputs
@@ -15,6 +16,7 @@ from lib.review_newsagency_snippets import (
 )
 from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
 from lib.sample_newsagencies import (
+    RateLimitThrottle,
     balanced_select,
     bucket_is_undercovered,
     expand_candidate_with_full_content,
@@ -24,6 +26,8 @@ from lib.sample_newsagencies import (
     load_undercovered_buckets,
     load_undercovered_labels,
     sample_pair_key,
+    safe_content_text,
+    safe_search,
     write_sample_registry,
 )
 from lib.score_radiostation_snippets import (
@@ -354,6 +358,157 @@ def test_sample_newsagencies_extracts_search_candidate() -> None:
     assert row["source"] == {"type": "impresso_search_result", "document_id": "DTT-1959-12-01-a-i0079"}
     assert row["sample_document_id"] == "DTT-1959-12-01-a-i0079"
     assert row["sample_issue_id"] == "DTT-1959-12-01-a"
+
+
+def test_safe_search_rate_limit_sleeps_then_enables_request_pause() -> None:
+    sleeps = []
+
+    class RateLimitError(Exception):
+        status = 429
+
+    class Search:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def find(self, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise RateLimitError("Rate limit exceeded")
+            return "ok"
+
+    class Client:
+        def __init__(self) -> None:
+            self.search = Search()
+
+    class DateRange:
+        def __init__(self, *_args) -> None:
+            pass
+
+    throttle = RateLimitThrottle(cooldown_seconds=30.0, steady_pause_seconds=3.0, sleep_fn=sleeps.append)
+    result, client = safe_search(
+        client=Client(),
+        date_range_cls=DateRange,
+        term="ATA",
+        language="it",
+        offset=10,
+        limit=10,
+        year_start=1900,
+        year_end=2000,
+        max_retries=2,
+        connect_fn=Client,
+        throttle=throttle,
+    )
+
+    assert result == "ok"
+    assert client.search.calls == 2
+    assert sleeps == [30.0, 3.0]
+    assert throttle.enabled is True
+
+
+def test_safe_content_rate_limit_enables_later_request_pause() -> None:
+    sleeps = []
+
+    class RateLimitError(Exception):
+        status = 429
+
+    class ContentItems:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def get(self, _document_id):
+            self.calls += 1
+            if self.calls == 1:
+                raise RateLimitError("Rate limit exceeded")
+            return type("Result", (), {"raw": {"content": "full text"}})()
+
+    class Client:
+        def __init__(self) -> None:
+            self.content_items = ContentItems()
+
+    client = Client()
+    throttle = RateLimitThrottle(cooldown_seconds=30.0, steady_pause_seconds=3.0, sleep_fn=sleeps.append)
+
+    try:
+        safe_content_text(client, "doc-1", throttle=throttle)
+    except RateLimitError:
+        pass
+    text = safe_content_text(client, "doc-1", throttle=throttle)
+
+    assert text == "full text"
+    assert sleeps == [30.0, 3.0]
+    assert throttle.enabled is True
+
+
+def test_sample_main_writes_completed_pools_after_keyboard_interrupt(tmp_path: Path, monkeypatch) -> None:
+    seeds = tmp_path / "seeds.json"
+    out = tmp_path / "out.jsonl"
+    summary = tmp_path / "summary.json"
+    registry = tmp_path / "registry.jsonl"
+    seeds.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "reuters",
+                    "label": "org.ent.pressagency.reuters",
+                    "display_name": "Reuters",
+                    "aliases": ["Reuters"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    calls = []
+
+    def fake_import_runtime():
+        return object, lambda: object()
+
+    def fake_collect_pool_for_bucket(**kwargs):
+        calls.append(kwargs["search_language"])
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        query = kwargs["query"]
+        return [
+            {
+                "id": "doc-1#match-0",
+                "candidate_label": query["label"],
+                "query": query["query"],
+                "search_language": kwargs["search_language"],
+                "sample_issue_id": "doc-1",
+                "source": {"document_id": "doc-1-i0001"},
+            }
+        ], kwargs["client"]
+
+    monkeypatch.setattr(sample_newsagencies, "import_runtime", fake_import_runtime)
+    monkeypatch.setattr(sample_newsagencies, "collect_pool_for_bucket", fake_collect_pool_for_bucket)
+
+    exit_code = sample_newsagencies.main(
+        [
+            "--seeds",
+            str(seeds),
+            "--out",
+            str(out),
+            "--summary-out",
+            str(summary),
+            "--sample-registry",
+            str(registry),
+            "--languages",
+            "de",
+            "fr",
+            "--target-per-query-lang",
+            "1",
+            "--pool-factor",
+            "1",
+        ]
+    )
+
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    data = json.loads(summary.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert [row["id"] for row in rows] == ["doc-1#match-0"]
+    assert data["interrupted"] is True
+    assert data["completed_pool_buckets"] == 1
+    assert data["interrupted_at"] == "org.ent.pressagency.reuters || Reuters || fr"
 
 
 def test_sample_registry_and_selection_use_issue_entity_pairs(tmp_path: Path) -> None:

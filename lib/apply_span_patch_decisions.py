@@ -68,6 +68,10 @@ def accepted_patch(decision: dict[str, Any]) -> bool:
     return verified and decision.get("choice") in {"accept", "modify", "correct"}
 
 
+def existing_boundary_patch(patch: dict[str, Any]) -> bool:
+    return patch.get("audit_mode") == "existing-span-boundary"
+
+
 def verified_decision(decision: dict[str, Any]) -> bool:
     return decision.get("audit_status") == "verified" or decision.get("status") == "done"
 
@@ -189,6 +193,35 @@ def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, repl
     }
 
 
+def remove_source_entity(row: dict[str, Any], decision: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    source = decision.get("source") if isinstance(decision.get("source"), dict) else {}
+    start = int(source["start"])
+    stop = int(source["stop"])
+    label = str(source["label"])
+    existing = list(row.get("entities") or [])
+    kept = [
+        entity
+        for entity in existing
+        if not (int(entity["start"]) == start and int(entity["stop"]) == stop and str(entity.get("label") or "") == label)
+    ]
+    if len(kept) == len(existing):
+        raise ValueError(f"{row_id(row)}: source entity not found for removal: {start}:{stop} {label}")
+    out = dict(row)
+    out["entities"] = sorted(kept, key=lambda entity: (int(entity["start"]), int(entity["stop"]), str(entity["label"])))
+    out["token_labels"] = labels_from_entities(out)
+    return out, {
+        "choice": decision.get("choice"),
+        "document_id": row_id(row),
+        "label": label,
+        "review_id": decision["review_id"],
+        "start": start,
+        "stop": stop,
+        "surface": source.get("surface", ""),
+        "token_start": source.get("token_start"),
+        "token_stop": source.get("token_stop"),
+    }
+
+
 def labels_from_entities(row: dict[str, Any]) -> list[str]:
     labels = ["O"] * len(row.get("tokens", []))
     for entity in row.get("entities") or []:
@@ -228,11 +261,32 @@ def apply_span_patches(
         doc_id = str(decision["document_id"])
         if doc_id not in rows_by_id:
             raise ValueError(f"{review_id}: source document not found: {doc_id}")
+        patch = patches[review_id]
         rows_by_id[doc_id] = add_audit_mark(rows_by_id[doc_id], audit_mark(decision))
+        if existing_boundary_patch(patch) and decision.get("choice") == "accept":
+            continue
+        if existing_boundary_patch(patch) and decision.get("choice") == "reject":
+            rows_by_id[doc_id], change = remove_source_entity(rows_by_id[doc_id], decision)
+            change.update(
+                {
+                    "audit_id": audit_id,
+                    "date": rows_by_id[doc_id].get("date", ""),
+                    "language": rows_by_id[doc_id].get("language", ""),
+                    "newspaper": rows_by_id[doc_id].get("newspaper", ""),
+                    "suggested_label": patch.get("suggested_label", ""),
+                    "target_label": patch.get("target_label", ""),
+                }
+            )
+            changes.append(change)
+            changed_ids.add(doc_id)
+            continue
         if not accepted_patch(decision):
             continue
-        rows_by_id[doc_id], change = add_or_replace_entity(rows_by_id[doc_id], decision, replace_overlaps=replace_overlaps)
-        patch = patches[review_id]
+        rows_by_id[doc_id], change = add_or_replace_entity(
+            rows_by_id[doc_id],
+            decision,
+            replace_overlaps=replace_overlaps or existing_boundary_patch(patch),
+        )
         change.update(
             {
                 "audit_id": audit_id,

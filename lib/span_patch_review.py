@@ -108,6 +108,7 @@ def span_patch(
     summary = f'{document_id}: "{surface}" -> {label}'
     return {
         "audit_id": audit_id,
+        "audit_mode": candidate.get("audit_mode", ""),
         "date": candidate.get("date", ""),
         "document_id": document_id,
         "language": candidate.get("language", ""),
@@ -305,7 +306,10 @@ def print_patch(patch: dict[str, Any], index: int, total: int, decision: dict[st
     print(f"{index}/{total} {patch['review_id']}")
     print(f"document: {patch['document_id']} [{patch.get('language', '')}] {patch.get('date', '')} {patch.get('newspaper', '')}")
     print(f"candidate label: {patch.get('target_label', '')}")
-    print(f"reasons: audit suggested a missing span in an already annotated training document")
+    if patch.get("audit_mode") == "existing-span-boundary":
+        print("reasons: audit asks to verify an existing annotated span and its boundaries")
+    else:
+        print("reasons: audit suggested a missing span in an already annotated training document")
     if decision:
         print(f"existing decision: {decision.get('audit_marker', '')} {decision.get('choice')} {decision.get('correct_label', '')}")
     print("-" * 88)
@@ -317,8 +321,12 @@ def print_patch(patch: dict[str, Any], index: int, total: int, decision: dict[st
     token_span = f"{token_start}:{token_stop}" if token_start is not None else "<unknown>"
     print(f"  1: {token_span} {patch.get('surface', '')} [{patch['suggested_label']}]")
     print("choice meaning:")
-    print("  a = accept/review suggested span; m = enter manual span")
-    print("  r = reject suggested annotation for this item; s = skip temporarily")
+    if patch.get("audit_mode") == "existing-span-boundary":
+        print("  a = verify existing span unchanged; m = correct boundary/label")
+        print("  r = remove this existing annotation; s = skip temporarily")
+    else:
+        print("  a = accept/review suggested span; m = enter manual span")
+        print("  r = reject suggested annotation for this item; s = skip temporarily")
     print("  i = show label/source info; N = show numbered tokens; q = quit")
     print("Choices: [a]ccept/review prediction span [m]anual span [r]eject annotation [s]kip [i]nfo [N]umbered tokens [q]uit")
 
