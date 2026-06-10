@@ -44,7 +44,14 @@ DEFAULT_YEAR_END = 2000
 DEFAULT_TARGET_PER_QUERY_LANG = 5
 
 
-def load_seed_queries(path: Path, *, languages: list[str], labels: set[str] | None, max_queries_per_label: int) -> list[dict[str, str]]:
+def load_seed_queries(
+    path: Path,
+    *,
+    languages: list[str],
+    labels: set[str] | None,
+    max_queries_per_label: int,
+    rng: random.Random | None = None,
+) -> list[dict[str, str]]:
     rows = json.loads(path.read_text(encoding="utf-8"))
     queries: list[dict[str, str]] = []
     for row in rows:
@@ -56,6 +63,9 @@ def load_seed_queries(path: Path, *, languages: list[str], labels: set[str] | No
         if row.get("trainable") is False:
             continue
         aliases = clean_aliases(row, languages)
+        if rng is not None:
+            aliases = list(aliases)
+            rng.shuffle(aliases)
         if max_queries_per_label > 0:
             aliases = aliases[:max_queries_per_label]
         canonical_id = str(row.get("canonical_id") or label.rsplit(".", 1)[-1])
@@ -106,7 +116,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-empty-pages", type=int, default=DEFAULT_MAX_EMPTY_PAGES)
     parser.add_argument("--pause", type=float, default=DEFAULT_PAUSE)
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
-    parser.add_argument("--random-seed", type=int, default=DEFAULT_RANDOM_SEED)
+    parser.add_argument("--random-seed", type=int, default=None, help="Optional seed for reproducible alias shuffling and context windows.")
+    parser.add_argument("--shuffle-aliases", action=argparse.BooleanOptionalAction, default=True, help="Shuffle aliases before applying --max-queries-per-label; enabled by default.")
     parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default=DEFAULT_CONTEXT_SOURCE)
     parser.add_argument(
         "--context-chars",
@@ -149,7 +160,15 @@ def main(argv: list[str] | None = None) -> int:
         undercovered_buckets = load_undercovered_buckets(args.coverage_json, family="radiostation", min_missing=args.min_missing)
         undercovered = {label for label, _language in undercovered_buckets}
         labels = undercovered if labels is None else labels & undercovered
-    queries = load_seed_queries(args.seeds, languages=languages, labels=labels, max_queries_per_label=args.max_queries_per_label)
+    rng = random.Random(args.random_seed) if args.random_seed is not None else random.Random()
+    alias_rng = (random.Random(args.random_seed) if args.random_seed is not None else random.Random()) if args.shuffle_aliases else None
+    queries = load_seed_queries(
+        args.seeds,
+        languages=languages,
+        labels=labels,
+        max_queries_per_label=args.max_queries_per_label,
+        rng=alias_rng,
+    )
     print("Seed file:", args.seeds)
     print("Queries:", len(queries))
     print("Languages:", languages)
@@ -172,7 +191,6 @@ def main(argv: list[str] | None = None) -> int:
 
     date_range_cls, connect_fn = import_runtime()
     client = connect_fn()
-    rng = random.Random(args.random_seed)
     require_matches = not args.allow_snippet_only
     target_pool_size = args.target_per_query_lang * args.pool_factor
     pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
@@ -240,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
         "max_empty_pages": args.max_empty_pages,
         "pause": args.pause,
         "random_seed": args.random_seed,
+        "shuffle_aliases": args.shuffle_aliases,
         "require_matches": require_matches,
         "context_source": args.context_source,
         "context_chars": args.context_chars,

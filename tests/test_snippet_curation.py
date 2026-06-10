@@ -16,6 +16,7 @@ from lib.review_newsagency_snippets import (
     row_needs_coverage,
 )
 from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
+from lib.sample_radiostations import parse_args as parse_radiostation_sample_args
 from lib.sample_newsagencies import (
     RateLimitThrottle,
     balanced_select,
@@ -27,6 +28,7 @@ from lib.sample_newsagencies import (
     load_seed_queries,
     load_undercovered_buckets,
     load_undercovered_labels,
+    parse_args as parse_newsagency_sample_args,
     sample_pair_key,
     safe_content_text,
     safe_search,
@@ -280,6 +282,38 @@ def test_sample_newsagencies_loads_label_alias_queries(tmp_path: Path) -> None:
 
     assert {query["query"] for query in queries} == {"Reuters", "Reuter", "Agence Reuters"}
     assert {query["label"] for query in queries} == {"org.ent.pressagency.reuters"}
+
+
+def test_sample_newsagencies_can_shuffle_alias_choice_by_seed(tmp_path: Path) -> None:
+    seeds = tmp_path / "newsagency_seeds.json"
+    seeds.write_text(
+        json.dumps(
+            [
+                {
+                    "label": "org.ent.pressagency.reuters",
+                    "canonical_id": "reuters",
+                    "display_name": "Reuters",
+                    "aliases": ["Reuters", "Reuter", "Agence Reuters", "Reuters News"],
+                    "trainable": True,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    first = load_seed_queries(seeds, languages=["fr"], labels=None, max_queries_per_label=2, rng=random.Random(1))
+    second = load_seed_queries(seeds, languages=["fr"], labels=None, max_queries_per_label=2, rng=random.Random(2))
+
+    assert [query["query"] for query in first] != [query["query"] for query in second]
+    assert len(first) == 2
+    assert len(second) == 2
+
+
+def test_sample_newsagencies_default_alias_shuffle_is_not_seeded() -> None:
+    args = parse_newsagency_sample_args([])
+
+    assert args.shuffle_aliases is True
+    assert args.random_seed is None
 
 
 def test_sample_newsagencies_loads_undercovered_labels_from_stats(tmp_path: Path) -> None:
@@ -690,6 +724,38 @@ def test_sample_radiostations_loads_specific_label_alias_queries(tmp_path: Path)
     assert {query["label"] for query in queries} == {"org.ent.radiostation.bbc"}
     assert row["station"] == "bbc"
     assert row["station_name"] == "BBC"
+
+
+def test_sample_radiostations_can_shuffle_alias_choice_by_seed(tmp_path: Path) -> None:
+    seeds = tmp_path / "radiostation_seeds.json"
+    seeds.write_text(
+        json.dumps(
+            [
+                {
+                    "label": "org.ent.radiostation.bbc",
+                    "canonical_id": "bbc",
+                    "display_name": "BBC",
+                    "aliases": ["BBC", "Radio Londres", "Radio London", "Londoner Rundfunk"],
+                    "trainable": True,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    first = load_radiostation_seed_queries(seeds, languages=["de", "fr"], labels=None, max_queries_per_label=2, rng=random.Random(1))
+    second = load_radiostation_seed_queries(seeds, languages=["de", "fr"], labels=None, max_queries_per_label=2, rng=random.Random(2))
+
+    assert [query["query"] for query in first] != [query["query"] for query in second]
+    assert len(first) == 2
+    assert len(second) == 2
+
+
+def test_sample_radiostations_default_alias_shuffle_is_not_seeded() -> None:
+    args = parse_radiostation_sample_args([])
+
+    assert args.shuffle_aliases is True
+    assert args.random_seed is None
 
 
 def test_build_newsagency_snippets_from_legacy_jsonl(tmp_path: Path) -> None:
