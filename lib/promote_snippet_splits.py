@@ -77,6 +77,52 @@ def promote_split(base_path: Path, snippet_paths: list[Path]) -> tuple[list[dict
     return promoted_rows, summary
 
 
+def collect_snippet_targets(snippet_paths: dict[str, list[Path]]) -> tuple[dict[str, str], dict[str, list[str]]]:
+    targets: dict[str, str] = {}
+    duplicates: dict[str, set[str]] = {}
+    for split in SPLITS:
+        for path in snippet_paths.get(split, []):
+            for row in load_jsonl(path):
+                rid = row_id(row)
+                previous = targets.get(rid)
+                if previous is None:
+                    targets[rid] = split
+                    continue
+                duplicates.setdefault(rid, {previous}).add(split)
+    return targets, {rid: sorted(splits) for rid, splits in sorted(duplicates.items())}
+
+
+def drop_refreshed_snippets_from_old_splits(
+    rows_by_split: dict[str, list[dict[str, Any]]],
+    snippet_targets: dict[str, str],
+) -> dict[str, int]:
+    removed = {split: 0 for split in SPLITS}
+    for split, rows in rows_by_split.items():
+        kept = []
+        for row in rows:
+            target_split = snippet_targets.get(row_id(row))
+            if target_split is not None and target_split != split:
+                removed[split] += 1
+                continue
+            kept.append(row)
+        rows_by_split[split] = kept
+    return removed
+
+
+def duplicate_ids_across_splits(rows_by_split: dict[str, list[dict[str, Any]]]) -> dict[str, list[str]]:
+    seen: dict[str, str] = {}
+    duplicates: dict[str, set[str]] = {}
+    for split in SPLITS:
+        for row in rows_by_split.get(split, []):
+            rid = row_id(row)
+            previous = seen.get(rid)
+            if previous is None:
+                seen[rid] = split
+                continue
+            duplicates.setdefault(rid, {previous}).add(split)
+    return {rid: sorted(splits) for rid, splits in sorted(duplicates.items())}
+
+
 def parse_split_path(value: str) -> tuple[str, Path]:
     if "=" not in value:
         raise argparse.ArgumentTypeError(f"Expected SPLIT=PATH, got {value!r}")
@@ -103,14 +149,29 @@ def main(argv: list[str] | None = None) -> int:
     for split, path in args.snippet:
         snippet_paths[split].append(path)
     output_paths = dict(args.output or args.base)
+    snippet_targets, duplicate_snippet_ids_across_splits = collect_snippet_targets(snippet_paths)
 
     summary: dict[str, Any] = {"dry_run": bool(args.dry_run), "splits": {}}
+    summary["duplicate_snippet_ids_across_splits"] = duplicate_snippet_ids_across_splits
+    if duplicate_snippet_ids_across_splits and not args.dry_run:
+        examples = []
+        for rid, splits in list(duplicate_snippet_ids_across_splits.items())[:10]:
+            examples.append(f"{rid} ({', '.join(splits)})")
+        more = "" if len(duplicate_snippet_ids_across_splits) <= 10 else " ..."
+        raise ValueError(
+            "duplicate snippet document_id values across exported snippet splits: "
+            + "; ".join(examples)
+            + more
+        )
+
+    promoted_by_split: dict[str, list[dict[str, Any]]] = {}
     for split in SPLITS:
         if split not in base_paths:
             continue
         if split not in output_paths:
             raise ValueError(f"Missing output path for split {split!r}")
         promoted_rows, split_summary = promote_split(base_paths[split], snippet_paths[split])
+        promoted_by_split[split] = promoted_rows
         if split_summary["duplicate_snippet_ids"] and not args.dry_run:
             duplicates = ", ".join(split_summary["duplicate_snippet_ids"][:10])
             more = "" if len(split_summary["duplicate_snippet_ids"]) <= 10 else " ..."
@@ -126,6 +187,27 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         summary["splits"][split] = split_summary
+
+    removed_refreshed = drop_refreshed_snippets_from_old_splits(promoted_by_split, snippet_targets)
+    for split, count in removed_refreshed.items():
+        if split in summary["splits"]:
+            summary["splits"][split]["removed_refreshed_from_old_split"] = count
+            summary["splits"][split]["output_rows"] = len(promoted_by_split[split])
+
+    cross_split_duplicates = duplicate_ids_across_splits(promoted_by_split)
+    summary["duplicate_document_ids_across_splits"] = cross_split_duplicates
+    if cross_split_duplicates and not args.dry_run:
+        examples = []
+        for rid, splits in list(cross_split_duplicates.items())[:10]:
+            examples.append(f"{rid} ({', '.join(splits)})")
+        more = "" if len(cross_split_duplicates) <= 10 else " ..."
+        raise ValueError(
+            "duplicate document_id values across train/validation/test splits: "
+            + "; ".join(examples)
+            + more
+        )
+
+    for split, promoted_rows in promoted_by_split.items():
         if not args.dry_run:
             write_jsonl(output_paths[split], promoted_rows)
 

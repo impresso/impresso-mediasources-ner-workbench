@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-review smoke clean clean-dry-run clean-all-data validate-labels annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state legacy-curation-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans refresh-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches refresh-span-patches sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets snippet-promotion-status promote-snippets refresh-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-review smoke clean clean-dry-run clean-all-data validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state legacy-curation-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans refresh-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches refresh-span-patches sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets snippet-promotion-status promote-snippets refresh-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -19,6 +19,7 @@ help:
 	@echo "  make clean                         Remove ignored/generated local data; keep data/releases"
 	@echo "  make clean-all-data                Alias for clean; release snapshots are still preserved"
 	@echo "  make validate-labels               Validate canonical label metadata"
+	@echo "  make validate-dataset-splits       Check train/validation/test split integrity"
 	@echo "  make annotation-stats              Summarize annotation coverage by label/language"
 	@echo "  make mention-profiles              Generate empirical entity mention-surface profiles"
 	@echo "  make curation-dashboard            Run all read-only state/stats targets in sequence"
@@ -136,6 +137,9 @@ clean-all-data: clean
 
 validate-labels:
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json
+
+validate-dataset-splits:
+	$(PYTHON) -m lib.validate_dataset_splits --train "$(TRAIN_JSONL)" --validation "$(VALIDATION_JSONL)" --test "$(TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" $(ARGS)
 
 annotation-stats:
 	$(PYTHON) -m lib.annotation_stats --target-per-label "$(ANNOTATION_TARGET_PER_LABEL)" --main-languages $(ANNOTATION_MAIN_LANGS) --side-languages $(ANNOTATION_SIDE_LANGS) --main-target-per-label-language "$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG)" --side-target-per-label-language "$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)" $(foreach target,$(ANNOTATION_LANGUAGE_TARGETS),--language-target "$(target)") --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --legacy-jsonl "$(TRAIN_JSONL)" --legacy-jsonl "$(VALIDATION_JSONL)" --legacy-jsonl "$(TEST_JSONL)" --newsagency-snippet-jsonl "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --newsagency-snippet-jsonl "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --newsagency-snippet-jsonl "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --radiostation-snippet-jsonl "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --radiostation-snippet-jsonl "$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --radiostation-snippet-jsonl "$(RADIOSTATION_SNIPPET_TEST_JSONL)" --newsagency-reviewed-jsonl "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --radiostation-reviewed-jsonl "$(RADIOSTATION_REVIEWED_SNIPPETS)" --json-output "$(ANNOTATION_STATS_JSON)" --tsv-output "$(ANNOTATION_STATS_TSV)" $(ARGS)

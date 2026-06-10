@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lib.promote_snippet_splits import main
+from lib.promote_snippet_splits import duplicate_ids_across_splits, main
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -73,3 +73,90 @@ def test_promote_snippets_rejects_duplicate_snippet_ids(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="duplicate snippet document_id"):
         main(["--base", f"train={train}", "--snippet", f"train={snippets}"])
+
+
+def test_duplicate_ids_across_train_validation_test_are_reported() -> None:
+    duplicates = duplicate_ids_across_splits(
+        {
+            "train": [{"document_id": "doc-a"}, {"document_id": "doc-b"}],
+            "validation": [{"document_id": "doc-b"}],
+            "test": [{"document_id": "doc-c"}, {"document_id": "doc-a"}],
+        }
+    )
+
+    assert duplicates == {"doc-a": ["test", "train"], "doc-b": ["train", "validation"]}
+
+
+def test_promote_snippets_rejects_duplicate_ids_across_splits_before_writing(tmp_path: Path) -> None:
+    train = tmp_path / "train.jsonl"
+    validation = tmp_path / "validation.jsonl"
+    test = tmp_path / "test.jsonl"
+    write_jsonl(train, [{"document_id": "doc-a", "text": "train"}])
+    write_jsonl(validation, [{"document_id": "doc-a", "text": "validation"}])
+    write_jsonl(test, [{"document_id": "doc-c", "text": "test"}])
+
+    with pytest.raises(ValueError, match="duplicate document_id values across train/validation/test splits"):
+        main(["--base", f"train={train}", "--base", f"validation={validation}", "--base", f"test={test}"])
+
+    assert read_jsonl(train) == [{"document_id": "doc-a", "text": "train"}]
+    assert read_jsonl(validation) == [{"document_id": "doc-a", "text": "validation"}]
+    assert read_jsonl(test) == [{"document_id": "doc-c", "text": "test"}]
+
+
+def test_promote_snippets_moves_refreshed_snippet_to_current_split(tmp_path: Path) -> None:
+    train = tmp_path / "train.jsonl"
+    validation = tmp_path / "validation.jsonl"
+    test = tmp_path / "test.jsonl"
+    snippet_validation = tmp_path / "snippet_validation.jsonl"
+    summary = tmp_path / "summary.json"
+    write_jsonl(train, [{"document_id": "doc-a", "text": "old train copy"}])
+    write_jsonl(validation, [])
+    write_jsonl(test, [{"document_id": "doc-c", "text": "test"}])
+    write_jsonl(snippet_validation, [{"document_id": "doc-a", "text": "new validation copy"}])
+
+    main(
+        [
+            "--base",
+            f"train={train}",
+            "--base",
+            f"validation={validation}",
+            "--base",
+            f"test={test}",
+            "--snippet",
+            f"validation={snippet_validation}",
+            "--summary-json",
+            str(summary),
+        ]
+    )
+
+    assert read_jsonl(train) == []
+    assert read_jsonl(validation) == [{"document_id": "doc-a", "text": "new validation copy"}]
+    assert read_jsonl(test) == [{"document_id": "doc-c", "text": "test"}]
+    data = json.loads(summary.read_text(encoding="utf-8"))
+    assert data["splits"]["train"]["removed_refreshed_from_old_split"] == 1
+    assert data["duplicate_document_ids_across_splits"] == {}
+
+
+def test_promote_snippets_rejects_duplicate_snippet_ids_across_exported_splits(tmp_path: Path) -> None:
+    train = tmp_path / "train.jsonl"
+    validation = tmp_path / "validation.jsonl"
+    snippet_train = tmp_path / "snippet_train.jsonl"
+    snippet_validation = tmp_path / "snippet_validation.jsonl"
+    write_jsonl(train, [])
+    write_jsonl(validation, [])
+    write_jsonl(snippet_train, [{"document_id": "doc-a", "text": "train snippet"}])
+    write_jsonl(snippet_validation, [{"document_id": "doc-a", "text": "validation snippet"}])
+
+    with pytest.raises(ValueError, match="duplicate snippet document_id values across exported snippet splits"):
+        main(
+            [
+                "--base",
+                f"train={train}",
+                "--base",
+                f"validation={validation}",
+                "--snippet",
+                f"train={snippet_train}",
+                "--snippet",
+                f"validation={snippet_validation}",
+            ]
+        )
