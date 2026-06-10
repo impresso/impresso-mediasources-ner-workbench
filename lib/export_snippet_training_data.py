@@ -8,7 +8,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .snippet_data import candidate_tokens, load_jsonl, write_jsonl
+from .snippet_data import candidate_tokens, load_jsonl, strip_html, tokenize_with_offsets, write_jsonl
 
 
 ACCEPTED_STATUSES = {"auto_accepted", "accepted"}
@@ -66,6 +66,175 @@ def apply_span(labels: list[str], span: dict[str, Any]) -> None:
         raise ValueError(f"invalid span: {span}")
     for index in range(start, stop):
         labels[index] = f"{'B' if index == start else 'I'}-{label}"
+
+
+def normalized_span_for_export(
+    row_id: str,
+    span: dict[str, Any],
+    *,
+    text: str,
+    starts: list[int],
+    stops: list[int],
+) -> dict[str, Any] | None:
+    try:
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if 0 <= token_start < token_stop <= len(starts):
+        token_char_start = starts[token_start]
+        token_char_stop = stops[token_stop - 1]
+        if "start" not in span or "stop" not in span:
+            return {**span, "start": token_char_start, "stop": token_char_stop, "token_start": token_start, "token_stop": token_stop}
+    try:
+        char_start = int(span["start"])
+        char_stop = int(span["stop"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if char_start < 0 or char_stop <= char_start or char_stop > len(text):
+        return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
+    if 0 <= token_start < token_stop <= len(starts):
+        if token_char_start == char_start and token_char_stop == char_stop:
+            return {**span, "start": char_start, "stop": char_stop, "token_start": token_start, "token_stop": token_stop}
+    try:
+        repaired_token_start = starts.index(char_start)
+        repaired_token_stop = stops.index(char_stop) + 1
+    except ValueError:
+        return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
+    if repaired_token_start >= repaired_token_stop:
+        return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
+    print(f"{row_id}: repaired stale token offsets for span {char_start}:{char_stop} {span.get('label', '')}")
+    return {**span, "start": char_start, "stop": char_stop, "token_start": repaired_token_start, "token_stop": repaired_token_stop}
+
+
+def normalized_span_from_surface(
+    row_id: str,
+    span: dict[str, Any],
+    *,
+    text: str,
+    starts: list[int],
+    stops: list[int],
+) -> dict[str, Any] | None:
+    surface = str(span.get("surface") or "")
+    if not surface:
+        return None
+    matches = []
+    search_from = 0
+    while True:
+        start = text.find(surface, search_from)
+        if start < 0:
+            break
+        stop = start + len(surface)
+        matches.append((start, stop))
+        search_from = start + max(1, len(surface))
+    if len(matches) != 1:
+        return None
+    start, stop = matches[0]
+    try:
+        token_start = starts.index(start)
+        token_stop = stops.index(stop) + 1
+    except ValueError:
+        return None
+    if token_start >= token_stop:
+        return None
+    print(f"{row_id}: relocated stale span by surface to {start}:{stop} {span.get('label', '')}")
+    return {**span, "start": start, "stop": stop, "token_start": token_start, "token_stop": token_stop}
+
+
+def valid_spans_for_export(row: dict[str, Any], spans: list[dict[str, Any]], *, text: str, starts: list[int], stops: list[int]) -> list[dict[str, Any]]:
+    row_id = str(row.get("id") or row.get("document_id") or "")
+    valid = []
+    seen = set()
+    invalid = 0
+    for span in spans:
+        normalized = normalized_span_for_export(row_id, span, text=text, starts=starts, stops=stops)
+        if normalized is None:
+            invalid += 1
+            continue
+        key = (int(normalized["token_start"]), int(normalized["token_stop"]), str(normalized["label"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        valid.append(normalized)
+    if invalid:
+        print(f"{row_id}: ignored {invalid} stale/out-of-window accepted span(s) during snippet export")
+    if spans and not valid:
+        raise ValueError(f"{row_id}: accepted snippet has no valid spans in the exported text window")
+    return valid
+
+
+def span_is_exactly_in_window(span: dict[str, Any], *, text: str, starts: list[int], stops: list[int]) -> bool:
+    try:
+        start = int(span["start"])
+        stop = int(span["stop"])
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        0 <= start < stop <= len(text)
+        and 0 <= token_start < token_stop <= len(starts)
+        and starts[token_start] == start
+        and stops[token_stop - 1] == stop
+    )
+
+
+def patch_window_for_accepted_spans(
+    row: dict[str, Any],
+    spans: list[dict[str, Any]],
+    *,
+    text: str,
+    tokens: list[str],
+    starts: list[int],
+    stops: list[int],
+) -> tuple[str, list[str], list[int], list[int], list[dict[str, Any]]]:
+    if not spans:
+        return text, tokens, starts, stops, spans
+    patched_text = text
+    patched_spans = [dict(span) for span in spans]
+    used_fragments: set[int] = set()
+    represented = {
+        (str(span.get("label") or ""), str(span.get("surface") or ""))
+        for span in patched_spans
+        if span_is_exactly_in_window(span, text=text, starts=starts, stops=stops)
+    }
+    matches = row.get("matches")
+    match_fragments = [strip_html(str(match)).strip() for match in matches] if isinstance(matches, list) else []
+
+    for index, span in enumerate(patched_spans):
+        surface = str(span.get("surface") or "")
+        label = str(span.get("label") or "")
+        if not surface or span_is_exactly_in_window(span, text=patched_text, starts=starts, stops=stops):
+            continue
+        if (label, surface) not in represented and surface in patched_text:
+            represented.add((label, surface))
+            continue
+        fragment_index = next(
+            (
+                idx
+                for idx, fragment in enumerate(match_fragments)
+                if idx not in used_fragments and surface in fragment and fragment not in patched_text
+            ),
+            None,
+        )
+        if fragment_index is None:
+            continue
+        fragment = match_fragments[fragment_index]
+        used_fragments.add(fragment_index)
+        separator = "\n...\n"
+        offset = len(patched_text) + len(separator)
+        local_start = fragment.find(surface)
+        patched_text = f"{patched_text}{separator}{fragment}"
+        patched_spans[index] = {
+            **span,
+            "start": offset + local_start,
+            "stop": offset + local_start + len(surface),
+        }
+        represented.add((label, surface))
+        print(f"{row.get('id')}: expanded export window to include accepted span {surface!r}")
+
+    tokens, starts, stops = tokenize_with_offsets(patched_text)
+    return patched_text, tokens, starts, stops, patched_spans
 
 
 def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts: list[int], stops: list[int], text: str) -> list[dict[str, Any]]:
@@ -221,6 +390,10 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         if not spans:
             continue
         text, tokens, starts, stops = candidate_tokens(row)
+        text, tokens, starts, stops, spans = patch_window_for_accepted_spans(row, spans, text=text, tokens=tokens, starts=starts, stops=stops)
+        spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
+        if not spans:
+            continue
         prepared.append((row, spans, text, tokens, starts, stops))
     id_counts = Counter(str(row["id"]) for row, *_ in prepared)
     exported = []

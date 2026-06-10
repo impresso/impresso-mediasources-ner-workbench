@@ -1080,6 +1080,189 @@ def test_export_snippet_rows_suffixes_duplicate_source_ids(tmp_path: Path) -> No
     assert {row["legacy"]["source_id"] for row in rows} == {"doc-1#match-0"}
 
 
+def test_export_snippet_rows_ignores_stale_out_of_window_accepted_spans(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.radiostation.radio-bucharest": 1,
+                    "I-org.ent.radiostation.radio-bucharest": 2,
+                    "B-org.ent.pressagency.up-upi": 3,
+                    "I-org.ent.pressagency.up-upi": 4,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.radiostation.radio-bucharest",
+                    "2": "I-org.ent.radiostation.radio-bucharest",
+                    "3": "B-org.ent.pressagency.up-upi",
+                    "4": "I-org.ent.pressagency.up-upi",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "doc-1#match-0",
+                "curation": {"status": "accepted"},
+                "date": "1959-10-26",
+                "language": "fr",
+                "text": "VIENNE, 26. — UPI — Radio-Bucarest annonce",
+                "tokens": ["VIENNE", ",", "26", ".", "—", "UPI", "—", "Radio-Bucarest", "annonce"],
+                "token_start_offsets": [0, 6, 8, 10, 12, 14, 18, 20, 36],
+                "token_end_offsets": [6, 7, 10, 11, 13, 17, 19, 34, 43],
+                "accepted_spans": [
+                    {
+                        "label": "org.ent.radiostation.radio-bucharest",
+                        "start": 20,
+                        "stop": 34,
+                        "surface": "Radio-Bucarest",
+                        "token_start": 7,
+                        "token_stop": 8,
+                    },
+                    {
+                        "label": "org.ent.radiostation.radio-bucharest",
+                        "start": 217,
+                        "stop": 231,
+                        "surface": "Radio-Bucarest",
+                        "token_start": 44,
+                        "token_stop": 45,
+                    },
+                ],
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert len(rows) == 1
+    assert len(rows[0]["entities"]) == 1
+    assert rows[0]["entities"][0]["surface"] == "Radio-Bucarest"
+    assert rows[0]["token_labels"][7] == "B-org.ent.radiostation.radio-bucharest"
+
+
+def test_export_snippet_rows_relocates_stale_span_by_unique_surface(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.radiostation.radio-bucharest": 1,
+                    "I-org.ent.radiostation.radio-bucharest": 2,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.radiostation.radio-bucharest",
+                    "2": "I-org.ent.radiostation.radio-bucharest",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "doc-1#match-0",
+                "curation": {"status": "accepted"},
+                "date": "1948-09-18",
+                "language": "de",
+                "text": "Rom zurückkehren. Radio Bucarest teilt mit.",
+                "tokens": ["Rom", "zurückkehren", ".", "Radio", "Bucarest", "teilt", "mit", "."],
+                "token_start_offsets": [0, 4, 16, 18, 24, 33, 39, 42],
+                "token_end_offsets": [3, 16, 17, 23, 32, 38, 42, 43],
+                "accepted_spans": [
+                    {
+                        "label": "org.ent.radiostation.radio-bucharest",
+                        "start": 149,
+                        "stop": 163,
+                        "surface": "Radio Bucarest",
+                        "token_start": 25,
+                        "token_stop": 27,
+                    }
+                ],
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert rows[0]["entities"][0]["start"] == 18
+    assert rows[0]["entities"][0]["stop"] == 32
+    assert rows[0]["entities"][0]["token_start"] == 3
+    assert rows[0]["entities"][0]["token_stop"] == 5
+
+
+def test_export_snippet_rows_expands_window_for_duplicate_accepted_surface(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.radiostation.radio-bucharest": 1,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.radiostation.radio-bucharest",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "doc-1#match-0",
+                "curation": {"status": "accepted"},
+                "date": "1959-10-26",
+                "language": "fr",
+                "matches": [
+                    "VIENNE — <em>Radio</em>-<em>Bucarest</em> annonce",
+                    "plus tard <em>Radio</em>-<em>Bucarest</em> confirme",
+                ],
+                "text": "VIENNE — Radio-Bucarest annonce",
+                "tokens": ["VIENNE", "—", "Radio-Bucarest", "annonce"],
+                "token_start_offsets": [0, 7, 9, 25],
+                    "token_end_offsets": [6, 8, 23, 31],
+                "accepted_spans": [
+                    {
+                        "label": "org.ent.radiostation.radio-bucharest",
+                        "start": 9,
+                        "stop": 23,
+                        "surface": "Radio-Bucarest",
+                        "token_start": 2,
+                        "token_stop": 3,
+                    },
+                    {
+                        "label": "org.ent.radiostation.radio-bucharest",
+                        "start": 217,
+                        "stop": 232,
+                        "surface": "Radio-Bucarest",
+                        "token_start": 44,
+                        "token_stop": 45,
+                    },
+                ],
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert len(rows[0]["entities"]) == 2
+    assert rows[0]["text"].count("Radio-Bucarest") == 2
+    assert [entity["surface"] for entity in rows[0]["entities"]] == ["Radio-Bucarest", "Radio-Bucarest"]
+
+
 def test_radiostation_export_extends_label_map_for_mixed_pressagency_spans(tmp_path: Path) -> None:
     input_path = tmp_path / "radio_reviewed.jsonl"
     radio_seeds_path = tmp_path / "radiostation_seeds.json"
