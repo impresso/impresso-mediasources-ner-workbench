@@ -1,9 +1,96 @@
 [
   {
+    "canonical_id": "polskie-radio",
+    "label": "org.ent.radiostation.polskie-radio",
+    "display_name": "Polskie Radio",
+    "aliases": [
+      "Polskie Radio",
+      "Radio Varsovie",
+      "Radio-Varsovie",
+      "Radio Warsaw",
+      "Radio-Warsaw",
+      "Radio Warschau",
+      "Radio-Warschau",
+      "Radio Warszawa",
+      "Varsovie Radio",
+      "Warsaw Radio",
+      "Warschauer Rundfunk",
+      "Sender Warschau"
+    ],
+    "historical_station_aliases": [
+      "Radio Varsovie",
+      "Radio-Varsovie",
+      "Radio Warsaw",
+      "Radio-Warsaw",
+      "Radio Warschau",
+      "Radio-Warschau",
+      "Radio Warszawa",
+      "Varsovie Radio",
+      "Warsaw Radio",
+      "Warschauer Rundfunk",
+      "Sender Warschau"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Polskie_Radio",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1067189",
+    "description": "Polish public radio broadcaster founded in 1925. Historical newspapers frequently refer to broadcasts from Warsaw using translated station names such as Radio Varsovie, Radio Warsaw, Radio Warschau, Warschauer Rundfunk, or Sender Warschau. In news reports, programme listings, source attributions, and broadcast announcements these forms typically refer to the Polish Radio network rather than a separate broadcaster entity.",
+    "annotation_note": "Annotate Polskie Radio and historical station forms such as Radio Varsovie, Radio Warsaw, Radio Warschau, Warschauer Rundfunk, and Sender Warschau when the context refers to a broadcaster, broadcast source, programme listing, transmission, radio announcement, or institutional radio activity. Normalize these forms to org.ent.radiostation.polskie-radio.",
+    "active_period": {
+      "start": "1925",
+      "end": null,
+      "note": "Polskie Radio was established in 1925. Regular broadcasting from Warsaw began in April 1926 and became the core station of the national Polish radio network."
+    },
+    "aliases_by_language": {
+      "pl": ["Polskie Radio", "Radio Warszawa"],
+      "fr": ["Radio Varsovie", "Radio-Varsovie"],
+      "de": [
+        "Radio Warschau",
+        "Radio-Warschau",
+        "Warschauer Rundfunk",
+        "Sender Warschau"
+      ],
+      "en": ["Polskie Radio", "Radio Warsaw", "Radio-Warsaw", "Warsaw Radio"]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q1067189"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Polskie_Radio"
+      }
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "bbc",
     "label": "org.ent.radiostation.bbc",
     "display_name": "BBC",
-    "aliases": ["BBC", "Radio Londres", "Radio London", "Radio Londra", "Londoner Rundfunk"],
+    "aliases": [
+      "BBC",
+      "British Broadcasting Corporation",
+      "Radio Londres",
+      "Radio-Londres",
+      "Radio London",
+      "Radio-London",
+      "Radio Londra",
+      "Radio-Londra",
+      "Londoner Rundfunk",
+      "Londoner-Rundfunk",
+      "Sender London"
+    ],
+    "historical_station_aliases": [
+      "Radio Londres",
+      "Radio-Londres",
+      "Radio London",
+      "Radio-London",
+      "Radio Londra",
+      "Radio-Londra",
+      "Londoner Rundfunk",
+      "Londoner-Rundfunk",
+      "Sender London"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/BBC",
     "wikidata_url": null,
     "description": "British public broadcaster. In wartime European newspaper contexts, names such as Radio Londres, Radio London, Radio Londra, and Londoner Rundfunk usually refer to BBC foreign-language broadcasts from London rather than to separate stations. These broadcasts could involve Free French, exile-government, resistance, or other allied contributors, but the broadcasting infrastructure and service were part of the BBC's wider European output.",
@@ -15,7 +102,20 @@
     "canonical_id": "radio-paris",
     "label": "org.ent.radiostation.radio-paris",
     "display_name": "Radio Paris",
-    "aliases": ["Radio Paris"],
+    "aliases": [
+      "Radio Paris",
+      "Radio-Paris",
+      "Poste national Radio-Paris",
+      "Poste National Radio-Paris",
+      "Radiola"
+    ],
+    "historical_station_aliases": [
+      "Radio Paris",
+      "Radio-Paris",
+      "Poste national Radio-Paris",
+      "Poste National Radio-Paris",
+      "Radiola"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Paris",
     "wikidata_url": null,
     "trainable": true,
@@ -25,7 +125,30 @@
     "canonical_id": "radio-moscow",
     "label": "org.ent.radiostation.radio-moscow",
     "display_name": "Radio Moscow",
-    "aliases": ["Radio Moscow", "Radio Moscou"],
+    "aliases": [
+      "Radio Moscow",
+      "Radio-Moscow",
+      "Moscow Radio",
+      "Radio Moscou",
+      "Radio-Moscou",
+      "Moscou Radio",
+      "Radio Moskau",
+      "Radio-Moskau",
+      "Moskauer Rundfunk",
+      "Sender Moskau"
+    ],
+    "historical_station_aliases": [
+      "Radio Moscow",
+      "Radio-Moscow",
+      "Moscow Radio",
+      "Radio Moscou",
+      "Radio-Moscou",
+      "Moscou Radio",
+      "Radio Moskau",
+      "Radio-Moskau",
+      "Moskauer Rundfunk",
+      "Sender Moskau"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Moscow",
     "wikidata_url": null,
     "trainable": true,
@@ -35,7 +158,30 @@
     "canonical_id": "radio-bucharest",
     "label": "org.ent.radiostation.radio-bucharest",
     "display_name": "Radio Bucharest",
-    "aliases": ["Radio Bucharest", "Radio Bucarest", "Radio-Bucharest", "Radio-Bucarest"],
+    "aliases": [
+      "Radio Bucharest",
+      "Radio-Bucharest",
+      "Bucharest Radio",
+      "Radio Bucarest",
+      "Radio-Bucarest",
+      "Bucarest Radio",
+      "Radio Bukarest",
+      "Radio-Bukarest",
+      "Bukarester Rundfunk",
+      "Sender Bukarest"
+    ],
+    "historical_station_aliases": [
+      "Radio Bucharest",
+      "Radio-Bucharest",
+      "Bucharest Radio",
+      "Radio Bucarest",
+      "Radio-Bucarest",
+      "Bucarest Radio",
+      "Radio Bukarest",
+      "Radio-Bukarest",
+      "Bukarester Rundfunk",
+      "Sender Bukarest"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Romania_International",
     "wikidata_url": null,
     "description": "Romanian international/state broadcaster from Bucharest. In French and German historical newspaper snippets, Radio Bucarest or Radio-Bucarest is used as a broadcast-source name for announcements from Bucharest. Radio Romania International documents that in 1948 broadcasts in French, English, Russian, Serbian, and German were aired from Bucharest, and that Radio Bucharest later became Radio Romania International.",
@@ -46,9 +192,14 @@
       "note": "Foreign-language programming from Bucharest began in 1932; Radio Bucharest became Radio Romania International after 1989."
     },
     "aliases_by_language": {
-      "de": ["Radio Bukarest", "Radio-Bukarest", "Radio Bucharest"],
-      "fr": ["Radio Bucarest", "Radio-Bucarest"],
-      "en": ["Radio Bucharest"]
+      "de": [
+        "Radio Bukarest",
+        "Radio-Bukarest",
+        "Bukarester Rundfunk",
+        "Sender Bukarest"
+      ],
+      "fr": ["Radio Bucarest", "Radio-Bucarest", "Bucarest Radio"],
+      "en": ["Radio Bucharest", "Radio-Bucharest", "Bucharest Radio"]
     },
     "metadata_sources": [
       {
@@ -76,18 +227,9 @@
     "wikipedia_url": "https://en.wikipedia.org/wiki/Voice_of_America",
     "wikidata_url": null,
     "aliases_by_language": {
-      "de": [
-        "Voice of America",
-        "Stimme Amerikas"
-      ],
-      "fr": [
-        "Voice of America",
-        "Voix de l'Amerique",
-        "Voix de l’Amérique"
-      ],
-      "en": [
-        "Voice of America"
-      ]
+      "de": ["Voice of America", "Stimme Amerikas"],
+      "fr": ["Voice of America", "Voix de l'Amerique", "Voix de l’Amérique"],
+      "en": ["Voice of America"]
     },
     "trainable": true,
     "status": "seed_from_sampler"
@@ -96,7 +238,12 @@
     "canonical_id": "radio-free-europe",
     "label": "org.ent.radiostation.radio-free-europe",
     "display_name": "Radio Free Europe",
-    "aliases": ["Radio Free Europe", "Radio Europe libre", "Radio Europa Libera", "Radio Freies Europa"],
+    "aliases": [
+      "Radio Free Europe",
+      "Radio Europe libre",
+      "Radio Europa Libera",
+      "Radio Freies Europa"
+    ],
     "aliases_by_language": {
       "de": ["Radio Freies Europa"],
       "fr": ["Radio Europe libre"],
@@ -113,6 +260,14 @@
     "display_name": "Deutsche Welle",
     "aliases": [
       "Deutsche Welle",
+      "Deutsche Welle-Königswusterhausen",
+      "Deutsche Welle-Koenigswusterhausen",
+      "Deutsche Welle-Kœnigswusterhausen",
+      "Deutsche Welle-Königs Wusterhausen",
+      "Deutsche Welle-Koenigs Wusterhausen",
+      "Deutsche Welle-Kœnigs Wusterhausen"
+    ],
+    "historical_station_aliases": [
       "Deutsche Welle-Königswusterhausen",
       "Deutsche Welle-Koenigswusterhausen",
       "Deutsche Welle-Kœnigswusterhausen",
@@ -142,10 +297,7 @@
         "Deutsche Welle-Koenigswusterhausen",
         "Onde allemande"
       ],
-      "en": [
-        "Deutsche Welle",
-        "German Wave"
-      ]
+      "en": ["Deutsche Welle", "German Wave"]
     },
     "metadata_sources": [
       {
@@ -172,7 +324,28 @@
     "canonical_id": "radio-prague",
     "label": "org.ent.radiostation.radio-prague",
     "display_name": "Radio Prague",
-    "aliases": ["Radio Prague", "Radio Prag"],
+    "aliases": [
+      "Radio Prague",
+      "Radio-Prague",
+      "Prague Radio",
+      "Radio Praha",
+      "Radio-Praha",
+      "Radio Prag",
+      "Radio-Prag",
+      "Prager Rundfunk",
+      "Sender Prag"
+    ],
+    "historical_station_aliases": [
+      "Radio Prague",
+      "Radio-Prague",
+      "Prague Radio",
+      "Radio Praha",
+      "Radio-Praha",
+      "Radio Prag",
+      "Radio-Prag",
+      "Prager Rundfunk",
+      "Sender Prag"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Prague_International",
     "wikidata_url": null,
     "trainable": true,
@@ -202,24 +375,9 @@
       "note": "Radio Suisse Romande existed as RSR until the 2010 merger; the continuing broadcaster is Radio Télévision Suisse (RTS)."
     },
     "aliases_by_language": {
-      "de": [
-        "RTS",
-        "Radio Télévision Suisse",
-        "Radio Suisse Romande",
-        "RSR"
-      ],
-      "fr": [
-        "RTS",
-        "Radio Télévision Suisse",
-        "Radio Suisse Romande",
-        "RSR"
-      ],
-      "en": [
-        "RTS",
-        "Radio Television Suisse",
-        "Radio Suisse Romande",
-        "RSR"
-      ]
+      "de": ["RTS", "Radio Télévision Suisse", "Radio Suisse Romande", "RSR"],
+      "fr": ["RTS", "Radio Télévision Suisse", "Radio Suisse Romande", "RSR"],
+      "en": ["RTS", "Radio Television Suisse", "Radio Suisse Romande", "RSR"]
     },
     "metadata_sources": [
       {
@@ -261,11 +419,7 @@
       "note": "Vatican Radio began regular broadcasting in 1931 and continues as part of Vatican media services."
     },
     "aliases_by_language": {
-      "de": [
-        "Radio Vatikan",
-        "Radio-Vatikan",
-        "Vatican Radio"
-      ],
+      "de": ["Radio Vatikan", "Radio-Vatikan", "Vatican Radio"],
       "fr": [
         "Radio Vatican",
         "Radio-Vatican",
@@ -276,14 +430,8 @@
         "radio de la Cite du Vatican",
         "Vatican Radio"
       ],
-      "en": [
-        "Vatican Radio",
-        "Radio Vatican"
-      ],
-      "it": [
-        "Radio Vaticano",
-        "Radio Vaticana"
-      ]
+      "en": ["Vatican Radio", "Radio Vatican"],
+      "it": ["Radio Vaticano", "Radio Vaticana"]
     },
     "metadata_sources": [
       {
@@ -349,11 +497,7 @@
         "Radio Television Luxembourg",
         "Radio Luxembourg 208"
       ],
-      "lb": [
-        "RTL",
-        "RTL Radio Lëtzebuerg",
-        "Radio Lëtzebuerg"
-      ]
+      "lb": ["RTL", "RTL Radio Lëtzebuerg", "Radio Lëtzebuerg"]
     },
     "metadata_sources": [
       {
