@@ -23,6 +23,7 @@ from lib.sample_newsagencies import (
     expand_candidate_with_full_content,
     extract_candidate,
     load_sample_pairs,
+    load_sample_issues,
     load_seed_queries,
     load_undercovered_buckets,
     load_undercovered_labels,
@@ -561,6 +562,48 @@ def test_sample_registry_and_selection_use_issue_entity_pairs(tmp_path: Path) ->
     ]
     assert summary["counts_by_label_selected"] == {"org.ent.pressagency.reuters": 2}
     assert written == 2
+
+
+def test_sampling_can_exclude_existing_dataset_issues_for_any_label(tmp_path: Path) -> None:
+    existing_dataset = tmp_path / "train.jsonl"
+    write_jsonl(
+        existing_dataset,
+        [
+            {
+                "document_id": "DTT-1959-12-01-a-i0079#match-0",
+                "label": "org.ent.pressagency.reuters",
+                "legacy": {"source_document_id": "DTT-1959-12-01-a-i0079"},
+            }
+        ],
+    )
+    issues = load_sample_issues([existing_dataset])
+
+    assert issues == {"DTT-1959-12-01-a"}
+
+    pools = {
+        ("org.ent.radiostation.radio-moscow", "Radio Moscou", "fr"): [
+            {
+                "id": "DTT-1959-12-01-a-i0080#match-0",
+                "candidate_label": "org.ent.radiostation.radio-moscow",
+                "source": {"document_id": "DTT-1959-12-01-a-i0080"},
+            },
+            {
+                "id": "DTT-1959-12-02-a-i0001#match-0",
+                "candidate_label": "org.ent.radiostation.radio-moscow",
+                "source": {"document_id": "DTT-1959-12-02-a-i0001"},
+            },
+        ]
+    }
+    selected, summary = balanced_select(
+        pools,
+        target_per_bucket=2,
+        rng=random.Random(42),
+        max_per_label=2,
+        existing_sample_issues=issues,
+    )
+
+    assert [row["sample_issue_id"] for row in selected] == ["DTT-1959-12-02-a"]
+    assert summary["counts_by_label_selected"] == {"org.ent.radiostation.radio-moscow": 1}
 
 
 def test_sample_expands_match_to_full_content_context() -> None:

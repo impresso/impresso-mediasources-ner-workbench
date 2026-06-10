@@ -26,6 +26,7 @@ from .sample_newsagencies import (
     collect_pool_for_bucket,
     import_runtime,
     load_sample_pairs,
+    load_sample_issues,
     load_undercovered_buckets,
     load_undercovered_labels,
     parse_labels,
@@ -125,6 +126,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         help="Additional existing candidate JSONL to read as already-sampled issue/entity pairs. Can be repeated.",
     )
+    parser.add_argument(
+        "--existing-issue-jsonl",
+        type=Path,
+        action="append",
+        default=[],
+        help="Existing dataset JSONL to read as already-sampled newspaper-date issues. Can be repeated.",
+    )
     parser.add_argument("--allow-snippet-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
@@ -152,7 +160,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
     existing_sample_pairs = load_sample_pairs(existing_sample_paths)
+    existing_sample_issues = load_sample_issues(args.existing_issue_jsonl)
     print("Existing issue/entity pairs:", len(existing_sample_pairs))
+    print("Existing newspaper-date issues:", len(existing_sample_issues))
     if args.dry_run:
         for query in queries[:50]:
             print(f"  {query['label']} || {query['query']}")
@@ -190,6 +200,7 @@ def main(argv: list[str] | None = None) -> int:
                 context_source=args.context_source,
                 context_chars=args.context_chars,
                 existing_sample_pairs=existing_sample_pairs,
+                existing_sample_issues=existing_sample_issues,
                 rng=rng,
             )
             pools[bucket] = [normalize_radiostation_row(row) for row in pool]
@@ -201,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
         rng=rng,
         max_per_label=args.max_per_label,
         existing_sample_pairs=existing_sample_pairs,
+        existing_sample_issues=existing_sample_issues,
     )
     write_jsonl(args.out, selected)
     registry_written = write_sample_registry(args.sample_registry, selected, existing_sample_pairs)
@@ -234,9 +246,11 @@ def main(argv: list[str] | None = None) -> int:
         "max_per_label": args.max_per_label,
         "sample_registry": str(args.sample_registry),
         "existing_sample_jsonl": [str(path) for path in args.existing_sample_jsonl],
+        "existing_issue_jsonl": [str(path) for path in args.existing_issue_jsonl],
         "existing_issue_entity_pairs": len(existing_sample_pairs) - registry_written,
+        "existing_newspaper_date_issues": len(existing_sample_issues),
         "registry_pairs_added": registry_written,
-        "deduplication": "global_by_issue_id_and_candidate_label",
+        "deduplication": "global_by_existing_dataset_issue_id_then_issue_id_and_candidate_label",
     }
     args.summary_out.parent.mkdir(parents=True, exist_ok=True)
     args.summary_out.write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")

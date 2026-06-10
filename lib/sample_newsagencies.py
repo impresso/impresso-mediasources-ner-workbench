@@ -462,12 +462,14 @@ def collect_pool_for_bucket(
     context_source: str = "match",
     context_chars: int = DEFAULT_CONTEXT_CHARS,
     existing_sample_pairs: set[tuple[str, str]] | None = None,
+    existing_sample_issues: set[str] | None = None,
     rng: random.Random | None = None,
     throttle: RateLimitThrottle | None = None,
 ) -> tuple[list[dict[str, Any]], Any]:
     pool: list[dict[str, Any]] = []
     seen = set()
     existing_sample_pairs = existing_sample_pairs or set()
+    existing_sample_issues = existing_sample_issues or set()
     offset = 0
     pages_seen = 0
     empty_pages = 0
@@ -503,6 +505,9 @@ def collect_pool_for_bucket(
             row = extract_candidate(hit, query=query, search_language=search_language, require_matches=require_matches)
             if row is None:
                 continue
+            enrich_sample_identity(row)
+            if row.get("sample_issue_id") in existing_sample_issues:
+                continue
             if sample_pair_key(row) in existing_sample_pairs:
                 continue
             rows = [row]
@@ -532,6 +537,8 @@ def collect_pool_for_bucket(
                 row["text_source"] = "snippet"
             for candidate in rows:
                 enrich_sample_identity(candidate)
+                if candidate.get("sample_issue_id") in existing_sample_issues:
+                    continue
                 if candidate["id"] in seen:
                     continue
                 seen.add(candidate["id"])
@@ -553,9 +560,11 @@ def balanced_select(
     rng: random.Random,
     max_per_label: int,
     existing_sample_pairs: set[tuple[str, str]] | None = None,
+    existing_sample_issues: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     del rng
     existing_sample_pairs = existing_sample_pairs or set()
+    existing_sample_issues = existing_sample_issues or set()
     bucket_order = list(pools)
     indexes = {bucket: 0 for bucket in bucket_order}
     counts: Counter[tuple[str, str, str]] = Counter()
@@ -577,6 +586,8 @@ def balanced_select(
                 row = pool[idx]
                 idx += 1
                 enrich_sample_identity(row)
+                if row.get("sample_issue_id") in existing_sample_issues:
+                    continue
                 dedupe_key = sample_pair_key(row)
                 if dedupe_key in seen:
                     continue
@@ -689,6 +700,25 @@ def load_sample_pairs(paths: list[Path]) -> set[tuple[str, str]]:
     return pairs
 
 
+def load_sample_issues(paths: list[Path]) -> set[str]:
+    issues: set[str] = set()
+    for path in paths:
+        for row in iter_jsonl(path):
+            issue_id = str(row.get("sample_issue_id") or row.get("issue_id") or "")
+            if not issue_id:
+                document_id = row.get("sample_document_id")
+                if not document_id and isinstance(row.get("legacy"), dict):
+                    document_id = row["legacy"].get("source_document_id") or row["legacy"].get("source_id")
+                if not document_id and isinstance(row.get("source"), dict):
+                    document_id = row["source"].get("document_id")
+                if not document_id:
+                    document_id = row.get("document_id") or row.get("id")
+                issue_id = sample_issue_id(document_id)
+            if issue_id:
+                issues.add(issue_id)
+    return issues
+
+
 def write_sample_registry(path: Path, rows: list[dict[str, Any]], existing_pairs: set[tuple[str, str]]) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -756,6 +786,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         help="Additional existing candidate JSONL to read as already-sampled issue/entity pairs. Can be repeated.",
     )
+    parser.add_argument(
+        "--existing-issue-jsonl",
+        type=Path,
+        action="append",
+        default=[],
+        help="Existing dataset JSONL to read as already-sampled newspaper-date issues. Can be repeated.",
+    )
     parser.add_argument("--allow-snippet-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
@@ -783,7 +820,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
     existing_sample_pairs = load_sample_pairs(existing_sample_paths)
+    existing_sample_issues = load_sample_issues(args.existing_issue_jsonl)
     print("Existing issue/entity pairs:", len(existing_sample_pairs))
+    print("Existing newspaper-date issues:", len(existing_sample_issues))
     if args.dry_run:
         for query in queries[:50]:
             print(f"  {query['label']} || {query['query']}")
@@ -826,6 +865,7 @@ def main(argv: list[str] | None = None) -> int:
                     context_source=args.context_source,
                     context_chars=args.context_chars,
                     existing_sample_pairs=existing_sample_pairs,
+                    existing_sample_issues=existing_sample_issues,
                     rng=rng,
                     throttle=throttle,
                 )
@@ -842,6 +882,7 @@ def main(argv: list[str] | None = None) -> int:
         rng=rng,
         max_per_label=args.max_per_label,
         existing_sample_pairs=existing_sample_pairs,
+        existing_sample_issues=existing_sample_issues,
     )
     write_jsonl(args.out, selected)
     registry_written = write_sample_registry(args.sample_registry, selected, existing_sample_pairs)
@@ -875,9 +916,11 @@ def main(argv: list[str] | None = None) -> int:
         "max_per_label": args.max_per_label,
         "sample_registry": str(args.sample_registry),
         "existing_sample_jsonl": [str(path) for path in args.existing_sample_jsonl],
+        "existing_issue_jsonl": [str(path) for path in args.existing_issue_jsonl],
         "existing_issue_entity_pairs": len(existing_sample_pairs) - registry_written,
+        "existing_newspaper_date_issues": len(existing_sample_issues),
         "registry_pairs_added": registry_written,
-        "deduplication": "global_by_issue_id_and_candidate_label",
+        "deduplication": "global_by_existing_dataset_issue_id_then_issue_id_and_candidate_label",
     }
     summary["interrupted"] = interrupted
     summary["interrupted_at"] = interrupted_at
