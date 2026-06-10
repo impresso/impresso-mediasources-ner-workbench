@@ -2366,7 +2366,7 @@ def test_newsagency_review_accepts_multiple_prediction_spans(tmp_path: Path, mon
             ]
         },
     }
-    answers = iter(["a", "a", "a", "two agencies"])
+    answers = iter(["n", "two agencies", "a", "a", "a"])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     reviewed = review_loop([row], decisions_path, "tester", limit=0)
@@ -2378,6 +2378,87 @@ def test_newsagency_review_accepts_multiple_prediction_spans(tmp_path: Path, mon
         "org.ent.pressagency.reuters",
     ]
     assert decision["notes"] == "two agencies"
+
+
+def test_newsagency_review_accepts_all_prediction_spans_with_A(tmp_path: Path, monkeypatch) -> None:
+    decisions_path = tmp_path / "decisions.jsonl"
+    row = {
+        "id": "snippet-accept-all",
+        "query": "Havas",
+        "candidate_label": "org.ent.pressagency.havas",
+        "curation": {"status": "needs_review", "label": "org.ent.pressagency.havas", "reasons": ["multiple_predicted_spans"]},
+        "text": "Havas et Reuters confirment.",
+        "tokens": ["Havas", "et", "Reuters", "confirment", "."],
+        "token_start_offsets": [0, 6, 9, 17, 27],
+        "token_end_offsets": [5, 8, 16, 26, 28],
+        "model": {
+            "predicted_spans": [
+                {
+                    "token_start": 0,
+                    "token_stop": 1,
+                    "label": "org.ent.pressagency.havas",
+                    "surface": "Havas",
+                    "confidence": 0.96,
+                    "margin": 0.40,
+                },
+                {
+                    "token_start": 2,
+                    "token_stop": 3,
+                    "label": "org.ent.pressagency.reuters",
+                    "surface": "Reuters",
+                    "confidence": 0.97,
+                    "margin": 0.45,
+                },
+            ]
+        },
+    }
+    answers = iter(["A"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    reviewed = review_loop([row], decisions_path, "tester", limit=0)
+
+    decision = json.loads(decisions_path.read_text(encoding="utf-8"))
+    assert reviewed == 1
+    assert [span["label"] for span in decision["accepted_spans"]] == [
+        "org.ent.pressagency.havas",
+        "org.ent.pressagency.reuters",
+    ]
+    assert decision["notes"] == ""
+
+
+def test_snippet_review_notes_are_explicit(tmp_path: Path, monkeypatch, capsys) -> None:
+    decisions_path = tmp_path / "decisions.jsonl"
+    row = {
+        "id": "snippet-notes",
+        "candidate_label": "org.ent.pressagency.havas",
+        "curation": {"status": "needs_review", "label": "org.ent.pressagency.havas", "reasons": []},
+        "text": "Havas.",
+        "tokens": ["Havas", "."],
+        "token_start_offsets": [0, 5],
+        "token_end_offsets": [5, 6],
+        "model": {
+            "predicted_spans": [
+                {
+                    "token_start": 0,
+                    "token_stop": 1,
+                    "label": "org.ent.pressagency.havas",
+                    "surface": "Havas",
+                    "confidence": 0.96,
+                    "margin": 0.40,
+                }
+            ]
+        },
+    }
+    answers = iter(["n", "source formula", "a"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    reviewed = review_loop([row], decisions_path, "tester", limit=0)
+
+    captured = capsys.readouterr()
+    decision = json.loads(decisions_path.read_text(encoding="utf-8"))
+    assert reviewed == 1
+    assert "[n]otes" not in captured.out
+    assert decision["notes"] == "source formula"
 
 
 def test_snippet_review_skip_is_temporary(tmp_path: Path, monkeypatch) -> None:

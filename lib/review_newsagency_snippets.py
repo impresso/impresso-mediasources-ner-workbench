@@ -14,7 +14,7 @@ from .snippet_data import append_jsonl, latest_decisions, load_jsonl, write_json
 
 
 CLEAR_SCREEN = "\033[2J\033[H"
-CHOICES = {"a": "accepted", "r": "rejected", "s": "skipped", "m": "accepted"}
+CHOICES = {"a": "accepted", "A": "accepted", "r": "rejected", "s": "skipped", "m": "accepted"}
 FINAL_STATUSES = {"accepted", "rejected", "removed"}
 SPAN_RE = re.compile(r"^(?P<start>\d+):(?P<stop>\d+)\s+(?P<label>\S+)$")
 NUMBERED_TOKEN_RE = re.compile(r"(?P<index>\d+):(?P<token>\S+)")
@@ -218,10 +218,11 @@ def print_review_item(row: dict[str, Any], index: int, total: int, *, review_pre
     else:
         print("predicted spans: <none>")
     print("choice meaning:")
-    print("  a = accept/review suggested spans; m = enter manual span(s)")
+    print("  a = accept/review suggested spans; A = accept all suggested spans")
+    print("  m = enter manual span(s)")
     print("  r = reject suggested annotation for this item; s = skip temporarily")
     print("  R = remove this sample permanently from review/export; q = quit")
-    print("Choices: [a]ccept/review prediction spans [m]anual span [r]eject annotation [R]emove sample [s]kip [i]nfo [N]umbered tokens [q]uit")
+    print("Choices: [a]ccept/review prediction spans [A]ccept all [m]anual span [r]eject annotation [R]emove sample [s]kip [i]nfo [N]umbered tokens [q]uit")
 
 
 def target_label(row: dict[str, Any]) -> str:
@@ -339,11 +340,17 @@ def review_loop(
             clear_screen()
             print_review_item(row, index, len(pending), review_prefix=review_prefix)
             spans = prediction_spans(row)
+            notes = ""
             while True:
                 raw = input("> ").strip()
                 if raw == "N":
                     print(numbered_tokens(row))
                     continue
+                if raw == "A":
+                    if not spans:
+                        print("No predicted spans to accept.")
+                        continue
+                    break
                 if raw == "R":
                     raw = "remove"
                     break
@@ -354,6 +361,9 @@ def review_loop(
                     print_review_item(row, index, len(pending), review_prefix=review_prefix)
                     continue
                 raw = raw.lower()
+                if raw == "n":
+                    notes = input("notes: ").strip()
+                    continue
                 if raw == "q":
                     return reviewed
                 if raw not in CHOICES:
@@ -361,22 +371,18 @@ def review_loop(
                     continue
                 break
             accepted_spans: list[dict[str, Any]] = []
-            notes = ""
             if raw == "a":
                 target = row.get("curation", {}).get("label") or row.get("candidate_label")
                 matching = [span for span in spans if span.get("label") == target]
                 spans_to_review = spans if len(spans) > 1 else matching or spans
                 accepted_spans = prompt_prediction_spans(row, spans_to_review, label_metadata)
-                if len(accepted_spans) > 1:
-                    notes = input("notes for accepted spans (optional): ").strip()
+            elif raw == "A":
+                accepted_spans = spans[:]
             elif raw == "m":
                 manual_spans = prompt_manual_spans(row, label_metadata)
                 if manual_spans is None:
                     continue
                 accepted_spans = manual_spans
-                notes = input("notes (optional): ").strip()
-            elif raw in {"r", "s"}:
-                notes = input("notes (optional): ").strip()
             elif raw == "remove":
                 notes = input("removal reason (optional): ").strip()
             break

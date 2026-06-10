@@ -1,5 +1,56 @@
 [
   {
+    "canonical_id": "radio-liberty",
+    "label": "org.ent.radiostation.radio-liberty",
+    "display_name": "Radio Liberty",
+    "aliases": [
+      "Radio Liberty",
+      "Radio-Liberty",
+      "Radio Liberation",
+      "Radio Liberation from Bolshevism",
+      "Radio Svoboda",
+      "Radio Liberty Munich"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty",
+    "wikidata_url": null,
+    "description": "US-funded international broadcaster directed at audiences in the Soviet Union. Founded in 1951 by the American Committee for the Liberation of the Peoples of Russia (Amcomlib). Initially known as Radio Liberation from Bolshevism and later Radio Liberation before adopting the name Radio Liberty. It operated separately from Radio Free Europe until their merger in 1976.",
+    "annotation_note": "Annotate Radio Liberty, Radio-Liberty, Radio Liberation, and related historical forms when they refer to the broadcaster, a broadcast source, a programme, a transmission, or institutional radio activity. Do not normalize Radio Liberty to Radio Free Europe in pre-1976 contexts; they were separate broadcasters.",
+    "active_period": {
+      "start": "1951",
+      "end": "1976",
+      "note": "Founded in 1951. Began broadcasting in 1953. Merged with Radio Free Europe in 1976 to form Radio Free Europe/Radio Liberty."
+    },
+    "aliases_by_language": {
+      "en": [
+        "Radio Liberty",
+        "Radio-Liberty",
+        "Radio Liberation",
+        "Radio Liberation from Bolshevism"
+      ],
+      "de": [
+        "Radio Liberty",
+        "Radio-Liberty",
+        "Radio Befreiung",
+        "Radio Liberation"
+      ],
+      "fr": [
+        "Radio Liberty",
+        "Radio-Liberty",
+        "Radio Libération",
+        "Radio Liberation"
+      ],
+      "ru": ["Радио Свобода", "Radio Svoboda"]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty"
+      }
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "polskie-radio",
     "label": "org.ent.radiostation.polskie-radio",
     "display_name": "Polskie Radio",
