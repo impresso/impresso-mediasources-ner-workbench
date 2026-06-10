@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-review smoke clean clean-dry-run clean-all-data validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state legacy-curation-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans refresh-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches refresh-span-patches sample-newsagencies sample-needed-newsagencies sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy score-newsagency-snippets review-newsagency-snippets export-newsagency-snippets score-radiostation-snippets review-radiostation-spans export-radiostation-snippets snippet-promotion-status promote-snippets refresh-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-review smoke clean clean-dry-run clean-all-data validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state legacy-curation-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans refresh-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches refresh-span-patches sample-newsagencies sample-needed-newsagencies sample-radio sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-validation curation-eval-test curation-review curation-review-validation curation-review-test curate-legacy-eval curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy suggest-newsagency-snippet-spans score-newsagency-snippets review-newsagency-snippet-spans review-newsagency-snippets split-newsagency-snippets export-newsagency-snippets suggest-radio-snippet-spans suggest-radiostation-snippet-spans score-radiostation-snippets review-radio-snippet-spans review-radiostation-snippet-spans review-radiostation-spans split-radio-snippets split-radiostation-snippets export-radiostation-snippets preview-snippet-merge snippet-promotion-status merge-snippets promote-snippets refresh-snippet-dataset refresh-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -37,7 +37,7 @@ help:
 	@echo "  make refresh-span-patches          Apply span-patch decisions, then promote the patched split"
 	@echo "  make sample-newsagencies ARGS=...  Sample real news-agency search snippets"
 	@echo "  make sample-needed-newsagencies    Sample news-agency label/language buckets below target"
-	@echo "  make sample-radiostations ARGS=... Sample radio-station candidates"
+	@echo "  make sample-radio ARGS=...         Sample radio candidates"
 	@echo "  make curate ARGS=...               Curate candidate JSONL"
 	@echo "  make import-legacy-hipe ARGS=...   Convert legacy HIPE TSV annotations to JSONL"
 	@echo "  make export-dataset                Export curated JSONL training data"
@@ -54,15 +54,15 @@ help:
 	@echo "  make curate-legacy-validation CFG=... Evaluate only legacy dev/validation for curation"
 	@echo "  make curate-legacy-test CFG=...    Evaluate only legacy test for curation"
 	@echo "  make build-newsagency-snippets-from-legacy Build bootstrap snippet candidates from legacy JSONL"
-	@echo "  make score-newsagency-snippets     Score sampled news-agency snippets with current model"
-	@echo "  make review-newsagency-snippets REVIEWER=... Review uncertain news-agency snippets"
-	@echo "  make export-newsagency-snippets    Export accepted news-agency snippets to training JSONL"
-	@echo "  make score-radiostation-snippets   Score sampled radio-station snippets with alias matching"
-	@echo "  make review-radiostation-spans     Review radio-station span suggestions"
-	@echo "  make export-radiostation-snippets  Export accepted radio-station snippets to training JSONL"
-	@echo "  make snippet-promotion-status      Summarize snippet promotion into configured dataset splits"
-	@echo "  make promote-snippets              Merge exported snippets into configured dataset splits"
-	@echo "  make refresh-snippets              Export reviewed snippets, then promote them into dataset splits"
+	@echo "  make suggest-newsagency-snippet-spans Score sampled news-agency snippets with current model"
+	@echo "  make review-newsagency-snippet-spans REVIEWER=... Review uncertain news-agency snippet spans"
+	@echo "  make split-newsagency-snippets     Split accepted news-agency snippets into train/validation/test JSONL"
+	@echo "  make suggest-radio-snippet-spans   Score sampled radio snippets with alias matching"
+	@echo "  make review-radio-snippet-spans    Review radio span suggestions"
+	@echo "  make split-radio-snippets          Split accepted radio snippets into train/validation/test JSONL"
+	@echo "  make preview-snippet-merge         Preview merge of exported snippets into configured dataset splits"
+	@echo "  make merge-snippets                Merge exported snippets into configured dataset splits"
+	@echo "  make refresh-snippet-dataset       Split reviewed snippets, then merge them into dataset splits"
 	@echo "  make review-curation REVIEWER=...  Review pending curation disagreements in terminal"
 	@echo "  make validate-curation CFG=...     Validate reviewed curation decisions"
 	@echo "  make apply-curation CFG=...        Apply reviewed decisions to JSONL annotations"
@@ -96,16 +96,17 @@ help-review:
 	@echo "  make sample-newsagencies                    Sample real Impresso search snippets"
 	@echo "  make sample-needed-newsagencies             Sample label/language buckets below target"
 	@echo "  make build-newsagency-snippets-from-legacy   Bootstrap snippet candidates from legacy JSONL"
-	@echo "  make score-newsagency-snippets               Score sampled snippets with HF_MODEL"
-	@echo "  make review-newsagency-snippets              Review uncertain snippets; press i for label info"
-	@echo "  make export-newsagency-snippets              Export accepted snippets to training JSONL"
-	@echo "  make promote-snippets                        Merge exported snippets into configured dataset splits"
-	@echo "  make refresh-snippets                        Export reviewed snippets, then promote them into dataset splits"
+	@echo "  make suggest-newsagency-snippet-spans        Score sampled snippets with HF_MODEL"
+	@echo "  make review-newsagency-snippet-spans         Review uncertain snippet spans; press i for label info"
+	@echo "  make split-newsagency-snippets               Split accepted snippets into train/validation/test JSONL"
+	@echo "  make preview-snippet-merge                   Preview merge into configured dataset splits"
+	@echo "  make merge-snippets                          Merge exported snippets into configured dataset splits"
+	@echo "  make refresh-snippet-dataset                 Split reviewed snippets, then merge them into dataset splits"
 	@echo ""
-	@echo "Radio-station snippet review:"
-	@echo "  make score-radiostation-snippets             Score existing sampled radio snippets by alias"
-	@echo "  make review-radiostation-spans               Review radio-station span suggestions"
-	@echo "  make export-radiostation-snippets            Export accepted spans to training JSONL"
+	@echo "Radio snippet review:"
+	@echo "  make suggest-radio-snippet-spans             Score existing sampled radio snippets by alias"
+	@echo "  make review-radio-snippet-spans              Review radio span suggestions"
+	@echo "  make split-radio-snippets                    Split accepted radio spans into train/validation/test JSONL"
 	@echo ""
 	@echo "State summaries:"
 	@echo "  make curation-dashboard                      Run all read-only state/stats targets in sequence"
@@ -233,7 +234,7 @@ sample-newsagencies:
 sample-needed-newsagencies:
 	$(PYTHON) -m lib.sample_newsagencies --seeds "$(NEWSAGENCY_LABEL_METADATA)" --out "$(NEWSAGENCY_SNIPPETS)" --summary-out "$(NEWSAGENCY_SNIPPET_SUMMARY)" --languages $(NEWSAGENCY_SAMPLE_LANGS) --target-per-query-lang "$(NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(NEWSAGENCY_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(NEWSAGENCY_SAMPLE_YEAR_START)" --year-end "$(NEWSAGENCY_SAMPLE_YEAR_END)" --context-source "$(NEWSAGENCY_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(NEWSAGENCY_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
 
-sample-radiostations:
+sample-radio sample-radiostations:
 	$(PYTHON) -m lib.sample_radiostations --seeds "$(RADIOSTATION_LABEL_METADATA)" --out "$(RADIOSTATION_SNIPPETS)" --summary-out "$(RADIOSTATION_SNIPPET_SUMMARY)" --languages $(RADIOSTATION_SAMPLE_LANGS) --target-per-query-lang "$(RADIOSTATION_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(RADIOSTATION_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(RADIOSTATION_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(RADIOSTATION_SAMPLE_YEAR_START)" --year-end "$(RADIOSTATION_SAMPLE_YEAR_END)" --context-source "$(RADIOSTATION_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(RADIOSTATION_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" $(if $(filter true,$(RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 
 curate:
@@ -302,31 +303,31 @@ curate-legacy-test: curation-eval-test curation-review-test
 build-newsagency-snippets-from-legacy:
 	$(PYTHON) -m lib.build_newsagency_snippets --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/train.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/validation.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/test.jsonl" --output "$(NEWSAGENCY_LEGACY_SNIPPETS)" --context-radius "$(NEWSAGENCY_SNIPPET_CONTEXT_RADIUS)" --limit "$(NEWSAGENCY_SNIPPET_LIMIT)" $(ARGS)
 
-score-newsagency-snippets:
+suggest-newsagency-snippet-spans score-newsagency-snippets:
 	$(PYTHON) -m lib.score_newsagency_snippets --input "$(NEWSAGENCY_SNIPPETS)" --output "$(NEWSAGENCY_SCORED_SNIPPETS)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
 
-review-newsagency-snippets:
+review-newsagency-snippet-spans review-newsagency-snippets:
 	$(PYTHON) -m lib.review_newsagency_snippets --input "$(NEWSAGENCY_SCORED_SNIPPETS)" --output "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 
-export-newsagency-snippets:
+split-newsagency-snippets export-newsagency-snippets:
 	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --validation-output "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --test-output "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
 
-score-radiostation-snippets:
+suggest-radio-snippet-spans suggest-radiostation-snippet-spans score-radiostation-snippets:
 	$(PYTHON) -m lib.score_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --output "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" $(ARGS)
 
-review-radiostation-spans:
+review-radio-snippet-spans review-radiostation-snippet-spans review-radiostation-spans:
 	$(PYTHON) -m lib.review_newsagency_snippets --input "$(RADIOSTATION_SCORED_SNIPPETS)" --output "$(RADIOSTATION_REVIEWED_SNIPPETS)" --decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --review-prefix "radiostation-span" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 
-export-radiostation-snippets:
+split-radio-snippets split-radiostation-snippets export-radiostation-snippets:
 	$(PYTHON) -m lib.export_snippet_training_data --input "$(RADIOSTATION_REVIEWED_SNIPPETS)" --output "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --validation-output "$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --test-output "$(RADIOSTATION_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
 
-snippet-promotion-status:
+preview-snippet-merge snippet-promotion-status:
 	$(PYTHON) -m lib.promote_snippet_splits --dry-run --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 
-promote-snippets:
+merge-snippets promote-snippets:
 	$(PYTHON) -m lib.promote_snippet_splits --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 
-refresh-snippets: export-newsagency-snippets export-radiostation-snippets promote-snippets
+refresh-snippet-dataset refresh-snippets: split-newsagency-snippets split-radio-snippets merge-snippets
 
 review-curation:
 	$(PYTHON) -m lib.review_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/todo_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --reviewer "$(REVIEWER)" $(ARGS)
