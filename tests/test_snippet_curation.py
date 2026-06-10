@@ -1,5 +1,6 @@
 import json
 import random
+from collections import Counter
 from pathlib import Path
 
 import lib.sample_newsagencies as sample_newsagencies
@@ -810,6 +811,14 @@ def test_export_snippet_training_data_splits_by_source_issue(tmp_path: Path) -> 
         split_by_issue.setdefault(row["legacy"]["source_issue_id"], row["split"])
         assert split_by_issue[row["legacy"]["source_issue_id"]] == row["split"]
         assert "split_group" not in row
+
+
+def test_export_snippets_three_way_split_keeps_one_train_group_when_possible() -> None:
+    rows = [{"split_group": f"issue-{index}"} for index in range(3)]
+
+    split_rows = apply_split_assignments(rows, test_fraction=0.1, validation_fraction=0.1, seed=42)
+
+    assert Counter(row["split"] for row in split_rows) == {"train": 1, "validation": 1, "test": 1}
 
 
 def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> None:
