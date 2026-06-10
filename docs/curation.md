@@ -592,6 +592,14 @@ make annotation-stats
 make sample-radiostations RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
 ```
 
+To focus the under-target sampling pass on a specific radio station, pass the full canonical label through `ARGS`:
+
+```bash
+make sample-radiostations RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true ARGS="--labels org.ent.radiostation.rtl"
+```
+
+Multiple radio-station labels can be whitespace-separated inside the `--labels` value. When `RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true` is set, the sampler uses the intersection of `--labels` and the labels that are still below target in the coverage report.
+
 Because the current NER model was trained from HIPE-derived news-agency annotations and the current baseline label map does not contain radio-station labels yet, radio-station scoring combines two sources of span suggestions: deterministic radio-station seed-alias matching and the current NER model's media-agency predictions. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
 
 Score sampled radio-station snippets:
