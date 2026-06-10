@@ -640,6 +640,30 @@ def test_sampling_can_exclude_existing_dataset_issues_for_any_label(tmp_path: Pa
     assert summary["counts_by_label_selected"] == {"org.ent.radiostation.radio-moscow": 1}
 
 
+def test_radiostation_sampling_can_select_full_collected_pool_for_review() -> None:
+    target_pool_size = 20
+    pools = {
+        ("org.ent.radiostation.radio-bucharest", "Radio Bucarest", "fr"): [
+            {
+                "id": f"EXP-1958-03-{index:02d}-a-i0001#match-0",
+                "candidate_label": "org.ent.radiostation.radio-bucharest",
+                "source": {"document_id": f"EXP-1958-03-{index:02d}-a-i0001"},
+            }
+            for index in range(1, target_pool_size + 1)
+        ]
+    }
+
+    selected, summary = balanced_select(
+        pools,
+        target_per_bucket=target_pool_size,
+        rng=random.Random(42),
+        max_per_label=target_pool_size,
+    )
+
+    assert len(selected) == target_pool_size
+    assert summary["counts_by_label_selected"] == {"org.ent.radiostation.radio-bucharest": target_pool_size}
+
+
 def test_sample_expands_match_to_full_content_context() -> None:
     row = {
         "id": "EXP-1953-01-08-a-i0004",
@@ -845,7 +869,10 @@ def test_export_snippet_training_data_writes_training_rows(tmp_path: Path) -> No
     assert rows[0]["tokens"] == ["Selon", "Havas", "."]
     assert rows[0]["token_labels"] == ["O", "B-org.ent.pressagency.havas", "O"]
     assert rows[0]["entities"][0]["surface"] == "Havas"
-    assert rows[0]["source_component"] == "newsagency_snippet_manual"
+    assert "token_label_ids" not in rows[0]
+    assert "source_component" not in rows[0]
+    assert "entity_id" not in rows[0]["entities"][0]
+    assert "normalized_surface" not in rows[0]["entities"][0]
 
 
 def test_export_snippet_training_data_splits_by_source_issue(tmp_path: Path) -> None:
@@ -1142,7 +1169,10 @@ def test_radiostation_alias_scoring_and_export(tmp_path: Path) -> None:
     assert scored["model"]["predicted_spans"][0]["surface"] == "BBC"
     assert rows[0]["token_labels"] == ["O", "O", "O", "B-org.ent.radiostation.bbc", "O"]
     assert rows[0]["entities"][0]["entity_family"] == "radiostation"
-    assert rows[0]["source_component"] == "radiostation_snippet_manual"
+    assert rows[0]["entities"][0]["status"] == "accepted"
+    assert "token_label_ids" not in rows[0]
+    assert "source_component" not in rows[0]
+    assert "entity_id" not in rows[0]["entities"][0]
 
 
 def test_export_snippet_rows_suffixes_duplicate_source_ids(tmp_path: Path) -> None:

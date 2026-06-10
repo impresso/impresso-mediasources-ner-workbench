@@ -44,10 +44,8 @@ The token-level representation is convenient for Hugging Face token-classificati
     "O",
     "O"
   ],
-  "token_label_ids": [17, 18, 0, 0],
   "entities": [
     {
-      "entity_id": "DTT-1945-08-09-a-i0008#ent-0",
       "token_start": 0,
       "token_stop": 2,
       "start": 0,

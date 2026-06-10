@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
             f"  canonical label: {query['label']}\n"
             f"  canonical id: {query['canonical_id']}\n"
             f"  display name: {query['display_name']}\n"
-            f"  target accepted snippets per language: {args.target_per_query_lang}\n"
+            f"  target accepted snippets per language: {target_pool_size}\n"
             f"  maximum candidate pool per language: {target_pool_size}"
         )
         for language in languages:
@@ -238,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
 
     selected, summary = balanced_select(
         pools,
-        target_per_bucket=args.target_per_query_lang,
+        target_per_bucket=target_pool_size,
         rng=rng,
         max_per_label=args.max_per_label,
         existing_sample_pairs=existing_sample_pairs,

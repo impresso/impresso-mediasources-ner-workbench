@@ -9,6 +9,37 @@ from typing import Any
 
 
 SPLITS = ("train", "validation", "test")
+DATASET_ROW_FIELDS = (
+    "schema_version",
+    "id",
+    "document_id",
+    "split",
+    "language",
+    "newspaper",
+    "date",
+    "year",
+    "text",
+    "tokens",
+    "token_start_offsets",
+    "token_end_offsets",
+    "token_labels",
+    "entities",
+    "audit_marks",
+    "quality_flags",
+    "legacy",
+)
+ENTITY_FIELDS = (
+    "label",
+    "entity_family",
+    "token_start",
+    "token_stop",
+    "start",
+    "stop",
+    "surface",
+    "wikidata_url",
+    "ocr_correction",
+    "status",
+)
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -40,9 +71,31 @@ def sort_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(rows, key=lambda row: (row_id(row).casefold(), row_id(row)))
 
 
+def compact_entity(entity: dict[str, Any]) -> dict[str, Any]:
+    out = {field: entity[field] for field in ENTITY_FIELDS if field in entity}
+    if out.get("wikidata_url") in ("", None):
+        out.pop("wikidata_url", None)
+    if entity.get("has_ocr_correction"):
+        correction: dict[str, Any] = {}
+        normalized = entity.get("normalized_surface")
+        if normalized and normalized != entity.get("surface"):
+            correction["surface"] = normalized
+        if entity.get("max_ocr_levenshtein") not in (None, "", 0, 0.0):
+            correction["max_levenshtein"] = float(entity["max_ocr_levenshtein"])
+        if correction:
+            out["ocr_correction"] = correction
+    return out
+
+
+def compact_row(row: dict[str, Any]) -> dict[str, Any]:
+    out = {field: row[field] for field in DATASET_ROW_FIELDS if field in row and field != "entities"}
+    out["entities"] = [compact_entity(entity) for entity in row.get("entities", [])]
+    return out
+
+
 def promote_split(base_path: Path, snippet_paths: list[Path]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     base_rows = load_jsonl(base_path)
-    rows_by_id = {row_id(row): row for row in base_rows}
+    rows_by_id = {row_id(row): compact_row(row) for row in base_rows}
     snippet_rows = []
     duplicate_snippet_ids = set()
     seen_snippet_ids = set()
@@ -53,7 +106,7 @@ def promote_split(base_path: Path, snippet_paths: list[Path]) -> tuple[list[dict
             if rid in seen_snippet_ids:
                 duplicate_snippet_ids.add(rid)
             seen_snippet_ids.add(rid)
-            snippet_rows.append(row)
+            snippet_rows.append(compact_row(row))
 
     replaced = 0
     added = 0

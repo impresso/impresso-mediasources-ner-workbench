@@ -237,7 +237,7 @@ def patch_window_for_accepted_spans(
     return patched_text, tokens, starts, stops, patched_spans
 
 
-def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts: list[int], stops: list[int], text: str) -> list[dict[str, Any]]:
+def labels_to_entities(labels: list[str], starts: list[int], stops: list[int], text: str) -> list[dict[str, Any]]:
     entities: list[dict[str, Any]] = []
     start: int | None = None
     active = ""
@@ -250,7 +250,6 @@ def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts
         char_stop = stops[stop - 1]
         entities.append(
             {
-                "entity_id": f"{row_id}#ent-{len(entities)}",
                 "entity_family": "radiostation" if active.startswith("org.ent.radiostation.") else "pressagency",
                 "label": active,
                 "token_start": start,
@@ -258,9 +257,7 @@ def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts
                 "start": char_start,
                 "stop": char_stop,
                 "surface": text[char_start:char_stop],
-                "normalized_surface": " ".join(tokens[start:stop]),
-                "has_ocr_correction": False,
-                "max_ocr_levenshtein": 0.0,
+                "status": "accepted",
             }
         )
         start = None
@@ -278,19 +275,6 @@ def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts
             active = base
     close(len(labels))
     return entities
-
-
-def source_component(row: dict[str, Any]) -> str:
-    value = row.get("source_component")
-    if value:
-        return str(value)
-    status = row.get("curation", {}).get("status")
-    if status == "auto_accepted":
-        return "newsagency_snippet_auto"
-    family = row.get("entity_family")
-    if family == "radiostation":
-        return "radiostation_snippet_manual"
-    return "newsagency_snippet_manual"
 
 
 def base_document_id(value: Any) -> str:
@@ -424,10 +408,8 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
                 "token_start_offsets": starts,
                 "token_end_offsets": stops,
                 "token_labels": labels,
-                "token_label_ids": [int(label2id[label]) for label in labels],
-                "entities": labels_to_entities(row_id, labels, tokens, starts, stops, text),
+                "entities": labels_to_entities(labels, starts, stops, text),
                 "quality_flags": [],
-                "source_component": source_component(row),
                 "split_group": split_group,
                 "legacy": {
                     "source_format": "sampled-snippet-jsonl",

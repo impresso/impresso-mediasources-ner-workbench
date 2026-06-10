@@ -521,7 +521,7 @@ Export accepted rows into training JSONL:
 make export-newsagency-snippets
 ```
 
-The default outputs are `data/curated/snippets/newsagencies/train.jsonl`, `data/curated/snippets/newsagencies/validation.jsonl`, and `data/curated/snippets/newsagencies/test.jsonl`. They use the same token-label/entity schema as the HIPE-derived dataset and preserve `source_component` so snippet-derived examples can be mixed deterministically later. The default policy is 80/10/10 train/validation/test, with deterministic grouping by source issue/document so snippets from the same source issue do not leak across splits. Override the holdout sizes with `SNIPPET_VALIDATION_FRACTION=...` and `SNIPPET_TEST_FRACTION=...`.
+The default outputs are `data/curated/snippets/newsagencies/train.jsonl`, `data/curated/snippets/newsagencies/validation.jsonl`, and `data/curated/snippets/newsagencies/test.jsonl`. They use the compact v2 token-label/entity schema: integer label IDs are derived later from `label_map.json`, and public entity rows do not carry synthetic entity IDs or normalization compatibility fields. The default policy is 80/10/10 train/validation/test, with deterministic grouping by source issue/document so snippets from the same source issue do not leak across splits. Override the holdout sizes with `SNIPPET_VALIDATION_FRACTION=...` and `SNIPPET_TEST_FRACTION=...`.
 
 Use `refresh-snippets` when the reviewed snippet rows are ready to be exported and promoted into the configured prerelease/source split.
 
