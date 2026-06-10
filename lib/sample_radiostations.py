@@ -195,10 +195,22 @@ def main(argv: list[str] | None = None) -> int:
     target_pool_size = args.target_per_query_lang * args.pool_factor
     pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for query in queries:
-        print(f"\n=== QUERY: {query['query']} [{query['label']}] ===")
+        print(
+            f"\n=== ALIAS SEARCH: {query['query']!r} ===\n"
+            f"  canonical label: {query['label']}\n"
+            f"  canonical id: {query['canonical_id']}\n"
+            f"  display name: {query['display_name']}\n"
+            f"  target accepted snippets per language: {args.target_per_query_lang}\n"
+            f"  maximum candidate pool per language: {target_pool_size}"
+        )
         for language in languages:
             if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
+                print(f"  SKIP language={language!r}: this label-language bucket is already at target")
                 continue
+            print(
+                f"  SEARCH language={language!r}: looking for alias {query['query']!r}; "
+                f"kept candidates will be assigned to {query['label']}"
+            )
             bucket = (query["label"], query["query"], language)
             pool, client = collect_pool_for_bucket(
                 client=client,
