@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test build-newsagency-snippets-from-hipe suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -45,6 +45,10 @@ help-annotation:
 	@echo ""
 	@echo "Audit-driven span patches:"
 	@echo "  make audit-empty-training-docs                Score empty-gold training docs for suspicious missed spans"
+	@echo "  make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"
+	@echo "                                             Suggest missing spans for one label in one split"
+	@echo "  make review-missing-spans                     Review target-specific missing-span suggestions"
+	@echo "  make integrate-missing-spans                  Apply reviewed missing-span decisions, then promote"
 	@echo "  make audit-existing-spans                     Build target-label boundary review from existing annotations"
 	@echo "  make review-existing-spans                    Verify/correct/remove existing span boundaries"
 	@echo "  make apply-existing-spans                     Apply existing-span boundary decisions to a patched split"
@@ -69,8 +73,7 @@ help-annotation:
 	@echo "  make sample-newsagency-snippets             Sample label/language buckets below target"
 	@echo "  make sample-newsagency-snippets ARGS=\"--labels org.ent.pressagency.reuters\""
 	@echo "                                             Sample one news-agency label below target"
-	@echo "  make build-newsagency-snippets-from-hipe     Bootstrap snippet candidates from HIPE-derived JSONL"
-	@echo "  make suggest-newsagency-snippet-spans        Suggest spans: model for trained labels, patterns for new labels"
+	@echo "  make suggest-newsagency-snippet-spans        Suggest spans: model plus known entity metadata matchers"
 	@echo "  make review-newsagency-snippet-spans         Review uncertain snippet spans; press i for label info"
 	@echo "  make split-newsagency-snippets               Split accepted snippets into train/validation/test JSONL"
 	@echo "  make preview-promote-snippets                Preview promotion into configured dataset splits"
@@ -81,7 +84,7 @@ help-annotation:
 	@echo "  make sample-radio-snippets                   Sample radio label/language buckets below target"
 	@echo "  make sample-radio-snippets ARGS=\"--labels org.ent.radiostation.rtl\""
 	@echo "                                             Sample one radio-station label below target"
-	@echo "  make suggest-radio-snippet-spans             Suggest spans: model for trained labels, patterns for new radio labels"
+	@echo "  make suggest-radio-snippet-spans             Suggest spans: model plus known entity metadata matchers"
 	@echo "  make review-radio-snippet-spans              Review radio span suggestions"
 	@echo "  make split-radio-snippets                    Split accepted radio spans into train/validation/test JSONL"
 	@echo "  make preview-promote-snippets                Preview promotion into configured dataset splits"
@@ -89,8 +92,9 @@ help-annotation:
 	@echo "  make integrate-snippets                      Split, preview, then promote reviewed snippets"
 	@echo ""
 	@echo "Useful overrides:"
-	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., NEWSAGENCY_LEGACY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
+	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=true"
+	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
 	@echo "  ANNOTATION_MAIN_LANGS='$(ANNOTATION_MAIN_LANGS)', ANNOTATION_SIDE_LANGS='$(ANNOTATION_SIDE_LANGS)'"
 	@echo "  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG), ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)"
 	@echo "  AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
@@ -218,6 +222,40 @@ audit-empty-training-docs:
 	$(PYTHON) -m lib.audit_empty_training_docs prepare --input-jsonl "$(EMPTY_TRAIN_SOURCE_JSONL)" --label-map "$(EMPTY_TRAIN_LABEL_MAP)" --output-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --summary-json "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prepare_summary.json"
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(EMPTY_TRAIN_MODEL)" --eval-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --label-map "$(EMPTY_TRAIN_LABEL_MAP)" --output-dir "$(EMPTY_TRAIN_AUDIT_DIR)/eval" --split-name empty_train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	$(PYTHON) -m lib.audit_empty_training_docs summarize --source-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --predictions-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/eval/empty_train_predictions.jsonl" --candidates-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.jsonl" --candidates-tsv "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.tsv" --summary-json "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_summary.json"
+
+audit-missing-spans:
+	@echo "Building a target-specific missing-span audit queue for $(MISSING_SPAN_TARGET_LABEL) in $(MISSING_SPAN_SPLIT)."
+	@test -n "$(MISSING_SPAN_TARGET_LABEL)" || { echo "MISSING_SPAN_TARGET_LABEL is required, e.g. MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"; exit 1; }
+	$(PYTHON) -m lib.audit_missing_spans --input-jsonl "$(MISSING_SPAN_SOURCE_JSONL)" --predictions-jsonl "$(MISSING_SPAN_PREDICTIONS_JSONL)" --target-label "$(MISSING_SPAN_TARGET_LABEL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --audit-id "$(MISSING_SPAN_AUDIT_ID)" --split "$(MISSING_SPAN_SPLIT)" --candidates-jsonl "$(MISSING_SPAN_CANDIDATES)" --candidates-tsv "$(MISSING_SPAN_CANDIDATES_TSV)" --summary-json "$(MISSING_SPAN_SUMMARY_JSON)" $(ARGS)
+
+review-missing-spans:
+	@echo "Reviewing target-specific missing-span suggestions and writing append-only decisions."
+	@test -n "$(MISSING_SPAN_TARGET_LABEL)" || { echo "MISSING_SPAN_TARGET_LABEL is required, e.g. MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"; exit 1; }
+	$(PYTHON) -m lib.span_patch_review --candidates "$(MISSING_SPAN_CANDIDATES)" --decisions "$(MISSING_SPAN_DECISIONS)" --audit-id "$(MISSING_SPAN_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(MISSING_SPAN_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(MISSING_SPAN_REVIEW_SUMMARY_JSON)" --queue-jsonl "$(MISSING_SPAN_QUEUE_JSONL)" $(ARGS)
+
+apply-missing-spans:
+	@echo "Applying reviewed missing-span decisions to the configured split."
+	@test -n "$(MISSING_SPAN_TARGET_LABEL)" || { echo "MISSING_SPAN_TARGET_LABEL is required, e.g. MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"; exit 1; }
+	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(MISSING_SPAN_SOURCE_JSONL)" --output-jsonl "$(MISSING_SPAN_OUTPUT_JSONL)" --candidates "$(MISSING_SPAN_CANDIDATES)" --decisions "$(MISSING_SPAN_DECISIONS)" --audit-id "$(MISSING_SPAN_AUDIT_ID)" --target-label "$(MISSING_SPAN_TARGET_LABEL)" --changes-jsonl "$(MISSING_SPAN_CHANGES_JSONL)" --changes-tsv "$(MISSING_SPAN_CHANGES_TSV)" --summary-json "$(MISSING_SPAN_APPLY_SUMMARY_JSON)" $(ARGS)
+
+missing-span-status:
+	@echo "Checking whether the missing-span patched output is ready for promotion."
+	@echo "audit id:        $(MISSING_SPAN_AUDIT_ID)"
+	@echo "target label:    $(MISSING_SPAN_TARGET_LABEL)"
+	@echo "source split:    $(MISSING_SPAN_SOURCE_JSONL)"
+	@echo "patched output:  $(MISSING_SPAN_OUTPUT_JSONL)"
+	@echo "promote target:  $(MISSING_SPAN_PROMOTE_JSONL)"
+	@test -f "$(MISSING_SPAN_OUTPUT_JSONL)" || { echo "patched output:  missing; run make apply-missing-spans first"; exit 1; }
+	@test -f "$(MISSING_SPAN_PROMOTE_JSONL)" || { echo "promote target:  missing"; exit 1; }
+	@if cmp -s "$(MISSING_SPAN_OUTPUT_JSONL)" "$(MISSING_SPAN_PROMOTE_JSONL)"; then echo "state:           promoted target is up to date"; else echo "state:           patched output differs from promote target"; fi
+
+promote-missing-spans:
+	@echo "Promoting the missing-span patched split into the configured source split."
+	@test -f "$(MISSING_SPAN_OUTPUT_JSONL)" || { echo "Missing patched output: $(MISSING_SPAN_OUTPUT_JSONL). Run make apply-missing-spans first."; exit 1; }
+	@echo "Promoting $(MISSING_SPAN_OUTPUT_JSONL) -> $(MISSING_SPAN_PROMOTE_JSONL)"
+	cp "$(MISSING_SPAN_OUTPUT_JSONL)" "$(MISSING_SPAN_PROMOTE_JSONL)"
+
+integrate-missing-spans: apply-missing-spans promote-missing-spans
 
 audit-existing-spans:
 	@echo "Building a boundary/label/removal audit queue for existing spans of $(SPAN_BOUNDARY_TARGET_LABEL)."
@@ -388,13 +426,9 @@ suggest-eval-disagreements-validation: curation-eval-validation curation-review-
 
 suggest-eval-disagreements-test: curation-eval-test curation-review-test
 
-build-newsagency-snippets-from-hipe:
-	@echo "Building bootstrap news-agency snippet candidates from existing JSONL splits."
-	$(PYTHON) -m lib.build_newsagency_snippets --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/train.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/validation.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/test.jsonl" --output "$(NEWSAGENCY_LEGACY_SNIPPETS)" --context-radius "$(NEWSAGENCY_SNIPPET_CONTEXT_RADIUS)" --limit "$(NEWSAGENCY_SNIPPET_LIMIT)" $(ARGS)
-
 suggest-newsagency-snippet-spans:
-	@echo "Suggesting snippet spans: use the configured model for labels it was trained on, and seed/pattern matching for newer labels."
-	$(PYTHON) -m lib.score_newsagency_snippets --input "$(NEWSAGENCY_SNIPPETS)" --output "$(NEWSAGENCY_SCORED_SNIPPETS)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
+	@echo "Suggesting snippet spans: use the configured model and known entity metadata matchers."
+	$(PYTHON) -m lib.score_newsagency_snippets --input "$(NEWSAGENCY_SNIPPETS)" --output "$(NEWSAGENCY_SCORED_SNIPPETS)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newspapers "$(NEWSPAPER_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
 
 review-newsagency-snippet-spans:
 	@echo "Reviewing news-agency snippet span suggestions and writing append-only decisions."
@@ -402,10 +436,10 @@ review-newsagency-snippet-spans:
 
 split-newsagency-snippets:
 	@echo "Splitting accepted news-agency snippet decisions into train/validation/test JSONL."
-	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --validation-output "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --test-output "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
+	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --validation-output "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --test-output "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 
 suggest-radio-snippet-spans:
-	@echo "Suggesting radio snippet spans: use the configured model for trained media labels, and radio seed/pattern matching for new radio labels."
+	@echo "Suggesting radio snippet spans: use the configured model and known entity metadata matchers."
 	$(PYTHON) -m lib.score_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --output "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" $(ARGS)
 
 review-radio-snippet-spans:

@@ -24,6 +24,8 @@ def load_label_map(path: Path) -> dict[str, Any]:
 def extend_label_map(label_map: dict[str, Any], metadata_paths: list[Path]) -> dict[str, Any]:
     label2id = dict(label_map["label2id"])
     for path in metadata_paths:
+        if not path.is_file():
+            continue
         rows = json.loads(path.read_text(encoding="utf-8"))
         for row in rows:
             label = str(row.get("label", ""))

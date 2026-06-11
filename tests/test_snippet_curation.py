@@ -44,6 +44,7 @@ from lib.score_newsagency_snippets import (
     curation_status,
     load_input_rows,
     normalize_dotted_acronym_spans,
+    score_rows as score_newsagency_rows,
     suppress_contained_same_label_spans,
 )
 from lib.snippet_data import row_text, tokenize_with_offsets, write_jsonl
@@ -98,7 +99,7 @@ def test_newsagency_scorer_missing_input_explains_next_steps(tmp_path: Path) -> 
         raise AssertionError("missing input should fail")
 
     assert "Input JSONL does not exist" in message
-    assert "make sample-newsagencies" in message
+    assert "make sample-newsagency-snippets" in message
     assert f"NEWSAGENCY_SNIPPETS={existing}" in message
     assert f"- {existing}" in message
 
@@ -116,8 +117,83 @@ def test_newsagency_scorer_empty_input_explains_next_steps(tmp_path: Path) -> No
         raise AssertionError("empty input should fail")
 
     assert "Input JSONL is empty" in message
-    assert "make sample-newsagencies" in message
-    assert "make build-newsagency-snippets-from-legacy" in message
+    assert "make sample-newsagency-snippets" in message
+    assert "make suggest-newsagency-snippet-spans" in message
+
+
+def test_newsagency_scoring_matches_radio_and_pressagency_aliases(tmp_path: Path) -> None:
+    input_path = tmp_path / "newsagency_candidates.jsonl"
+    scored_path = tmp_path / "newsagency_scored.jsonl"
+    agency_seeds_path = tmp_path / "newsagency_seeds.json"
+    radio_seeds_path = tmp_path / "radiostation_seeds.json"
+    agency_seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "ata",
+                    "label": "org.ent.pressagency.ata",
+                    "display_name": "Albanian Telegraphic Agency",
+                    "aliases": ["Albanische Nachrichtenagentur ATA", "albanische Nachrichtenagentur ATA"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    radio_seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "bbc",
+                    "label": "org.ent.radiostation.bbc",
+                    "display_name": "BBC",
+                    "aliases": ["BBC", "Radio London"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "ata-with-bbc",
+                "candidate_label": "org.ent.pressagency.ata",
+                "query": "Albanische Nachrichtenagentur",
+                "language": "de",
+                "snippet": "Wie die albanische Nachrichtenagentur ATA, die von BBC abgehört wurde, meldete.",
+            }
+        ],
+    )
+
+    score_newsagency_rows(
+        type(
+            "Args",
+            (),
+            {
+                "input": str(input_path),
+                "output": str(scored_path),
+                "model": "",
+                "newsagencies": str(agency_seeds_path),
+                "radiostations": str(radio_seeds_path),
+                "device": "cpu",
+                "max_sequence_len": 512,
+                "auto_accept_min_confidence": 0.99,
+                "auto_accept_min_margin": 0.30,
+                "auto_accept_multiple_min_confidence": 0.99,
+            },
+        )
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    spans = scored["model"]["predicted_spans"]
+    assert any(
+        span["surface"] == "albanische Nachrichtenagentur ATA"
+        and span["label"] == "org.ent.pressagency.ata"
+        for span in spans
+    )
+    assert any(span["surface"] == "BBC" and span["label"] == "org.ent.radiostation.bbc" for span in spans)
+    assert "radiostation_alias_matcher" in scored["model"]["scorers"]
+    assert "pressagency_alias_matcher" in scored["model"]["scorers"]
 
 
 def test_newsagency_curation_status_auto_accepts_multiple_very_confident_spans() -> None:
@@ -873,6 +949,43 @@ def test_export_snippet_training_data_writes_training_rows(tmp_path: Path) -> No
     assert "source_component" not in rows[0]
     assert "entity_id" not in rows[0]["entities"][0]
     assert "normalized_surface" not in rows[0]["entities"][0]
+
+
+def test_export_snippet_training_data_extends_label_map_with_radio_metadata(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    radio_metadata_path = tmp_path / "radiostation_seeds.json"
+    missing_optional_metadata = tmp_path / "newspaper_seeds.json"
+    label_map_path.write_text(json.dumps({"label2id": {"O": 0}, "id2label": {"0": "O"}}), encoding="utf-8")
+    radio_metadata_path.write_text(
+        json.dumps([{"label": "org.ent.radiostation.bbc", "canonical_id": "bbc", "display_name": "BBC"}]),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "snippet-1",
+                "snippet": "BBC annonce.",
+                "language": "fr",
+                "date": "1946-01-01",
+                "candidate_label": "org.ent.pressagency.ata",
+                "curation": {"status": "accepted", "label": "org.ent.pressagency.ata"},
+                "accepted_spans": [
+                    {
+                        "token_start": 0,
+                        "token_stop": 1,
+                        "label": "org.ent.radiostation.bbc",
+                    }
+                ],
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path, extra_label_metadata=[radio_metadata_path, missing_optional_metadata])
+
+    assert rows[0]["token_labels"] == ["B-org.ent.radiostation.bbc", "O", "O"]
+    assert rows[0]["entities"][0]["label"] == "org.ent.radiostation.bbc"
 
 
 def test_export_snippet_training_data_splits_by_source_issue(tmp_path: Path) -> None:

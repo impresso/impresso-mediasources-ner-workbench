@@ -92,7 +92,8 @@ Start by choosing the path that matches the kind of dataset change you want to m
 | ---------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | You want to inspect coverage, state, and mention surfaces before deciding.   | Diagnostics and state inspection        | `curation-dashboard` or individual state/statistics targets                                                                             |
 | You want to audit already accepted annotations for boundary or label errors. | Existing-annotation audit               | `audit-existing-spans` -> `review-existing-spans` -> `integrate-existing-spans`                                                          |
-| You want to add missed annotations to existing documents.                    | Vertical span-patch audit               | `audit-empty-training-docs` -> `review-span-patches` -> `integrate-span-patches`                                                         |
+| You want to add missed annotations to existing documents for one entity.     | Target-specific missing-span audit      | `audit-missing-spans` -> `review-missing-spans` -> `integrate-missing-spans`                                                             |
+| You want to inspect empty-gold training documents for broad false negatives. | Empty-document span-patch audit         | `audit-empty-training-docs` -> `review-span-patches` -> `integrate-span-patches`                                                         |
 | You want new examples from Impresso search for news agencies.                | News-agency snippet curation            | `annotation-stats` -> `sample-newsagency-snippets` -> `suggest-newsagency-snippet-spans` -> `review-newsagency-snippet-spans` -> `integrate-snippets` |
 | You want new examples from Impresso search for radio stations.               | Radio snippet curation                  | `annotation-stats` -> `sample-radio-snippets` -> `suggest-radio-snippet-spans` -> `review-radio-snippet-spans` -> `integrate-snippets`      |
 | You want to clean HIPE-derived gold-vs-prediction disagreement files.       | Evaluation disagreement curation        | `suggest-eval-disagreements` -> `review-curation` -> `validate-curation` -> `apply-curation`                                             |
@@ -136,7 +137,26 @@ Use this path one canonical label at a time. It is the safest way to normalize a
 
 ### B. Add missed annotations to existing documents
 
-Use this vertical-extension path when an audit has found likely false negatives, for example a missing agency or station in a document that already belongs to the training base.
+Use the target-specific vertical-extension path when you want to scan an existing split for one entity, for example possible missed `org.ent.pressagency.ata` mentions in train, validation, or test. The audit uses high-precision metadata patterns by default. If model prediction files exist from `suggest-eval-disagreements-*`, it also includes current-model suggestions for the target label.
+
+```bash
+make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+make review-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train REVIEWER="$USER"
+make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+```
+
+Use `MISSING_SPAN_SPLIT=validation` or `MISSING_SPAN_SPLIT=test` to audit those configured splits instead. The audit output, decisions, patched split, and change logs are namespaced by label and split.
+
+To include current-model suggestions, run the split-specific evaluation first:
+
+```bash
+make suggest-eval-disagreements-validation CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=validation
+```
+
+Use `ARGS="--no-model"` when you want pattern-only suggestions, or `ARGS="--no-patterns"` when you want model-only suggestions from an existing prediction file.
+
+Use the broader empty-document audit when you want to inspect likely false negatives in empty-gold training rows without selecting a specific entity first:
 
 ```bash
 make audit-empty-training-docs
@@ -246,16 +266,16 @@ make integrate-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.hav
 
 Use this vertical-extension path when an audit has found likely false negatives — documents that are already in the training base but are missing an annotation entirely.
 
-Build or refresh the empty-training-doc audit. This runs the current classifier over training documents that have no gold entities and collects suspicious predicted spans:
+For routine entity-by-entity repair, build a target-specific missing-span queue. This scans one configured split and suggests spans for one canonical label when the current model and/or metadata patterns find a mention that does not overlap an existing annotation:
 
 ```bash
-make audit-empty-training-docs
+make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
 ```
 
-Review suggested span patches:
+Review the target-specific suggestions:
 
 ```bash
-make review-span-patches REVIEWER="$USER"
+make review-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train REVIEWER="$USER"
 ```
 
 The review presents a concise suspicious-entity summary plus local context. Curator choices:
@@ -270,30 +290,40 @@ Accepted, rejected, and modified decisions receive a local audit marker of the f
 Apply accepted and corrected span decisions to a local patched split:
 
 ```bash
-make apply-span-patches
+make apply-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
 ```
 
 This writes a local patched output first. It does not change the committed prerelease split yet. Inspect whether the patched output still differs from the configured promotion target:
 
 ```bash
-make span-patch-status
+make missing-span-status MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
 ```
 
 Promote the patched output into the configured prerelease/source split:
 
 ```bash
-make promote-span-patches
+make promote-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
 ```
 
 For the normal apply-and-promote sequence, use:
 
 ```bash
+make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+```
+
+Decisions are append-only under `data/curated/span-patches/<audit-id>/decisions.jsonl`. Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json`. Promotion copies the patched output into `MISSING_SPAN_PROMOTE_JSONL`, which defaults to the selected source split.
+
+Use `MISSING_SPAN_SPLIT=validation` or `MISSING_SPAN_SPLIT=test` for those configured splits. To include model suggestions, generate predictions for that split first with `suggest-eval-disagreements-train`, `suggest-eval-disagreements-validation`, or `suggest-eval-disagreements-test`. The audit uses pattern suggestions even when no prediction file exists. Use `ARGS="--no-model"` for pattern-only review, or `ARGS="--no-patterns"` for model-only review.
+
+The broader empty-training-doc audit is still useful when you want an unscoped false-negative scan over empty-gold training rows:
+
+```bash
+make audit-empty-training-docs
+make review-span-patches REVIEWER="$USER"
 make integrate-span-patches
 ```
 
-Decisions are append-only under `data/curated/span-patches/<audit-id>/decisions.jsonl`. Patch application writes a revised JSONL split plus `changes.jsonl`, `changes.tsv`, and `apply_summary.json`. Promotion copies the patched output into `SPAN_PATCH_PROMOTE_JSONL`, which defaults to `SPAN_PATCH_SOURCE_JSONL`.
-
-The defaults point to the active v2.0.0 prerelease empty-training-doc audit. For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
+Those defaults point to the active v2.0.0 prerelease empty-training-doc audit. For custom broad span-patch audits, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 
 ## Path C/D: Add New Sampled Snippets
 
@@ -503,15 +533,7 @@ Multiple news-agency labels can be whitespace-separated inside the `--labels` va
 
 This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
 
-Build a local bootstrap snippet file from the curated HIPE-derived JSONL only when you explicitly want test material from the baseline HIPE-derived folds:
-
-```bash
-make build-newsagency-snippets-from-hipe
-```
-
-This writes `data/candidates/newsagency_legacy_snippets.jsonl` by default.
-
-Suggest spans for sampled snippets. The suggest step uses the configured model for entity labels already present in the trained model, and seed/pattern matching for newer labels that the model cannot predict yet:
+Suggest spans for sampled snippets. The suggest step uses the configured model plus known-entity metadata matchers across the configured news-agency, radio-station, and optional newspaper catalogs. This means a news-agency sample can still be preannotated with radio-station or newspaper spans when those known entities occur in the same snippet:
 
 ```bash
 make suggest-newsagency-snippet-spans NEWSAGENCY_SNIPPETS=data/candidates/newsagency_search_snippets.jsonl HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner
@@ -626,7 +648,7 @@ make sample-radio-snippets ARGS="--labels org.ent.radiostation.rtl"
 
 Multiple radio-station labels can be whitespace-separated inside the `--labels` value. `sample-radio-snippets` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-radio-snippets ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter, or use `sample-freely-radio-snippets` without labels when you deliberately want broader radio-station sampling.
 
-Because the model can only predict labels it has already been trained on, radio-station suggestion combines two sources: the current NER model for trained media-source labels and deterministic radio-station seed/pattern matching for newer radio labels. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
+Because the model can only predict labels it has already been trained on, snippet suggestion combines the current NER model with deterministic metadata matchers for known media-source labels. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` span if the actual snippet contains that agency instead of, or in addition to, the searched radio-station mention.
 
 Suggest spans for sampled radio snippets:
 

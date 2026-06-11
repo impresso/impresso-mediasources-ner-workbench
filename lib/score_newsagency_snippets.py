@@ -214,7 +214,7 @@ def curation_status(
     target = candidate_label(row)
     reasons: list[str] = []
     if not spans:
-        return "needs_review", ["no_predicted_pressagency_span"]
+        return "needs_review", ["no_predicted_media_source_span"]
 
     if target:
         matching = [span for span in spans if span["label"] == target]
@@ -250,12 +250,9 @@ def input_help(path: Path) -> str:
     lines = [
         "Next steps:",
         "  - Create real search snippets:",
-        "      make sample-newsagencies PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk",
+        "      make sample-newsagency-snippets",
         "  - Or score an existing candidate file:",
-        f"      make score-newsagency-snippets NEWSAGENCY_SNIPPETS={existing_candidate}",
-        "  - Or build legacy-derived bootstrap snippets first:",
-        "      make build-newsagency-snippets-from-legacy PYTHON=.venv/bin/python CFG=configs/model-v0.1.0.mk",
-        f"      make score-newsagency-snippets NEWSAGENCY_SNIPPETS={DEFAULT_LEGACY_SNIPPETS}",
+        f"      make suggest-newsagency-snippet-spans NEWSAGENCY_SNIPPETS={existing_candidate}",
     ]
     if alternatives:
         lines.extend(["", f"JSONL files currently present in {path.parent}:"])
@@ -276,29 +273,116 @@ def load_input_rows(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, str] | None:
+    model_name = str(getattr(args, "model", "") or "")
+    if not model_name:
+        return None
+    torch, model_cls, tokenizer_cls = import_runtime()
+    model_ref = resolve_model_ref(model_name)
+    device = device_for(str(getattr(args, "device", "auto")), torch)
+    tokenizer = tokenizer_cls.from_pretrained(model_ref)
+    model = model_cls.from_pretrained(model_ref).to(device)
+    model.eval()
+    return torch, tokenizer, model, device, model_name
+
+
+def known_entity_alias_spans(tokens: list[str], starts: list[int], stops: list[int], text: str, args: argparse.Namespace) -> list[dict[str, Any]]:
+    from .score_radiostation_snippets import (
+        attach_offsets,
+        dedupe_spans,
+        find_all_press_alias_spans,
+        find_all_seed_alias_spans,
+        load_pressagency_metadata,
+        load_station_metadata,
+    )
+
+    radiostations_path = Path(getattr(args, "radiostations", "resources/radiostation_seeds.json"))
+    newsagencies_path = Path(getattr(args, "newsagencies", "resources/newsagency_seeds.json"))
+    newspapers_path = Path(getattr(args, "newspapers", "resources/newspaper_seeds.json"))
+    radiostation_metadata = load_station_metadata(radiostations_path) if radiostations_path.is_file() else {}
+    press_metadata = load_pressagency_metadata(newsagencies_path) if newsagencies_path.is_file() else {}
+    newspaper_metadata = load_generic_label_metadata(newspapers_path, expected_prefix="org.ent.newspaper.")
+    token_spans = []
+    token_spans.extend(find_all_seed_alias_spans(tokens, radiostation_metadata))
+    token_spans.extend(find_all_press_alias_spans(tokens, press_metadata))
+    token_spans.extend(all_generic_alias_spans(tokens, newspaper_metadata))
+    return attach_offsets(dedupe_spans(token_spans), starts, stops, text)
+
+
+def known_entity_scorers(args: argparse.Namespace) -> list[str]:
+    scorers = ["radiostation_alias_matcher", "pressagency_alias_matcher"]
+    newspapers_path = Path(getattr(args, "newspapers", "resources/newspaper_seeds.json"))
+    if newspapers_path.is_file():
+        scorers.append("newspaper_alias_matcher")
+    return scorers
+
+
+def suppress_model_spans_covered_by_aliases(
+    model_spans: list[dict[str, Any]], alias_spans: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    alias_boundaries = {
+        (int(span["token_start"]), int(span["token_stop"]))
+        for span in alias_spans
+    }
+    return [
+        span
+        for span in model_spans
+        if (int(span["token_start"]), int(span["token_stop"])) not in alias_boundaries
+    ]
+
+
+def load_generic_label_metadata(path: Path, *, expected_prefix: str) -> dict[str, dict[str, Any]]:
+    if not path.is_file():
+        return {}
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    metadata: dict[str, dict[str, Any]] = {}
+    if not isinstance(rows, list):
+        return metadata
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        label = str(row.get("label") or "")
+        if label.startswith(expected_prefix):
+            metadata[label] = row
+    return metadata
+
+
+def all_generic_alias_spans(tokens: list[str], metadata: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    from .score_radiostation_snippets import find_alias_spans, seed_aliases
+
+    spans = []
+    for seed in metadata.values():
+        label = str(seed.get("label") or "")
+        if not label:
+            continue
+        spans.extend(find_alias_spans(tokens, seed_aliases(seed), label))
+    return spans
+
+
 def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     input_path = Path(args.input)
     rows_in = load_input_rows(input_path)
 
-    torch, model_cls, tokenizer_cls = import_runtime()
-    model_ref = resolve_model_ref(args.model)
-    device = device_for(args.device, torch)
-    tokenizer = tokenizer_cls.from_pretrained(model_ref)
-    model = model_cls.from_pretrained(model_ref).to(device)
-    model.eval()
+    model_runtime = load_model_runtime(args)
 
     rows = []
     counts = {"auto_accepted": 0, "needs_review": 0}
     for index, row in enumerate(rows_in, start=1):
         text, tokens, starts, stops = candidate_tokens(row)
-        labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, args.max_sequence_len)
-        spans = normalize_dotted_acronym_spans(
-            attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text),
-            tokens,
-            starts,
-            stops,
-            text,
-        )
+        alias_spans = known_entity_alias_spans(tokens, starts, stops, text, args)
+        model_spans: list[dict[str, Any]] = []
+        if model_runtime is not None:
+            torch, tokenizer, model, device, _model_name = model_runtime
+            labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, args.max_sequence_len)
+            model_spans = normalize_dotted_acronym_spans(
+                attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text),
+                tokens,
+                starts,
+                stops,
+                text,
+            )
+            model_spans = suppress_model_spans_covered_by_aliases(model_spans, alias_spans)
+        spans = suppress_contained_same_label_spans(alias_spans + model_spans)
         status, reasons = curation_status(
             row,
             spans,
@@ -314,6 +398,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         out["token_end_offsets"] = stops
         out["model"] = {
             "repo_id": args.model,
+            "scorers": known_entity_scorers(args) + (["token_classifier"] if model_runtime is not None else []),
             "predicted_spans": spans,
         }
         out["curation"] = {
@@ -334,10 +419,13 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Score sampled news-agency snippets with the current NER model.")
+    parser = argparse.ArgumentParser(description="Suggest known media-source spans in sampled news-agency snippets.")
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--model", default="")
+    parser.add_argument("--newsagencies", default="resources/newsagency_seeds.json")
+    parser.add_argument("--radiostations", default="resources/radiostation_seeds.json")
+    parser.add_argument("--newspapers", default="resources/newspaper_seeds.json")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)
     parser.add_argument("--auto-accept-min-confidence", type=float, default=0.99)

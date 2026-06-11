@@ -47,6 +47,7 @@ Use short, curator-readable objects:
 | `newsagency-snippets` | sampled news-agency snippet candidates |
 | `radio-snippets` | sampled radio-station snippet candidates |
 | `existing-spans` | already accepted spans being audited for boundary/label/removal decisions |
+| `missing-spans` | proposed missing annotations inside an existing split for one target label |
 | `span-patches` | proposed additions or corrections to existing dataset rows |
 | `eval-disagreements` | train/validation/test gold-vs-prediction disagreements |
 | `dataset-splits` | train/validation/test integrity checks |
@@ -116,7 +117,23 @@ make integrate-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.hav
 
 ### Span Patch Audit For Missed Annotations
 
-Use this when a model/audit suggests missing annotations in existing dataset rows.
+Use target-specific missing-span audit when a model and/or metadata pattern suggests missing annotations in existing dataset rows for one canonical label.
+
+```bash
+make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+make review-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train REVIEWER="$USER"
+make apply-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+make missing-span-status MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+make promote-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+```
+
+Use the combined integration target when reviewed missing-span decisions are ready:
+
+```bash
+make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+```
+
+Use the broader span-patch audit when a model/audit suggests missing annotations without a single target label.
 
 ```bash
 make audit-empty-training-docs

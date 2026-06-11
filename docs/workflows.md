@@ -117,6 +117,14 @@ flowchart TD
 Primary commands:
 
 ```bash
+make audit-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+make review-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train REVIEWER="$USER"
+make integrate-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+```
+
+For broad empty-gold training-row scans, use:
+
+```bash
 make audit-empty-training-docs CFG=configs/model-v2.0.0.mk
 make review-span-patches CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
 make apply-span-patches CFG=configs/model-v2.0.0.mk
