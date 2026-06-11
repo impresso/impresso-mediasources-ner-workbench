@@ -10,7 +10,9 @@ from lib.review_curation import (
     format_token_indicator,
     latest_decisions,
     nearby_boundary_suggestions,
+    parse_manual_curation_span,
     pending_items,
+    prompt_manual_spans,
     prompt_notes,
     suggested_label,
 )
@@ -154,6 +156,71 @@ def test_prompt_notes_collects_required_neither_note(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr("builtins.input", lambda _: 'covered by 766:772 "A . F . P ."')
 
     assert prompt_notes(item, "neither") == 'covered by 766:772 "A . F . P ."'
+
+
+def test_manual_curation_span_accepts_absolute_offsets_and_canonical_id() -> None:
+    item = {
+        "gold": None,
+        "prediction": {"surface": "HnviiH", "label": "org.ent.pressagency.ats-sda", "token_start": 1522, "token_stop": 1523},
+        "context": {
+            "token_start": 1520,
+            "token_stop": 1525,
+            "tokens": ["(", "«", "HnviiH", ".", ")"],
+        },
+    }
+    metadata = {
+        "org.ent.pressagency.ats-sda": {
+            "canonical_id": "ats-sda",
+            "label": "org.ent.pressagency.ats-sda",
+        }
+    }
+
+    span = parse_manual_curation_span("1522:1523 ats-sda", item, metadata)
+
+    assert span == {
+        "token_start": 1522,
+        "token_stop": 1523,
+        "label": "org.ent.pressagency.ats-sda",
+        "surface": "HnviiH",
+    }
+
+
+def test_manual_curation_span_accepts_pasted_numbered_token() -> None:
+    item = {
+        "gold": None,
+        "prediction": {"surface": "HnviiH", "label": "org.ent.pressagency.ats-sda", "token_start": 1522, "token_stop": 1523},
+        "context": {
+            "token_start": 1520,
+            "token_stop": 1525,
+            "tokens": ["(", "«", "HnviiH", ".", ")"],
+        },
+    }
+
+    span = parse_manual_curation_span("1522:HnviiH", item, {})
+
+    assert span["token_start"] == 1522
+    assert span["token_stop"] == 1523
+    assert span["label"] == "org.ent.pressagency.ats-sda"
+
+
+def test_prompt_manual_spans_prints_interpretation(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    item = {
+        "gold": None,
+        "prediction": {"surface": "HnviiH", "label": "org.ent.pressagency.ats-sda", "token_start": 1522, "token_stop": 1523},
+        "context": {
+            "token_start": 1520,
+            "token_stop": 1525,
+            "tokens": ["(", "«", "HnviiH", ".", ")"],
+        },
+    }
+    answers = iter(["1522:HnviiH", "y"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    spans = prompt_manual_spans(item)
+
+    captured = capsys.readouterr()
+    assert spans[0]["label"] == "org.ent.pressagency.ats-sda"
+    assert 'interpreted: 1522:1523 "HnviiH" [org.ent.pressagency.ats-sda]' in captured.out
 
 
 def test_clear_screen_writes_escape_for_interactive_terminal(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

@@ -8,11 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import review_ui
+
 
 CHOICES = {
     "g": "gold",
     "p": "prediction",
     "b": "both",
+    "m": "manual",
     "n": "neither",
     "s": "skip",
 }
@@ -161,13 +164,14 @@ def format_choice_meaning(item: dict[str, Any]) -> list[str]:
         f"  g = accept this row's gold side: {format_entity(gold)}",
         f"  p = accept this row's prediction side: {format_entity(prediction)}",
         "  b = both displayed spans are valid mentions",
-        "  n = neither displayed side is the final correct annotation; put the real correction in notes",
+        "  m = enter manual annotation span(s)",
+        "  n = neither displayed side is a valid mention",
         "  s = skip for later; q = quit without saving this item",
     ]
     if gold is None:
         lines.append("  note: here g means keep no entity for this row; it does not select another overlapping gold span.")
     if prediction is None:
-        lines.append("  note: here p means keep no prediction for this row; use notes for any corrected span.")
+        lines.append("  note: here p means keep no prediction for this row; use m for any corrected span.")
     if gold is None or prediction is None:
         lines.append("  partial/duplicate rows can happen when one real mention was split into several disagreement items.")
     return lines
@@ -177,6 +181,14 @@ def suggested_label(item: dict[str, Any], choice: str) -> str:
     entity = item.get(choice)
     if isinstance(entity, dict):
         return str(entity.get("label", ""))
+    return ""
+
+
+def target_label(item: dict[str, Any]) -> str:
+    for key in ("prediction", "gold"):
+        entity = item.get(key)
+        if isinstance(entity, dict) and entity.get("label"):
+            return str(entity["label"])
     return ""
 
 
@@ -192,13 +204,119 @@ def print_boundary_suggestions(item: dict[str, Any]) -> None:
 def prompt_notes(item: dict[str, Any], choice: str) -> str:
     if choice in {"both", "neither"}:
         print_boundary_suggestions(item)
-        return input("notes/correction required: ").strip()
+        return input("notes required: ").strip()
     if choice in {"gold", "prediction"} and item.get(choice) is not None:
         raw = input("Press Enter to accept exactly, or type c to add a correction: ").strip().lower()
         if raw == "c":
             print_boundary_suggestions(item)
             return input("notes/correction: ").strip()
     return ""
+
+
+def context_surface(item: dict[str, Any], start: int, stop: int) -> str:
+    context = item["context"]
+    context_start = int(context["token_start"])
+    context_stop = int(context["token_stop"])
+    if start < context_start or stop > context_stop or start >= stop:
+        raise ValueError(f"manual span must be inside displayed context {context_start}:{context_stop}")
+    local_start = start - context_start
+    local_stop = stop - context_start
+    context_text = context.get("text")
+    if isinstance(context_text, str) and context_text:
+        return " ".join(str(token) for token in context["tokens"][local_start:local_stop])
+    return " ".join(str(token) for token in context["tokens"][local_start:local_stop])
+
+
+def parse_manual_curation_span(
+    raw: str,
+    item: dict[str, Any],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    raw = raw.strip()
+    body, raw_label = review_ui.split_trailing_manual_label(raw)
+    body = body or raw
+    context = item["context"]
+    context_start = int(context["token_start"])
+    context_stop = int(context["token_stop"])
+    tokens = context["tokens"]
+
+    displayed = review_ui.parse_displayed_span(raw, {"candidate_label": target_label(item)}, label_metadata)
+    if displayed is not None:
+        start, stop, label = displayed
+    else:
+        match = review_ui.SPAN_RE.match(raw)
+        if match:
+            start = int(match.group("start"))
+            stop = int(match.group("stop"))
+            label = review_ui.resolve_manual_label(match.group("label") or "", {"candidate_label": target_label(item)}, label_metadata)
+        else:
+            matches = list(review_ui.NUMBERED_TOKEN_RE.finditer(body))
+            if not matches:
+                raise ValueError('expected: 1522:1523 ats-sda or pasted tokens like 1522:HnviiH ats-sda')
+            indexes = [int(match.group("index")) for match in matches]
+            expected = list(range(indexes[0], indexes[-1] + 1))
+            if indexes != expected:
+                raise ValueError("pasted numbered tokens must be contiguous")
+            for match in matches:
+                index = int(match.group("index"))
+                if index < context_start or index >= context_stop:
+                    raise ValueError(f"token span out of displayed context {context_start}:{context_stop}")
+                pasted = match.group("token")
+                current = str(tokens[index - context_start])
+                if pasted != current:
+                    raise ValueError(f"pasted token {index}:{pasted} does not match current token {index}:{current}")
+            start = indexes[0]
+            stop = indexes[-1] + 1
+            label = review_ui.resolve_manual_label(raw_label, {"candidate_label": target_label(item)}, label_metadata)
+    if start < context_start or stop > context_stop or start >= stop:
+        raise ValueError(f"manual span must be inside displayed context {context_start}:{context_stop}")
+    return {
+        "token_start": start,
+        "token_stop": stop,
+        "label": label,
+        "surface": context_surface(item, start, stop),
+    }
+
+
+def interpreted_manual_span_line(span: dict[str, Any]) -> str:
+    return f"interpreted: {span['token_start']}:{span['token_stop']} \"{span['surface']}\" [{span['label']}]"
+
+
+def prompt_manual_spans(item: dict[str, Any]) -> list[dict[str, Any]] | None:
+    label_metadata = review_ui.load_label_metadata()
+    accepted_spans: list[dict[str, Any]] = []
+    print("numbered tokens:")
+    print(format_token_indicator(item))
+    print('manual correction syntax: 1522:1523 ats-sda or 1522:1523 org.ent.pressagency.ats-sda')
+    print('or paste numbered tokens, e.g. 1522:HnviiH ats-sda')
+    print('if no label is supplied, the displayed prediction/gold label is used when available')
+    print('manual commands: N = show numbered tokens, q = cancel/finish manual entry')
+    while True:
+        raw_span = input("span> ").strip()
+        if raw_span == "N":
+            print("numbered tokens:")
+            print(format_token_indicator(item))
+            continue
+        if raw_span.lower() in {"q", "quit", "done"}:
+            return accepted_spans or None
+        try:
+            span = parse_manual_curation_span(raw_span, item, label_metadata)
+        except ValueError as exc:
+            print(exc)
+            continue
+        accepted_spans.append(span)
+        print(interpreted_manual_span_line(span))
+        while True:
+            raw = input("finished? [Y/n/v] ").strip().lower()
+            if raw in {"", "y", "yes"}:
+                return accepted_spans
+            if raw in {"n", "no"}:
+                break
+            if raw in {"v", "revise"}:
+                accepted_spans.pop()
+                print("removed last manual span; enter the revised span")
+                break
+            print("Invalid choice; use y to finish, n to add another span, or v to revise.")
 
 
 def review_loop(items: list[dict[str, Any]], decisions_path: Path, reviewer: str, *, limit: int) -> int:
@@ -222,7 +340,7 @@ def review_loop(items: list[dict[str, Any]], decisions_path: Path, reviewer: str
         for line in format_choice_meaning(item):
             print(line)
         while True:
-            print("Choices: [g]old [p]rediction [b]oth [n]either [s]kip [q]uit [N]umbered tokens")
+            print("Choices: [g]old [p]rediction [b]oth [m]anual [n]either [s]kip [q]uit [N]umbered tokens")
             raw = input("> ").strip()
             if raw == "N":
                 print("numbered tokens:")
@@ -237,13 +355,23 @@ def review_loop(items: list[dict[str, Any]], decisions_path: Path, reviewer: str
             break
         choice = CHOICES[raw]
         correct_label = suggested_label(item, choice) if choice in {"gold", "prediction"} else ""
-        notes = prompt_notes(item, choice)
+        accepted_spans: list[dict[str, Any]] = []
+        notes = ""
+        if choice == "manual":
+            manual_spans = prompt_manual_spans(item)
+            if manual_spans is None:
+                continue
+            accepted_spans = manual_spans
+            correct_label = accepted_spans[0]["label"] if len(accepted_spans) == 1 else ""
+        else:
+            notes = prompt_notes(item, choice)
         status = "ignored" if choice == "skip" else "done"
         decision = {
             "review_id": item["review_id"],
             "status": status,
             "choice": choice,
             "correct_label": correct_label,
+            "accepted_spans": accepted_spans,
             "notes": notes,
             "reviewer": reviewer,
             "reviewed_at": datetime.now().astimezone().isoformat(timespec="seconds"),

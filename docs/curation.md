@@ -422,15 +422,19 @@ Choices:
 - `g`: accept the displayed gold span.
 - `p`: accept the displayed prediction span.
 - `b`: accept both displayed spans as valid mentions.
-- `n`: neither displayed span is the final correct annotation; enter the correction in notes.
+- `m`: enter manual annotation span(s) with the token-based manual interface.
+- `n`: neither displayed span is a valid mention.
 - `s`: ignore for this pass. Ignored items are audit records and do not block validation.
 - `q`: quit without saving the current item.
 
-Use notes for real corrections, especially boundary corrections. The apply step can parse notes such as:
+Use `m` for real corrections, especially boundary or label corrections. The reviewer prints numbered tokens and accepts the same style as the snippet/span-patch interfaces:
 
 ```text
-13:15 "Agence Wolff" label=org.ent.pressagency.wolff
+13:15 org.ent.pressagency.wolff
+13:Agence 14:Wolff wolff
 ```
+
+Manual corrections are stored as structured token spans in `accepted_spans`. Notes are for comments, not for encoding the final annotation.
 
 ### Validate Decisions
 

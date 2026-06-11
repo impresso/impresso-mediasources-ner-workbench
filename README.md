@@ -148,9 +148,9 @@ Then train the media-source NER model. The default base model in `configs/model-
 make train
 ```
 
-Local Apple MPS training uses memory-conservative defaults: `BATCH=1`, `GRADIENT_ACCUMULATION_STEPS=4`, gradient checkpointing, `OPTIMIZER=adafactor`, and `FREEZE_BASE_MODEL=true`. This trains the token-classification head on top of the adapted encoder. Use `FREEZE_BASE_MODEL=false` only on hardware with enough memory for full-model optimizer updates.
+Local Apple MPS training uses memory-conservative defaults: `BATCH=1`, `GRADIENT_ACCUMULATION_STEPS=4`, gradient checkpointing, `OPTIMIZER=adafactor`, `FREEZE_BASE_MODEL=true`, and `UNFREEZE_TOP_LAYERS=3`. This trains the token-classification head plus the top encoder layers. Use `FREEZE_BASE_MODEL=false` only on hardware with enough memory for full-model optimizer updates.
 
-Validation is run after each epoch for early stopping. The default monitors `entity_f1` with `EARLY_STOPPING_PATIENCE=1` and writes the best checkpoint to `models.d/newsagency_radiostation_modernbert_v2.0.0/best`.
+Validation is run after each epoch for early stopping. The default monitors `entity_f1` with `EARLY_STOPPING_PATIENCE=2` and writes the best checkpoint to `models.d/newsagency_radiostation_modernbert_v2.0.0/best`.
 
 At startup, training prints and writes `training_start_report.json` with the model source, device, optimizer, trainable/frozen parameter counts, batch and window settings, early-stopping configuration, and train/validation dataset summaries. During validation and test evaluation, the trainer prints a compact NER summary with exact entity precision/recall/F1, non-`O` token precision/recall/F1, token accuracy, and the most frequent gold/predicted entity labels. The full metrics and prediction JSONL files are still written under the model output directory.
 
@@ -220,7 +220,7 @@ After validation, apply the reviewed decisions to a new curated JSONL directory:
 make apply-curation
 ```
 
-This writes revised HIPE-derived folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Boundary corrections are parsed from notes such as `13:15 "Agence Wolff" label=org.ent.pressagency.wolff`.
+This writes revised HIPE-derived folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Manual corrections entered with `m` are stored as structured token spans and applied directly.
 
 To inspect the exact ground-truth changes before publishing or retraining, compare the original and curated JSONL files with `git diff --no-index`:
 

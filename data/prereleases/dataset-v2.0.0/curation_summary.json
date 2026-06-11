@@ -1,11 +1,12 @@
 {
-  "applied": 52,
-  "decisions": 52,
-  "disagreements": 52,
-  "input_dir": "data/curated/legacy-import",
+  "applied": 43,
+  "decisions": 89,
+  "disagreements": 43,
+  "input_dir": "data/prereleases/dataset-v2.0.0",
   "missing": 0,
-  "output_dir": "data/curated/legacy-import-curated",
+  "output_dir": "data/prereleases/dataset-v2.0.0",
   "splits": [
+    "train",
     "validation",
     "test"
   ]

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-ALLOWED_CHOICES = {"gold", "prediction", "both", "neither", "skip"}
+ALLOWED_CHOICES = {"gold", "prediction", "both", "manual", "neither", "skip"}
 ALLOWED_STATUSES = {"done", "ignored", "todo"}
 
 
@@ -45,7 +45,7 @@ def validate_decisions(
             errors.append(f"{prefix}: missing review_id")
             continue
         if review_id not in disagreement_ids:
-            errors.append(f"{prefix}: review_id does not exist in current disagreements: {review_id}")
+            continue
 
         status = row.get("status")
         if status not in ALLOWED_STATUSES:
@@ -68,6 +68,8 @@ def validate_decisions(
         selected_entity = disagreement.get(choice) if choice in {"gold", "prediction"} else None
         if choice in {"gold", "prediction"} and selected_entity and not row.get("correct_label"):
             errors.append(f"{prefix}: correct_label is required for choice={choice}")
+        if choice == "manual" and not row.get("accepted_spans"):
+            errors.append(f"{prefix}: accepted_spans is required for choice=manual")
         if choice in {"both", "neither"} and not row.get("notes"):
             errors.append(f"{prefix}: notes are required for choice={choice}")
         if not row.get("reviewer"):

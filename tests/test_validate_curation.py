@@ -18,7 +18,7 @@ def test_validate_decisions_accepts_complete_review() -> None:
     assert validate_decisions(disagreements, decisions, require_complete=True) == []
 
 
-def test_validate_decisions_rejects_incomplete_and_unknown_ids() -> None:
+def test_validate_decisions_ignores_stale_ids_and_rejects_current_errors() -> None:
     disagreements = [
         {"review_id": "validation:doc1:abc"},
         {"review_id": "validation:doc2:def", "prediction": {"label": "org.ent.pressagency.havas"}},
@@ -44,7 +44,7 @@ def test_validate_decisions_rejects_incomplete_and_unknown_ids() -> None:
 
     errors = validate_decisions(disagreements, decisions, require_complete=True)
 
-    assert any("does not exist" in error for error in errors)
+    assert not any("does not exist" in error for error in errors)
     assert any("correct_label is required" in error for error in errors)
     assert any("curation incomplete" in error for error in errors)
 

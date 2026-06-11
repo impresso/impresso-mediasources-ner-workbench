@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from lib.build_curation_review import natural_text
-from lib.import_legacy_hipe_tsv import fill_label_ids, make_label_map, validate_public_row
+from lib.import_legacy_hipe_tsv import make_label_map
 
 
 CORRECTION_RE = re.compile(
@@ -77,6 +77,22 @@ def parse_correction(notes: str) -> Span | None:
     return Span(start, stop, match.group("label"))
 
 
+def spans_from_decision(decision: dict[str, Any]) -> list[Span]:
+    spans = []
+    raw_spans = decision.get("accepted_spans")
+    if not isinstance(raw_spans, list):
+        return spans
+    for raw_span in raw_spans:
+        if not isinstance(raw_span, dict):
+            continue
+        start = int(raw_span["token_start"])
+        stop = int(raw_span["token_stop"])
+        if start >= stop:
+            raise ValueError(f"invalid manual span {start}:{stop}")
+        spans.append(Span(start, stop, str(raw_span["label"])))
+    return spans
+
+
 def entity_to_span(entity: dict[str, Any]) -> Span:
     return Span(int(entity["token_start"]), int(entity["token_stop"]), str(entity["label"]))
 
@@ -104,7 +120,8 @@ def add_span(spans: list[Span], span: Span) -> list[Span]:
 def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, Any]) -> tuple[list[Span], dict[str, Any]]:
     gold = span_from_entity(item.get("gold"))
     prediction = span_from_entity(item.get("prediction"))
-    correction = parse_correction(str(decision.get("notes", "")))
+    manual_spans = spans_from_decision(decision)
+    correction = manual_spans[0] if len(manual_spans) == 1 else parse_correction(str(decision.get("notes", "")))
     choice = decision.get("choice")
     before = sorted(spans, key=lambda span: (span.token_start, span.token_stop, span.label))
     action = "unchanged"
@@ -144,6 +161,13 @@ def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, 
         for target in targets:
             spans = add_span(spans, target)
         action = "kept_both"
+    elif choice == "manual":
+        if not manual_spans:
+            raise ValueError(f"{item['review_id']}: choice=manual but accepted_spans is empty")
+        spans = remove_overlapping(spans, [gold, prediction, *manual_spans])
+        for manual_span in manual_spans:
+            spans = add_span(spans, manual_span)
+        action = "manual_correction"
     elif choice == "skip":
         action = "ignored"
     else:
@@ -160,6 +184,7 @@ def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, 
             "gold": gold.__dict__ if gold else None,
             "prediction": prediction.__dict__ if prediction else None,
             "correction": correction.__dict__ if correction else None,
+            "manual_spans": [span.__dict__ for span in manual_spans],
         },
         "before": [span.__dict__ for span in before],
         "after": [span.__dict__ for span in after],
@@ -210,6 +235,36 @@ def rebuild_row(row: dict[str, Any], spans: list[Span]) -> dict[str, Any]:
     out["token_labels"] = labels
     out["entities"] = entities
     return out
+
+
+def validate_output_row(row: dict[str, Any], label_map: dict[str, Any]) -> None:
+    token_count = len(row["tokens"])
+    for field_name in ["token_start_offsets", "token_end_offsets", "token_labels"]:
+        if len(row[field_name]) != token_count:
+            raise ValueError(f"{row['id']}: {field_name} length does not match tokens")
+    if "token_label_ids" in row and len(row["token_label_ids"]) != token_count:
+        raise ValueError(f"{row['id']}: token_label_ids length does not match tokens")
+    for token, start, stop in zip(row["tokens"], row["token_start_offsets"], row["token_end_offsets"], strict=True):
+        if row["text"][start:stop] != token:
+            raise ValueError(f"{row['id']}: token offset mismatch for {token!r}")
+    label2id = label_map["label2id"]
+    for index, label in enumerate(row["token_labels"]):
+        if label not in label2id:
+            raise ValueError(f"{row['id']}: token label missing from label map: {label}")
+        if "token_label_ids" in row and row["token_label_ids"][index] != label2id[label]:
+            raise ValueError(f"{row['id']}: token_label_ids mismatch")
+        validate_allowed_label(row["id"], label)
+    for entity in row["entities"]:
+        if row["text"][entity["start"] : entity["stop"]] != entity["surface"]:
+            raise ValueError(f"{row['id']}: entity surface mismatch")
+        validate_allowed_label(row["id"], str(entity["label"]))
+
+
+def validate_allowed_label(row_id: str, label: str) -> None:
+    lowered = label.lower()
+    base = lowered[2:] if lowered.startswith(("b-", "i-")) else lowered
+    if base in {"org.ent.pressagency.unk", "org.ent.pressagency.ag", "pers.ind.articleauthor"}:
+        raise ValueError(f"{row_id}: forbidden public label {label}")
 
 
 def entity_family(label: str) -> str:
@@ -267,9 +322,12 @@ def apply_curation(
         all_rows.extend(output_rows)
 
     label_map = make_label_map(all_rows)
-    fill_label_ids(all_rows, label_map)
+    label2id = label_map["label2id"]
     for row in all_rows:
-        validate_public_row(row, label_map)
+        if "token_label_ids" in row:
+            row["token_label_ids"] = [label2id[label] for label in row["token_labels"]]
+    for row in all_rows:
+        validate_output_row(row, label_map)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for split, output_rows in output_rows_by_split.items():
