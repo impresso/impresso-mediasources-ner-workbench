@@ -18,6 +18,7 @@ __pycache__/
 data/candidates/*
 data/curated/*
 data/testset/*
+data/**/tsv/
 
 # Legacy generated roots kept ignored for compatibility with earlier defaults.
 .cache/

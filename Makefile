@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches check-curation-checker sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches check-curation-checker sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -113,6 +113,7 @@ help-dataset:
 	@echo "  make validate-labels                       Validate canonical label metadata"
 	@echo "  make validate-dataset-splits               Check train/validation/test split integrity"
 	@echo "  make sync-label-map                        Derive label_map.json from minimal train/validation/test"
+	@echo "  make materialize-dataset-tsv               Write ignored TOKEN/NERTAG TSV views for diffing"
 	@echo "  make dataset-state                         Summarize staging and configured published dataset state"
 	@echo "  make curation-state-json                   Write $(CURATION_STATE_JSON)"
 	@echo ""
@@ -188,6 +189,23 @@ validate-dataset-splits:
 sync-label-map:
 	@echo "Deriving label_map.json from minimal train/validation/test token_labels."
 	$(PYTHON) -m lib.sync_label_map --input-jsonl "$(TRAIN_JSONL)" --input-jsonl "$(VALIDATION_JSONL)" --input-jsonl "$(TEST_JSONL)" --output "$(LABEL_MAP)" $(ARGS)
+
+materialize-dataset-tsv: $(DATASET_TSV_TRAIN) $(DATASET_TSV_VALIDATION) $(DATASET_TSV_TEST)
+	@echo "Materialized CoNLL-style TSV views under $(DATASET_TSV_DIR)."
+	@echo "Next step:"
+	@echo "  diff -u OLD.tsv NEW.tsv # Compare TOKEN/NERTAG materializations between dataset versions"
+
+$(DATASET_TSV_TRAIN): $(TRAIN_JSONL)
+	@echo "Materializing train JSONL as TOKEN/NERTAG TSV."
+	$(PYTHON) -m lib.materialize_dataset_tsv --input "$<" --output "$@" --split train
+
+$(DATASET_TSV_VALIDATION): $(VALIDATION_JSONL)
+	@echo "Materializing validation JSONL as TOKEN/NERTAG TSV."
+	$(PYTHON) -m lib.materialize_dataset_tsv --input "$<" --output "$@" --split validation
+
+$(DATASET_TSV_TEST): $(TEST_JSONL)
+	@echo "Materializing test JSONL as TOKEN/NERTAG TSV."
+	$(PYTHON) -m lib.materialize_dataset_tsv --input "$<" --output "$@" --split test
 
 annotation-stats:
 	@echo "Summarizing annotation coverage by label and language across train/validation/test and snippet splits."
