@@ -109,14 +109,18 @@ def snippet_family_state(
     reviewed: Path,
     decisions: Path,
     train_jsonl: Path,
+    validation_jsonl: Path,
     test_jsonl: Path,
 ) -> dict[str, Any]:
     candidate_rows = count_jsonl(candidates)
     scored_rows = jsonl_rows(scored)
     reviewed_rows = jsonl_rows(reviewed)
     sample_summary_data = safe_load_json(sample_summary)
-    exported_train = training_counts(train_jsonl)
-    exported_test = training_counts(test_jsonl)
+    split_train = training_counts(train_jsonl)
+    split_validation = training_counts(validation_jsonl)
+    split_test = training_counts(test_jsonl)
+    split_rows = split_train["rows"] + split_validation["rows"] + split_test["rows"]
+    split_entities = split_train["entities"] + split_validation["entities"] + split_test["entities"]
     return {
         "family": family,
         "candidates": {**path_state(candidates), "rows": candidate_rows},
@@ -137,11 +141,19 @@ def snippet_family_state(
             **span_counts(reviewed_rows),
         },
         "decisions": {**path_state(decisions), "rows": count_jsonl(decisions)},
+        "split": {
+            "train": split_train,
+            "validation": split_validation,
+            "test": split_test,
+            "total_rows": split_rows,
+            "total_entities": split_entities,
+        },
         "exported": {
-            "train": exported_train,
-            "test": exported_test,
-            "total_rows": exported_train["rows"] + exported_test["rows"],
-            "total_entities": exported_train["entities"] + exported_test["entities"],
+            "train": split_train,
+            "validation": split_validation,
+            "test": split_test,
+            "total_rows": split_rows,
+            "total_entities": split_entities,
         },
     }
 
@@ -214,6 +226,7 @@ def build_state(args: argparse.Namespace) -> dict[str, Any]:
             reviewed=Path(args.newsagency_reviewed_snippets),
             decisions=Path(args.newsagency_snippet_decisions),
             train_jsonl=Path(args.newsagency_snippet_train_jsonl),
+            validation_jsonl=Path(args.newsagency_snippet_validation_jsonl),
             test_jsonl=Path(args.newsagency_snippet_test_jsonl),
         ),
         "radiostations": snippet_family_state(
@@ -224,6 +237,7 @@ def build_state(args: argparse.Namespace) -> dict[str, Any]:
             reviewed=Path(args.radiostation_reviewed_snippets),
             decisions=Path(args.radiostation_snippet_decisions),
             train_jsonl=Path(args.radiostation_snippet_train_jsonl),
+            validation_jsonl=Path(args.radiostation_snippet_validation_jsonl),
             test_jsonl=Path(args.radiostation_snippet_test_jsonl),
         ),
     }
@@ -243,20 +257,20 @@ def fmt_count(value: Any) -> str:
 
 def print_snippet_state(state: dict[str, Any]) -> None:
     print("Snippet curation")
-    print("family          candidates  scored  reviewed  decisions  exported  entities  statuses")
+    print("family          sampled  suggested  reviewed  decisions  split_rows  split_entities  statuses")
     print("-" * 92)
     for family, item in state["snippets"].items():
-        exported = item["exported"]
+        split = item.get("split") or item["exported"]
         statuses = item["reviewed"]["statuses"] or item["scored"]["statuses"]
         status_text = ", ".join(f"{key}={value}" for key, value in statuses.items()) or "-"
         print(
             f"{family:<14}  "
-            f"{item['candidates']['rows']:>10}  "
-            f"{item['scored']['rows']:>6}  "
+            f"{item['candidates']['rows']:>7}  "
+            f"{item['scored']['rows']:>9}  "
             f"{item['reviewed']['rows']:>8}  "
             f"{item['decisions']['rows']:>9}  "
-            f"{exported['total_rows']:>8}  "
-            f"{exported['total_entities']:>8}  "
+            f"{split['total_rows']:>10}  "
+            f"{split['total_entities']:>14}  "
             f"{status_text}"
         )
 
@@ -333,6 +347,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--newsagency-reviewed-snippets", default="data/curated/snippets/newsagencies/reviewed.jsonl")
     parser.add_argument("--newsagency-snippet-decisions", default="data/curated/snippets/newsagencies/decisions.jsonl")
     parser.add_argument("--newsagency-snippet-train-jsonl", default="data/curated/snippets/newsagencies/train.jsonl")
+    parser.add_argument("--newsagency-snippet-validation-jsonl", default="data/curated/snippets/newsagencies/validation.jsonl")
     parser.add_argument("--newsagency-snippet-test-jsonl", default="data/curated/snippets/newsagencies/test.jsonl")
     parser.add_argument("--radiostation-snippets", default="data/candidates/radiostation_search_snippets.jsonl")
     parser.add_argument("--radiostation-snippet-summary", default="data/candidates/radiostation_search_snippets_summary.json")
@@ -340,6 +355,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--radiostation-reviewed-snippets", default="data/curated/snippets/radiostations/reviewed.jsonl")
     parser.add_argument("--radiostation-snippet-decisions", default="data/curated/snippets/radiostations/decisions.jsonl")
     parser.add_argument("--radiostation-snippet-train-jsonl", default="data/curated/snippets/radiostations/train.jsonl")
+    parser.add_argument("--radiostation-snippet-validation-jsonl", default="data/curated/snippets/radiostations/validation.jsonl")
     parser.add_argument("--radiostation-snippet-test-jsonl", default="data/curated/snippets/radiostations/test.jsonl")
     return parser.parse_args(argv)
 

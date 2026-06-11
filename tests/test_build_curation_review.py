@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from lib.build_curation_review import build_disagreements, context, selected_split_inputs, stable_review_id, summarize
+from lib.build_curation_review import (
+    build_disagreements,
+    context,
+    parse_args,
+    selected_split_inputs,
+    stable_review_id,
+    summarize,
+)
 
 
 def test_build_disagreements_groups_overlap_and_extra_prediction() -> None:
@@ -113,6 +120,8 @@ def test_context_uses_natural_text_offsets_without_synthetic_spaces() -> None:
 def test_selected_split_inputs_accepts_test_only() -> None:
     args = argparse.Namespace(
         splits="test",
+        train_jsonl="",
+        train_predictions="",
         validation_jsonl="",
         validation_predictions="",
         test_jsonl="test.jsonl",
@@ -122,9 +131,25 @@ def test_selected_split_inputs_accepts_test_only() -> None:
     assert selected_split_inputs(args) == [("test", Path("test.jsonl"), Path("test_predictions.jsonl"))]
 
 
+def test_selected_split_inputs_accepts_train_only() -> None:
+    args = argparse.Namespace(
+        splits="train",
+        train_jsonl="train.jsonl",
+        train_predictions="train_predictions.jsonl",
+        validation_jsonl="",
+        validation_predictions="",
+        test_jsonl="",
+        test_predictions="",
+    )
+
+    assert selected_split_inputs(args) == [("train", Path("train.jsonl"), Path("train_predictions.jsonl"))]
+
+
 def test_selected_split_inputs_requires_requested_paths() -> None:
     args = argparse.Namespace(
         splits="validation",
+        train_jsonl="train.jsonl",
+        train_predictions="train_predictions.jsonl",
         validation_jsonl="",
         validation_predictions="",
         test_jsonl="test.jsonl",
@@ -133,3 +158,9 @@ def test_selected_split_inputs_requires_requested_paths() -> None:
 
     with pytest.raises(ValueError, match="validation requires"):
         selected_split_inputs(args)
+
+
+def test_parse_args_defaults_to_all_dataset_splits() -> None:
+    args = parse_args(["--output-dir", "review"])
+
+    assert args.splits == "train validation test"

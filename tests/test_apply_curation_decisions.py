@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from lib.apply_curation_decisions import apply_curation, parse_correction
+from lib.apply_curation_decisions import apply_curation, parse_args, parse_correction
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -83,6 +83,23 @@ def test_parse_correction_span() -> None:
     assert correction.token_start == 13
     assert correction.token_stop == 15
     assert correction.label == "org.ent.pressagency.wolff"
+
+
+def test_apply_curation_defaults_to_all_dataset_splits() -> None:
+    args = parse_args(
+        [
+            "--input-dir",
+            "input",
+            "--output-dir",
+            "output",
+            "--disagreements",
+            "disagreements.jsonl",
+            "--decisions",
+            "decisions.jsonl",
+        ]
+    )
+
+    assert args.splits == "train validation test"
 
 
 def test_apply_prediction_correction_adds_entity(tmp_path: Path) -> None:

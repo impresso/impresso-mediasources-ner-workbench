@@ -11,12 +11,14 @@ def test_curation_state_counts_snippet_pipeline(tmp_path: Path) -> None:
     news_reviewed = tmp_path / "news_reviewed.jsonl"
     news_decisions = tmp_path / "news_decisions.jsonl"
     news_train = tmp_path / "news_train.jsonl"
+    news_validation = tmp_path / "news_validation.jsonl"
     news_test = tmp_path / "news_test.jsonl"
     radio_candidates = tmp_path / "radio_candidates.jsonl"
     radio_scored = tmp_path / "radio_scored.jsonl"
     radio_reviewed = tmp_path / "radio_reviewed.jsonl"
     radio_decisions = tmp_path / "radio_decisions.jsonl"
     radio_train = tmp_path / "radio_train.jsonl"
+    radio_validation = tmp_path / "radio_validation.jsonl"
     radio_test = tmp_path / "radio_test.jsonl"
 
     write_jsonl(news_candidates, [{"id": "n1"}, {"id": "n2"}])
@@ -54,12 +56,23 @@ def test_curation_state_counts_snippet_pipeline(tmp_path: Path) -> None:
             }
         ],
     )
+    write_jsonl(
+        news_validation,
+        [
+            {
+                "id": "n3",
+                "tokens": ["Reuters"],
+                "entities": [{"label": "org.ent.pressagency.reuters"}],
+            }
+        ],
+    )
     write_jsonl(news_test, [])
     write_jsonl(radio_candidates, [{"id": "r1"}])
     write_jsonl(radio_scored, [{"id": "r1", "curation": {"status": "needs_review"}, "model": {"predicted_spans": []}}])
     write_jsonl(radio_reviewed, [])
     write_jsonl(radio_decisions, [])
     write_jsonl(radio_train, [])
+    write_jsonl(radio_validation, [])
     write_jsonl(radio_test, [])
 
     args = parse_args(
@@ -74,6 +87,8 @@ def test_curation_state_counts_snippet_pipeline(tmp_path: Path) -> None:
             str(news_decisions),
             "--newsagency-snippet-train-jsonl",
             str(news_train),
+            "--newsagency-snippet-validation-jsonl",
+            str(news_validation),
             "--newsagency-snippet-test-jsonl",
             str(news_test),
             "--radiostation-snippets",
@@ -86,6 +101,8 @@ def test_curation_state_counts_snippet_pipeline(tmp_path: Path) -> None:
             str(radio_decisions),
             "--radiostation-snippet-train-jsonl",
             str(radio_train),
+            "--radiostation-snippet-validation-jsonl",
+            str(radio_validation),
             "--radiostation-snippet-test-jsonl",
             str(radio_test),
             "--dataset-output-dir",
@@ -107,8 +124,10 @@ def test_curation_state_counts_snippet_pipeline(tmp_path: Path) -> None:
     assert news["scored"]["statuses"] == {"auto_accepted": 1, "needs_review": 1}
     assert news["reviewed"]["statuses"] == {"accepted": 1}
     assert news["decisions"]["rows"] == 1
-    assert news["exported"]["total_rows"] == 1
-    assert news["exported"]["total_entities"] == 1
+    assert news["split"]["total_rows"] == 2
+    assert news["split"]["total_entities"] == 2
+    assert news["exported"]["total_rows"] == 2
+    assert news["exported"]["total_entities"] == 2
     assert radio["candidates"]["rows"] == 1
     assert radio["scored"]["statuses"] == {"needs_review": 1}
 

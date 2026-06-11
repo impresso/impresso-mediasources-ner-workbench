@@ -345,7 +345,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--disagreements", required=True)
     parser.add_argument("--decisions", required=True)
-    parser.add_argument("--splits", default="validation test")
+    parser.add_argument("--splits", default="train validation test")
     parser.add_argument("--require-complete", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args(argv)
 

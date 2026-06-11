@@ -256,6 +256,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build manual curation review JSONL from evaluation predictions.")
+    parser.add_argument("--train-jsonl", default="")
+    parser.add_argument("--train-predictions", default="")
     parser.add_argument("--validation-jsonl", default="")
     parser.add_argument("--validation-predictions", default="")
     parser.add_argument("--test-jsonl", default="")
@@ -264,12 +266,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--decisions-jsonl", default="")
     parser.add_argument("--languages", default="de fr")
     parser.add_argument("--context-radius", type=int, default=20)
-    parser.add_argument("--splits", default="validation test", help='Whitespace-separated subset, e.g. "validation" or "test".')
+    parser.add_argument("--splits", default="train validation test", help='Whitespace-separated subset, e.g. "train", "validation", or "test".')
     return parser.parse_args(argv)
 
 
 def selected_split_inputs(args: argparse.Namespace) -> list[tuple[str, Path, Path]]:
     available = {
+        "train": (args.train_jsonl, args.train_predictions),
         "validation": (args.validation_jsonl, args.validation_predictions),
         "test": (args.test_jsonl, args.test_predictions),
     }
