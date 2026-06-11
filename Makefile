@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning help-review smoke clean clean-dry-run clean-all-data validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state legacy-curation-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans refresh-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches refresh-span-patches annotate-newsagency-snippets annotate-radio-snippets sample-newsagency-snippets sample-needed-newsagency-snippets sample-needed-newsagencies sample-freely-newsagency-snippets sample-newsagencies sample-radio-snippets sample-needed-radio-snippets sample-needed-radiostations sample-freely-radio-snippets sample-radio sample-radiostations curate import-legacy-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test curate-legacy-eval curate-legacy-train curate-legacy-validation curate-legacy-test build-newsagency-snippets-from-legacy suggest-newsagency-snippet-spans score-newsagency-snippets review-newsagency-snippet-spans review-newsagency-snippets split-newsagency-snippets export-newsagency-snippets suggest-radio-snippet-spans suggest-radiostation-snippet-spans score-radiostation-snippets review-radio-snippet-spans review-radiostation-snippet-spans review-radiostation-spans split-radio-snippets split-radiostation-snippets export-radiostation-snippets preview-promote-snippets preview-snippet-merge snippet-promotion-status promote-snippets merge-snippets refresh-snippet-dataset refresh-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test build-newsagency-snippets-from-hipe suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -30,7 +30,7 @@ help:
 	@echo "  PYTHON=$(PYTHON)"
 	@echo "  ARGS=$(ARGS)"
 
-help-annotation help-review:
+help-annotation:
 	@echo "Annotation and curation targets"
 	@echo ""
 	@echo "Use this group for curator work: inspect state, sample or audit evidence, suggest spans, review decisions, split/apply reviewed material, and promote it into dataset splits."
@@ -41,7 +41,7 @@ help-annotation help-review:
 	@echo "  make mention-profiles                        Generate empirical entity mention-surface profiles"
 	@echo "  make curation-state                          Summarize all curation and dataset state"
 	@echo "  make snippet-state                           Summarize snippet sampling/suggestion/review/split state"
-	@echo "  make legacy-curation-state                   Summarize HIPE-derived disagreement curation state"
+	@echo "  make eval-disagreement-state                 Summarize evaluation disagreement curation state"
 	@echo ""
 	@echo "Audit-driven span patches:"
 	@echo "  make audit-empty-training-docs                Score empty-gold training docs for suspicious missed spans"
@@ -49,39 +49,40 @@ help-annotation help-review:
 	@echo "  make review-existing-spans                    Verify/correct/remove existing span boundaries"
 	@echo "  make apply-existing-spans                     Apply existing-span boundary decisions to a patched split"
 	@echo "  make promote-existing-spans                   Promote existing-span patched output into the source split"
-	@echo "  make refresh-existing-spans                   Apply existing-span decisions, then promote the patched split"
+	@echo "  make integrate-existing-spans                 Apply existing-span decisions, then promote the patched split"
 	@echo "  make review-span-patches                      Review audit-suggested span patches"
 	@echo "  make apply-span-patches                       Apply accepted/corrected span patches to JSONL"
 	@echo "  make span-patch-status                        Compare patched output with the configured promotion target"
 	@echo "  make promote-span-patches                     Promote patched output into the prerelease/source split"
-	@echo "  make refresh-span-patches                     Apply span-patch decisions, then promote the patched split"
+	@echo "  make integrate-span-patches                   Apply span-patch decisions, then promote the patched split"
 	@echo ""
 	@echo "Evaluation disagreement annotation:"
-	@echo "  make curate-legacy-eval                       Score train/dev/test and build review queue"
-	@echo "  make curate-legacy-train                      Score train only"
-	@echo "  make curate-legacy-validation                 Score validation only"
-	@echo "  make curate-legacy-test                       Score test only"
+	@echo "  make suggest-eval-disagreements               Score train/validation/test and build review queue"
+	@echo "  make suggest-eval-disagreements-train         Score train only"
+	@echo "  make suggest-eval-disagreements-validation    Score validation only"
+	@echo "  make suggest-eval-disagreements-test          Score test only"
 	@echo "  make review-curation                          Review pending gold/prediction disagreements"
 	@echo "  make validate-curation                        Validate curation decisions"
 	@echo "  make apply-curation                           Write curated JSONL folds"
 	@echo ""
 	@echo "News-agency snippet annotation:"
-	@echo "  make annotate-newsagency-snippets           Run full cycle: stats, sample, suggest, review, split, promote"
 	@echo "  make sample-newsagency-snippets             Sample label/language buckets below target"
-	@echo "  make build-newsagency-snippets-from-legacy   Bootstrap snippet candidates from legacy JSONL"
+	@echo "  make build-newsagency-snippets-from-hipe     Bootstrap snippet candidates from HIPE-derived JSONL"
 	@echo "  make suggest-newsagency-snippet-spans        Suggest spans: model for trained labels, patterns for new labels"
 	@echo "  make review-newsagency-snippet-spans         Review uncertain snippet spans; press i for label info"
 	@echo "  make split-newsagency-snippets               Split accepted snippets into train/validation/test JSONL"
 	@echo "  make preview-promote-snippets                Preview promotion into configured dataset splits"
 	@echo "  make promote-snippets                        Promote split snippets into configured dataset splits"
-	@echo "  make refresh-snippet-dataset                 Split reviewed snippets, then promote them into dataset splits"
+	@echo "  make integrate-snippets                      Split, preview, then promote reviewed snippets"
 	@echo ""
 	@echo "Radio snippet annotation:"
-	@echo "  make annotate-radio-snippets                Run full cycle: stats, sample, suggest, review, split, promote"
 	@echo "  make sample-radio-snippets                   Sample radio label/language buckets below target"
 	@echo "  make suggest-radio-snippet-spans             Suggest spans: model for trained labels, patterns for new radio labels"
 	@echo "  make review-radio-snippet-spans              Review radio span suggestions"
 	@echo "  make split-radio-snippets                    Split accepted radio spans into train/validation/test JSONL"
+	@echo "  make preview-promote-snippets                Preview promotion into configured dataset splits"
+	@echo "  make promote-snippets                        Promote split snippets into configured dataset splits"
+	@echo "  make integrate-snippets                      Split, preview, then promote reviewed snippets"
 	@echo ""
 	@echo "Useful overrides:"
 	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., NEWSAGENCY_LEGACY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
@@ -103,7 +104,7 @@ help-dataset:
 	@echo "  make curation-state-json                   Write $(CURATION_STATE_JSON)"
 	@echo ""
 	@echo "Import, export, publish:"
-	@echo "  make import-legacy-hipe ARGS=...           Convert legacy HIPE TSV annotations to JSONL"
+	@echo "  make import-hipe ARGS=...                  Convert HIPE TSV annotations to JSONL"
 	@echo "  make export-dataset                        Export curated JSONL training data"
 	@echo "  make publish-dataset ARGS=...              Publish or dry-run training dataset"
 	@echo "  make publish-testset ARGS=...              Publish or dry-run testset"
@@ -111,7 +112,6 @@ help-dataset:
 	@echo "Cleanup:"
 	@echo "  make clean-dry-run                         Preview ignored/generated local data cleanup"
 	@echo "  make clean                                 Remove ignored/generated local data; keep data/releases"
-	@echo "  make clean-all-data                        Alias for clean; release snapshots are still preserved"
 
 help-model:
 	@echo "Model targets"
@@ -164,8 +164,6 @@ clean-dry-run:
 	@echo "Previewing ignored/generated local data that clean would remove."
 	$(PYTHON) -m lib.clean_workbench --dry-run
 
-clean-all-data: clean
-
 validate-labels:
 	@echo "Validating canonical news-agency and radio-station label metadata."
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json
@@ -183,12 +181,12 @@ mention-profiles:
 	$(PYTHON) -m lib.entity_mention_profiles $(foreach input,$(MENTION_PROFILE_JSONL),--input-jsonl "$(input)") --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --top-n "$(MENTION_PROFILE_TOP_N)" --json-output "$(MENTION_PROFILE_JSON)" --tsv-output "$(MENTION_PROFILE_TSV)" --md-output "$(MENTION_PROFILE_MD)" $(ARGS)
 
 curation-dashboard:
-	@echo "Running the read-only curation dashboard: coverage, profiles, curation state, snippet state, legacy state, and dataset state."
+	@echo "Running the read-only curation dashboard: coverage, profiles, curation state, snippet state, disagreement state, and dataset state."
 	$(MAKE) annotation-stats
 	$(MAKE) mention-profiles
 	$(MAKE) curation-state
 	$(MAKE) snippet-state
-	$(MAKE) legacy-curation-state
+	$(MAKE) eval-disagreement-state
 	$(MAKE) dataset-state
 
 curation-state:
@@ -207,7 +205,7 @@ dataset-state:
 	@echo "Summarizing configured dataset source, staging, and publication state."
 	$(PYTHON) -m lib.curation_state --section dataset --dataset "$(DATASET)" --dataset-revision "$(DATASET_REVISION)" --dataset-source-dir "$(DATASET_SOURCE_DIR)" --dataset-output-dir "$(DATASET_OUTPUT_DIR)" $(ARGS)
 
-legacy-curation-state:
+eval-disagreement-state:
 	@echo "Summarizing HIPE-derived evaluation disagreement curation state."
 	$(PYTHON) -m lib.curation_state --section legacy --curation-output-dir "$(CURATION_OUTPUT_DIR)" --curation-input-dir "$(CURATION_INPUT_DIR)" --curation-applied-dir "$(CURATION_APPLIED_DIR)" $(ARGS)
 
@@ -249,7 +247,7 @@ promote-existing-spans:
 	@echo "Promoting $(SPAN_BOUNDARY_OUTPUT_JSONL) -> $(SPAN_BOUNDARY_PROMOTE_JSONL)"
 	cp "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"
 
-refresh-existing-spans: apply-existing-spans promote-existing-spans
+integrate-existing-spans: apply-existing-spans promote-existing-spans
 
 review-span-patches:
 	@echo "Reviewing audit-suggested span patches and writing append-only decisions."
@@ -276,41 +274,21 @@ promote-span-patches:
 	@echo "Promoting $(SPAN_PATCH_OUTPUT_JSONL) -> $(SPAN_PATCH_PROMOTE_JSONL)"
 	cp "$(SPAN_PATCH_OUTPUT_JSONL)" "$(SPAN_PATCH_PROMOTE_JSONL)"
 
-refresh-span-patches: apply-span-patches promote-span-patches
+integrate-span-patches: apply-span-patches promote-span-patches
 
-annotate-newsagency-snippets:
-	@echo "Running the full news-agency snippet annotation cycle: stats, sample, suggest, review, split, preview, promote."
-	$(MAKE) annotation-stats
-	$(MAKE) sample-newsagency-snippets
-	$(MAKE) suggest-newsagency-snippet-spans
-	$(MAKE) review-newsagency-snippet-spans
-	$(MAKE) split-newsagency-snippets
-	$(MAKE) preview-promote-snippets
-	$(MAKE) promote-snippets
-
-annotate-radio-snippets:
-	@echo "Running the full radio snippet annotation cycle: stats, sample, suggest, review, split, preview, promote."
-	$(MAKE) annotation-stats
-	$(MAKE) sample-radio-snippets
-	$(MAKE) suggest-radio-snippet-spans
-	$(MAKE) review-radio-snippet-spans
-	$(MAKE) split-radio-snippets
-	$(MAKE) preview-promote-snippets
-	$(MAKE) promote-snippets
-
-sample-freely-newsagency-snippets sample-newsagencies:
+sample-freely-newsagency-snippets:
 	@echo "Sampling news-agency snippets freely, without restricting to below-target coverage buckets."
 	$(PYTHON) -m lib.sample_newsagencies --seeds "$(NEWSAGENCY_LABEL_METADATA)" --out "$(NEWSAGENCY_SNIPPETS)" --summary-out "$(NEWSAGENCY_SNIPPET_SUMMARY)" --languages $(NEWSAGENCY_SAMPLE_LANGS) --target-per-query-lang "$(NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(NEWSAGENCY_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(NEWSAGENCY_SAMPLE_YEAR_START)" --year-end "$(NEWSAGENCY_SAMPLE_YEAR_END)" --context-source "$(NEWSAGENCY_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(NEWSAGENCY_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
 
-sample-newsagency-snippets sample-needed-newsagency-snippets sample-needed-newsagencies:
+sample-newsagency-snippets:
 	@echo "Sampling news-agency snippets for label/language coverage buckets below target."
 	$(PYTHON) -m lib.sample_newsagencies --seeds "$(NEWSAGENCY_LABEL_METADATA)" --out "$(NEWSAGENCY_SNIPPETS)" --summary-out "$(NEWSAGENCY_SNIPPET_SUMMARY)" --languages $(NEWSAGENCY_SAMPLE_LANGS) --target-per-query-lang "$(NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(NEWSAGENCY_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(NEWSAGENCY_SAMPLE_YEAR_START)" --year-end "$(NEWSAGENCY_SAMPLE_YEAR_END)" --context-source "$(NEWSAGENCY_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(NEWSAGENCY_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
 
-sample-freely-radio-snippets sample-radio sample-radiostations:
+sample-freely-radio-snippets:
 	@echo "Sampling radio-station snippets freely, without restricting to below-target coverage buckets."
 	$(PYTHON) -m lib.sample_radiostations --seeds "$(RADIOSTATION_LABEL_METADATA)" --out "$(RADIOSTATION_SNIPPETS)" --summary-out "$(RADIOSTATION_SNIPPET_SUMMARY)" --languages $(RADIOSTATION_SAMPLE_LANGS) --target-per-query-lang "$(RADIOSTATION_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(RADIOSTATION_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(RADIOSTATION_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(RADIOSTATION_SAMPLE_YEAR_START)" --year-end "$(RADIOSTATION_SAMPLE_YEAR_END)" --context-source "$(RADIOSTATION_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(RADIOSTATION_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
 
-sample-radio-snippets sample-needed-radio-snippets sample-needed-radiostations:
+sample-radio-snippets:
 	@echo "Sampling radio-station snippets for label/language coverage buckets below target."
 	$(PYTHON) -m lib.sample_radiostations --seeds "$(RADIOSTATION_LABEL_METADATA)" --out "$(RADIOSTATION_SNIPPETS)" --summary-out "$(RADIOSTATION_SNIPPET_SUMMARY)" --languages $(RADIOSTATION_SAMPLE_LANGS) --target-per-query-lang "$(RADIOSTATION_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(RADIOSTATION_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(RADIOSTATION_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(RADIOSTATION_SAMPLE_YEAR_START)" --year-end "$(RADIOSTATION_SAMPLE_YEAR_END)" --context-source "$(RADIOSTATION_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(RADIOSTATION_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
 
@@ -318,8 +296,8 @@ curate:
 	@echo "Running the generic candidate curation command with ARGS."
 	$(PYTHON) -m lib.curate_candidates $(ARGS)
 
-import-legacy-hipe:
-	@echo "Converting legacy HIPE TSV annotations into JSONL workbench data."
+import-hipe:
+	@echo "Converting HIPE TSV annotations into JSONL workbench data."
 	$(PYTHON) -m lib.import_legacy_hipe_tsv $(ARGS)
 
 export-dataset:
@@ -398,51 +376,56 @@ curation-review-test:
 	@echo "Building the test disagreement review queue from evaluation predictions."
 	$(PYTHON) -m lib.build_curation_review --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "test" $(ARGS)
 
-curate-legacy-eval: curation-eval curation-review
+suggest-eval-disagreements: curation-eval curation-review
 
-curate-legacy-train: curation-eval-train curation-review-train
+suggest-eval-disagreements-train: curation-eval-train curation-review-train
 
-curate-legacy-validation: curation-eval-validation curation-review-validation
+suggest-eval-disagreements-validation: curation-eval-validation curation-review-validation
 
-curate-legacy-test: curation-eval-test curation-review-test
+suggest-eval-disagreements-test: curation-eval-test curation-review-test
 
-build-newsagency-snippets-from-legacy:
+build-newsagency-snippets-from-hipe:
 	@echo "Building bootstrap news-agency snippet candidates from existing JSONL splits."
 	$(PYTHON) -m lib.build_newsagency_snippets --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/train.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/validation.jsonl" --input "$(NEWSAGENCY_SNIPPET_SOURCE_DIR)/test.jsonl" --output "$(NEWSAGENCY_LEGACY_SNIPPETS)" --context-radius "$(NEWSAGENCY_SNIPPET_CONTEXT_RADIUS)" --limit "$(NEWSAGENCY_SNIPPET_LIMIT)" $(ARGS)
 
-suggest-newsagency-snippet-spans score-newsagency-snippets:
+suggest-newsagency-snippet-spans:
 	@echo "Suggesting snippet spans: use the configured model for labels it was trained on, and seed/pattern matching for newer labels."
 	$(PYTHON) -m lib.score_newsagency_snippets --input "$(NEWSAGENCY_SNIPPETS)" --output "$(NEWSAGENCY_SCORED_SNIPPETS)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
 
-review-newsagency-snippet-spans review-newsagency-snippets:
+review-newsagency-snippet-spans:
 	@echo "Reviewing news-agency snippet span suggestions and writing append-only decisions."
 	$(PYTHON) -m lib.review_newsagency_snippets --input "$(NEWSAGENCY_SCORED_SNIPPETS)" --output "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 
-split-newsagency-snippets export-newsagency-snippets:
+split-newsagency-snippets:
 	@echo "Splitting accepted news-agency snippet decisions into train/validation/test JSONL."
 	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --validation-output "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --test-output "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
 
-suggest-radio-snippet-spans suggest-radiostation-snippet-spans score-radiostation-snippets:
+suggest-radio-snippet-spans:
 	@echo "Suggesting radio snippet spans: use the configured model for trained media labels, and radio seed/pattern matching for new radio labels."
 	$(PYTHON) -m lib.score_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --output "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" $(ARGS)
 
-review-radio-snippet-spans review-radiostation-snippet-spans review-radiostation-spans:
+review-radio-snippet-spans:
 	@echo "Reviewing radio-station snippet span suggestions and writing append-only decisions."
 	$(PYTHON) -m lib.review_newsagency_snippets --input "$(RADIOSTATION_SCORED_SNIPPETS)" --output "$(RADIOSTATION_REVIEWED_SNIPPETS)" --decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --review-prefix "radiostation-span" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 
-split-radio-snippets split-radiostation-snippets export-radiostation-snippets:
+split-radio-snippets:
 	@echo "Splitting accepted radio-station snippet decisions into train/validation/test JSONL."
 	$(PYTHON) -m lib.export_snippet_training_data --input "$(RADIOSTATION_REVIEWED_SNIPPETS)" --output "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --validation-output "$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --test-output "$(RADIOSTATION_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
 
-preview-promote-snippets preview-snippet-merge snippet-promotion-status:
+preview-promote-snippets:
 	@echo "Previewing promotion of split snippet rows into the configured dataset splits."
 	$(PYTHON) -m lib.promote_snippet_splits --dry-run --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 
-promote-snippets merge-snippets:
+promote-snippets:
 	@echo "Promoting split snippet rows into the configured dataset splits."
 	$(PYTHON) -m lib.promote_snippet_splits --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 
-refresh-snippet-dataset refresh-snippets: split-newsagency-snippets split-radio-snippets promote-snippets
+integrate-snippets:
+	@echo "Integrating reviewed snippets: split news-agency and radio decisions, preview promotion, then promote."
+	$(MAKE) split-newsagency-snippets
+	$(MAKE) split-radio-snippets
+	$(MAKE) preview-promote-snippets
+	$(MAKE) promote-snippets
 
 review-curation:
 	@echo "Reviewing pending gold-vs-prediction disagreement items in the terminal."

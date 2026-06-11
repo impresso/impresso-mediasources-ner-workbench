@@ -2,7 +2,7 @@
 
 This document gives a compact view of the main workbench activities. The workbench is the control plane: it creates and curates local JSONL artifacts, trains/evaluates models, and stages published Hugging Face dataset and model repositories.
 
-In diagrams and prose, **HIPE-derived data** means the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. This data is still an active baseline training and evaluation source. Some local paths and commands keep the historical `legacy-*` name for compatibility.
+In diagrams and prose, **HIPE-derived data** means the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. This data is still an active baseline training and evaluation source. Some local paths still use `legacy` because they describe retained import provenance, not obsolete data.
 
 ## Dataset Extension Axes
 
@@ -81,7 +81,7 @@ flowchart TD
 flowchart TD
   A[HIPE TSV or curated HIPE-derived JSONL] --> B[Import or apply corrections]
   B --> C[Curated HIPE-derived JSONL]
-  D[Reviewed sampled spans] --> E[Snippet-derived train/test JSONL]
+  D[Reviewed sampled spans] --> E[Snippet-derived train/validation/test JSONL]
   C --> F[Dataset export]
   E --> F
   F --> G[Staged HF dataset directory]
@@ -92,10 +92,10 @@ flowchart TD
 Primary commands:
 
 ```bash
-make import-legacy-hipe ARGS="..."
+make import-hipe ARGS="..."
 make apply-curation CFG=configs/model-v2.0.0.mk
-make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make split-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make split-radio-snippets CFG=configs/model-v2.0.0.mk
 make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--dry-run"
 ```
 
@@ -124,7 +124,7 @@ make span-patch-status CFG=configs/model-v2.0.0.mk
 make promote-span-patches CFG=configs/model-v2.0.0.mk
 ```
 
-Use `make refresh-span-patches CFG=configs/model-v2.0.0.mk` when you want to apply accepted decisions and immediately promote the patched split into the configured prerelease/source split.
+Use `make integrate-span-patches CFG=configs/model-v2.0.0.mk` when you want to apply accepted decisions and immediately promote the patched split into the configured prerelease/source split.
 
 For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 
@@ -171,27 +171,27 @@ flowchart TD
   H -->|needs_review| J[Terminal span review]
   J --> I
   J --> K[Rejected, skipped, or removed audit rows]
-  I --> L[Export train/test JSONL]
-  L --> M[Promote exported snippets into prerelease splits]
+  I --> L[Split train/validation/test JSONL]
+  L --> M[Promote split snippets into prerelease splits]
 ```
 
 Primary commands:
 
 ```bash
-make sample-newsagencies CFG=configs/model-v2.0.0.mk
-make score-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make review-newsagency-snippets CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make sample-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make suggest-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk
+make review-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make split-newsagency-snippets CFG=configs/model-v2.0.0.mk
 
-make sample-radiostations CFG=configs/model-v2.0.0.mk
-make score-radiostation-snippets CFG=configs/model-v2.0.0.mk
-make review-radiostation-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
-make snippet-promotion-status CFG=configs/model-v2.0.0.mk
+make sample-radio-snippets CFG=configs/model-v2.0.0.mk
+make suggest-radio-snippet-spans CFG=configs/model-v2.0.0.mk
+make review-radio-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make split-radio-snippets CFG=configs/model-v2.0.0.mk
+make preview-promote-snippets CFG=configs/model-v2.0.0.mk
 make promote-snippets CFG=configs/model-v2.0.0.mk
 ```
 
-Use `make refresh-snippets CFG=configs/model-v2.0.0.mk` when reviewed snippet files are current and you want to export both entity families and promote the exported train/test rows into the configured dataset splits. Promotion is idempotent by `document_id`: existing rows with the same ID are replaced, new rows are appended, and the split is sorted again.
+Use `make integrate-snippets CFG=configs/model-v2.0.0.mk` when reviewed snippet files are current and you want to split both entity families, preview promotion, and promote the split train/validation/test rows into the configured dataset splits. Promotion is idempotent by `document_id`: existing rows with the same ID are replaced, new rows are appended, and the split is sorted again.
 
 ## Correct HIPE-Derived Dev/Test Data
 
@@ -213,7 +213,7 @@ flowchart TD
 Primary commands:
 
 ```bash
-make curate-legacy-eval CFG=configs/model-v2.0.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements CFG=configs/model-v2.0.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 make review-curation CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
 make validate-curation CFG=configs/model-v2.0.0.mk
 make apply-curation CFG=configs/model-v2.0.0.mk

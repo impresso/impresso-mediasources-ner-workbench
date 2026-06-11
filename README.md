@@ -30,7 +30,7 @@ For a high-level view of the workbench activities and their sub-workflows, see [
 
 Dataset growth has two explicit axes. **Horizontal extension** adds more documents/examples for existing labels. **Vertical extension** deepens annotations in existing documents by adding more entity types, such as future newspaper mentions. Keep these separate in audit, review, and release notes. See [DATASET_EXTENSION_PLAN.md](DATASET_EXTENSION_PLAN.md).
 
-Terminology: **HIPE-derived data** refers to the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. It is still active baseline training and evaluation data. Some paths, commands, and trace-back fields keep `legacy-*` names for compatibility.
+Terminology: **HIPE-derived data** refers to the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. It is still active baseline training and evaluation data. Some local paths and trace-back fields still use `legacy` because they describe retained import provenance, not obsolete data.
 
 ## Repository Map
 
@@ -81,7 +81,7 @@ Local generated directory roots use the `*.d` suffix convention. Defaults includ
 
 Local working data under `data/candidates/`, `data/curated/`, and `data/testset/` is ignored. Shared dataset prerelease snapshots belong under `data/prereleases/<dataset-version>/`; published release snapshots belong under `data/releases/<dataset-version>/`. Both are committed. See [docs/data_lifecycle.md](docs/data_lifecycle.md).
 
-Release configs are version-scoped. `configs/model-v1.0.0.mk` points at the published press-agency baseline release. `configs/model-v2.0.0.mk` is the active prerelease config for press agencies plus radio stations and is the default. `configs/model-v0.1.0.mk` is only a compatibility shim for older commands.
+Release configs are version-scoped. `configs/model-v1.0.0.mk` points at the published press-agency baseline release. `configs/model-v2.0.0.mk` is the active prerelease config for press agencies plus radio stations and is the default. `configs/model-v0.1.0.mk` is retained only for historical v0.1 runs.
 
 For Impresso API sampling workflows, install the sampling extras:
 
@@ -101,7 +101,7 @@ Command examples in this file assume the virtual environment is activated (`sour
 To test the HIPE-derived data converter on the fixture:
 
 ```bash
-make import-legacy-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --source-root . --split validation --output /private/tmp/mediasources-fixture --newsagency-seeds resources/newsagency_seeds.json"
+make import-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --source-root . --split validation --output /private/tmp/mediasources-fixture --newsagency-seeds resources/newsagency_seeds.json"
 ```
 
 ## Training
@@ -109,7 +109,7 @@ make import-legacy-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --so
 First create the cleaned HIPE-derived JSONL dataset:
 
 ```bash
-make import-legacy-hipe ARGS="--input ../newsagency-classification-main-nikki/data/annotated_data/de --input ../newsagency-classification-main-nikki/data/annotated_data/fr --source-root ../newsagency-classification-main-nikki --output data/curated/legacy-import --newsagency-seeds resources/newsagency_seeds.json --forbidden-label-policy exclude --unknown-label-policy error --malformed-bio-policy error --duplicate-policy keep-first"
+make import-hipe ARGS="--input ../newsagency-classification-main-nikki/data/annotated_data/de --input ../newsagency-classification-main-nikki/data/annotated_data/fr --source-root ../newsagency-classification-main-nikki --output data/curated/legacy-import --newsagency-seeds resources/newsagency_seeds.json --forbidden-label-policy exclude --unknown-label-policy error --malformed-bio-policy error --duplicate-policy keep-first"
 ```
 
 Optionally download the compiled Impresso source files for continued MLM pretraining:
@@ -186,10 +186,10 @@ Metrics and prediction JSONL files are written under `models.d/newsagency_radios
 For basic curation of the existing HIPE-derived French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
 
 ```bash
-make curate-legacy-eval CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
 
-To build only one fold's review queue, use `make curate-legacy-validation ...` or `make curate-legacy-test ...` with the same arguments. The command names keep `legacy` for compatibility; the data itself is the active HIPE-derived baseline, not discarded material.
+To build only one fold's review queue, use `make suggest-eval-disagreements-validation ...` or `make suggest-eval-disagreements-test ...` with the same arguments.
 
 The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains a deterministic `review_id`, document metadata, gold entity, predicted entity, token context, and a `decision` block for manual curation.
 
@@ -249,8 +249,8 @@ make help
 make smoke
 make clean-dry-run
 make validate-labels
-make sample-newsagencies ARGS="--dry-run --labels org.ent.pressagency.reuters --max-queries-per-label 1"
-make sample-radiostations ARGS="--dry-run --labels org.ent.radiostation.rtl --max-queries-per-label 1"
+make sample-freely-newsagency-snippets ARGS="--dry-run --labels org.ent.pressagency.reuters --max-queries-per-label 1"
+make sample-freely-radio-snippets ARGS="--dry-run --labels org.ent.radiostation.rtl --max-queries-per-label 1"
 make export-dataset
 make download-mlm-sources
 make build-mlm-data
@@ -261,12 +261,12 @@ make publish-testset ARGS="--dry-run"
 make train CFG=configs/model-v2.0.0.mk
 make test CFG=configs/model-v2.0.0.mk
 make apply-curation CFG=configs/model-v2.0.0.mk
-make score-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make review-newsagency-snippets CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make score-radiostation-snippets CFG=configs/model-v2.0.0.mk
-make review-radiostation-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make suggest-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk
+make review-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make split-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make suggest-radio-snippet-spans CFG=configs/model-v2.0.0.mk
+make review-radio-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
+make split-radio-snippets CFG=configs/model-v2.0.0.mk
 make push-model CFG=configs/model-v2.0.0.mk
 ```
 
@@ -308,7 +308,7 @@ The publisher validates entity labels against `resources/newsagency_seeds.json` 
 make publish-dataset ARGS="--upload"
 ```
 
-The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. In that field name, `legacy` means HIPE import trace-back metadata retained for compatibility, not data that is obsolete. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
+The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. In that field name, `legacy` means retained HIPE import trace-back metadata, not data that is obsolete. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
 
 To open a Hub pull request instead of pushing directly:
 
@@ -331,7 +331,7 @@ Use these targets to check local curation progress and dataset staging state:
 ```bash
 make curation-state CFG=configs/model-v2.0.0.mk
 make snippet-state CFG=configs/model-v2.0.0.mk
-make legacy-curation-state CFG=configs/model-v2.0.0.mk
+make eval-disagreement-state CFG=configs/model-v2.0.0.mk
 make dataset-state CFG=configs/model-v2.0.0.mk
 make curation-state-json CFG=configs/model-v2.0.0.mk
 ```
@@ -344,8 +344,8 @@ Coverage and targeted sampling are label-language aware. By default, `de`, `fr`,
 
 ```bash
 make annotation-stats CFG=configs/model-v2.0.0.mk
-make sample-needed-newsagencies CFG=configs/model-v2.0.0.mk
-make sample-radiostations CFG=configs/model-v2.0.0.mk RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
+make sample-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make sample-radio-snippets CFG=configs/model-v2.0.0.mk
 ```
 
 Override the defaults from the command line when needed:
