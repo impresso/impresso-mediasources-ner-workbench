@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits annotation-stats mention-profiles curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -39,6 +39,8 @@ help-annotation:
 	@echo "  make curation-dashboard                      Run all read-only state/stats targets in sequence"
 	@echo "  make annotation-stats                        Summarize annotation coverage by label/language"
 	@echo "  make mention-profiles                        Generate empirical entity mention-surface profiles"
+	@echo "  make entity-surface-frequencies ENTITY_LABEL=org.ent.pressagency.havas"
+	@echo "                                             Write case-insensitive surface frequencies by language"
 	@echo "  make curation-state                          Summarize all curation and dataset state"
 	@echo "  make snippet-state                           Summarize snippet sampling/suggestion/review/split state"
 	@echo "  make eval-disagreement-state                 Summarize evaluation disagreement curation state"
@@ -94,6 +96,7 @@ help-annotation:
 	@echo "Useful overrides:"
 	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=true"
+	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
 	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
 	@echo "  ANNOTATION_MAIN_LANGS='$(ANNOTATION_MAIN_LANGS)', ANNOTATION_SIDE_LANGS='$(ANNOTATION_SIDE_LANGS)'"
 	@echo "  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG), ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)"
@@ -187,6 +190,10 @@ annotation-stats:
 mention-profiles:
 	@echo "Building empirical mention-surface profiles for canonical entity labels."
 	$(PYTHON) -m lib.entity_mention_profiles $(foreach input,$(MENTION_PROFILE_JSONL),--input-jsonl "$(input)") --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --top-n "$(MENTION_PROFILE_TOP_N)" --json-output "$(MENTION_PROFILE_JSON)" --tsv-output "$(MENTION_PROFILE_TSV)" --md-output "$(MENTION_PROFILE_MD)" $(ARGS)
+
+entity-surface-frequencies:
+	@test -n "$(ENTITY_LABEL)" || { echo "ENTITY_LABEL is required, e.g. ENTITY_LABEL=org.ent.pressagency.havas"; exit 1; }
+	@$(PYTHON) -m lib.entity_surface_frequencies --label "$(ENTITY_LABEL)" $(foreach input,$(MENTION_PROFILE_JSONL),--input-jsonl "$(input)") --include-examples "$(ENTITY_SURFACE_FREQUENCIES_EXAMPLES)" $(ARGS)
 
 curation-dashboard:
 	@echo "Running the read-only curation dashboard: coverage, profiles, curation state, snippet state, disagreement state, and dataset state."
