@@ -183,13 +183,13 @@ make test-official
 
 Metrics and prediction JSONL files are written under `models.d/newsagency_radiostation_modernbert_v2.0.0/eval/`.
 
-For basic curation of the existing HIPE-derived French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
+For basic curation of the existing HIPE-derived French/German dev and test folds, run the configured v2 model over both splits and build disagreement records for manual review:
 
 ```bash
-make suggest-eval-disagreements CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements
 ```
 
-To build only one fold's review queue, use `make suggest-eval-disagreements-validation ...` or `make suggest-eval-disagreements-test ...` with the same arguments.
+To build only one fold's review queue, use `make suggest-eval-disagreements-validation` or `make suggest-eval-disagreements-test`. The checker is self-contained: `CURATION_MODEL` and `CURATION_LABEL_MAP` must belong to the same trained model. If the v2 model has not been trained yet, run `make train` first.
 
 The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains a deterministic `review_id`, document metadata, gold entity, predicted entity, token context, and a `decision` block for manual curation.
 

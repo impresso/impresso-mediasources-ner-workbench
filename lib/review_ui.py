@@ -10,6 +10,10 @@ from typing import Any, Iterable
 
 CLEAR_SCREEN = "\033[2J\033[H"
 SPAN_RE = re.compile(r"^(?P<start>\d+):(?P<stop>\d+)(?:\s+(?P<label>\S+))?$")
+DISPLAYED_SPAN_RE = re.compile(
+    r"^\s*(?:(?:\d+):\s+)?(?P<start>\d+):(?P<stop>\d+)"
+    r"(?:\s+(?P<surface>.*?))?\s+\[(?P<label>org\.ent\.[^\]\s]+)\]"
+)
 NUMBERED_TOKEN_RE = re.compile(r"(?P<index>\d+):(?P<token>\S+)")
 DEFAULT_LABEL_METADATA = Path("resources/newsagency_seeds.json")
 EXTRA_DEFAULT_LABEL_METADATA = [Path("resources/radiostation_seeds.json")]
@@ -185,6 +189,20 @@ def parse_numbered_token_span(
     return indexes[0], indexes[-1] + 1, label
 
 
+def parse_displayed_span(
+    raw: str,
+    row: dict[str, Any],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> tuple[int, int, str] | None:
+    match = DISPLAYED_SPAN_RE.match(raw.strip())
+    if not match:
+        return None
+    start = int(match.group("start"))
+    stop = int(match.group("stop"))
+    label = resolve_manual_label(match.group("label"), row, label_metadata)
+    return start, stop, label
+
+
 def parse_manual_span(
     raw: str,
     row: dict[str, Any],
@@ -196,9 +214,11 @@ def parse_manual_span(
         stop = int(match.group("stop"))
         label = resolve_manual_label(match.group("label") or "", row, label_metadata)
     else:
-        parsed = parse_numbered_token_span(raw, row, label_metadata)
+        parsed = parse_displayed_span(raw, row, label_metadata)
         if parsed is None:
-            raise ValueError('expected: 12:13 reuters or pasted tokens like 9:B 10:. 11:B bbc')
+            parsed = parse_numbered_token_span(raw, row, label_metadata)
+        if parsed is None:
+            raise ValueError('expected: 12:13 reuters, 12:13 Surface [org.ent...], or pasted tokens like 9:B 10:. 11:B bbc')
         start, stop, label = parsed
     tokens = row["tokens"]
     starts = row["token_start_offsets"]

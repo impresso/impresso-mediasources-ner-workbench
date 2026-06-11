@@ -286,8 +286,8 @@ def metric_is_better(value: float, best: float | None, mode: str, min_delta: flo
 
 def train(args: argparse.Namespace, runtime: Runtime) -> None:
     label_map = load_label_map(args.label_map)
-    train_rows = load_jsonl(args.train_jsonl)
-    validation_rows = load_jsonl(args.validation_jsonl) if args.validation_jsonl else []
+    train_rows = load_jsonl(args.train_jsonl, label_map=label_map)
+    validation_rows = load_jsonl(args.validation_jsonl, label_map=label_map) if args.validation_jsonl else []
     model, tokenizer = load_model_and_tokenizer(args, label_map, runtime)
     device = device_for(args.device, runtime.torch)
     model.to(device)
@@ -521,7 +521,7 @@ def evaluate_rows(
 
 def evaluate(args: argparse.Namespace, runtime: Runtime) -> None:
     label_map = load_label_map(args.label_map)
-    rows = load_jsonl(args.eval_jsonl)
+    rows = load_jsonl(args.eval_jsonl, label_map=label_map, unknown_label_id=IGNORE_INDEX)
     model, tokenizer = load_model_and_tokenizer(args, label_map, runtime)
     device = device_for(args.device, runtime.torch)
     model.to(device)

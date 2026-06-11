@@ -221,11 +221,13 @@ flowchart TD
 Primary commands:
 
 ```bash
-make suggest-eval-disagreements CFG=configs/model-v2.0.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements CFG=configs/model-v2.0.0.mk
 make review-curation CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
 make validate-curation CFG=configs/model-v2.0.0.mk
 make apply-curation CFG=configs/model-v2.0.0.mk
 ```
+
+The v2 disagreement checker is self-contained: it uses the configured v2 model artifact and that artifact's `label_map.json`. Run `make train CFG=configs/model-v2.0.0.mk` first if the model artifact is missing.
 
 ## Create Or Update Models
 

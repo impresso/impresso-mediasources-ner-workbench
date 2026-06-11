@@ -2250,6 +2250,54 @@ def test_manual_span_uses_candidate_label_for_pasted_numbered_token_without_labe
     assert span["surface"] == "sda"
 
 
+def test_manual_span_accepts_displayed_prediction_span() -> None:
+    row = {
+        "text": "ALBANIE LONDRES, 9 (Reuter). — L'agence albanaise de presse",
+        "tokens": [
+            "ALBANIE",
+            "LONDRES",
+            ",",
+            "9",
+            "(",
+            "Reuter",
+            ")",
+            ".",
+            "—",
+            "L'agence",
+            "albanaise",
+            "de",
+            "presse",
+        ],
+        "token_start_offsets": [0, 8, 15, 17, 19, 20, 26, 27, 29, 31, 40, 50, 53],
+        "token_end_offsets": [7, 15, 16, 18, 20, 26, 27, 28, 30, 39, 49, 52, 59],
+        "candidate_label": "org.ent.pressagency.ata",
+    }
+
+    span = parse_manual_span("5:6 Reuter [org.ent.pressagency.reuters]", row)
+
+    assert span["token_start"] == 5
+    assert span["token_stop"] == 6
+    assert span["label"] == "org.ent.pressagency.reuters"
+    assert span["surface"] == "Reuter"
+
+
+def test_manual_span_accepts_full_displayed_prediction_line() -> None:
+    row = {
+        "text": "ALBANIE LONDRES, 9 (Reuter).",
+        "tokens": ["ALBANIE", "LONDRES", ",", "9", "(", "Reuter", ")", "."],
+        "token_start_offsets": [0, 8, 15, 17, 19, 20, 26, 27],
+        "token_end_offsets": [7, 15, 16, 18, 20, 26, 27, 28],
+        "candidate_label": "org.ent.pressagency.ata",
+    }
+
+    span = parse_manual_span("1: 5:6 Reuter [org.ent.pressagency.reuters] conf=1.000 margin=1.000", row)
+
+    assert span["token_start"] == 5
+    assert span["token_stop"] == 6
+    assert span["label"] == "org.ent.pressagency.reuters"
+    assert span["surface"] == "Reuter"
+
+
 def test_manual_span_accepts_canonical_id_label() -> None:
     row = {
         "text": "Londres, 15 janvier. (Radio.)",

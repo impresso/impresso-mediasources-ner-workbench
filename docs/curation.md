@@ -150,7 +150,7 @@ Use `MISSING_SPAN_SPLIT=validation` or `MISSING_SPAN_SPLIT=test` to audit those 
 To include current-model suggestions, run the split-specific evaluation first:
 
 ```bash
-make suggest-eval-disagreements-validation CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements-validation
 make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=validation
 ```
 
@@ -203,7 +203,7 @@ Use `sample-radio-snippets` for routine coverage work because it uses the label-
 Use this only for the gold-vs-prediction disagreement workflow over existing configured splits.
 
 ```bash
-make suggest-eval-disagreements CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements
 make review-curation REVIEWER="$USER"
 make validate-curation
 make apply-curation
@@ -371,16 +371,20 @@ This section documents the gold-vs-prediction disagreement workflow for HIPE-der
 Run the selected model over the configured train/validation/test folds:
 
 ```bash
-make suggest-eval-disagreements CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements
 ```
+
+For the v2 config, this uses the configured v2 model and its own saved `label_map.json`. If the v2 model has not been trained yet, run `make train` first.
 
 `suggest-eval-disagreements` includes the configured train, validation, and test folds. To curate only one fold, use:
 
 ```bash
-make suggest-eval-disagreements-validation CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements-validation
 
-make suggest-eval-disagreements-test CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements-test
 ```
+
+For a custom checker checkpoint, pass the matching label map as well, for example `CURATION_MODEL=models.d/my-checkpoint/best CURATION_LABEL_MAP=models.d/my-checkpoint/best/label_map.json`.
 
 The review files are written below:
 

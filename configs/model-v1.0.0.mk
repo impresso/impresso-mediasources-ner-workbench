@@ -32,6 +32,7 @@ TESTSET ?= impresso-project/newsagency-radiostation-testset
 TESTSET_REVISION ?= TODO
 HF_MODEL ?= impresso-project/mmbert-impresso-mediasources-ner
 CURATION_MODEL ?= $(MODEL)
+CURATION_LABEL_MAP ?= $(CURATION_MODEL)/label_map.json
 CURATION_OUTPUT_DIR ?= data/curated/legacy-eval-curation
 CURATION_INPUT_DIR ?= data/curated/legacy-import
 CURATION_APPLIED_DIR ?= data/curated/legacy-import-curated
