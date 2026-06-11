@@ -348,6 +348,13 @@ make sample-newsagency-snippets CFG=configs/model-v2.0.0.mk
 make sample-radio-snippets CFG=configs/model-v2.0.0.mk
 ```
 
+Restrict a sampling pass to one canonical label with `ARGS="--labels ..."`:
+
+```bash
+make sample-newsagency-snippets CFG=configs/model-v2.0.0.mk ARGS="--labels org.ent.pressagency.reuters"
+make sample-radio-snippets CFG=configs/model-v2.0.0.mk ARGS="--labels org.ent.radiostation.rtl"
+```
+
 Override the defaults from the command line when needed:
 
 ```bash

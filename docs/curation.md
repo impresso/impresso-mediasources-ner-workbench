@@ -493,6 +493,14 @@ For deliberately unconstrained sampling, use the explicit free-sampling target:
 make sample-freely-newsagency-snippets NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
 ```
 
+To focus the under-target sampling pass on a specific news agency, pass the full canonical label through `ARGS`:
+
+```bash
+make sample-newsagency-snippets ARGS="--labels org.ent.pressagency.reuters"
+```
+
+Multiple news-agency labels can be whitespace-separated inside the `--labels` value. `sample-newsagency-snippets` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-newsagency-snippets ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter.
+
 This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
 
 Build a local bootstrap snippet file from the curated HIPE-derived JSONL only when you explicitly want test material from the baseline HIPE-derived folds:
@@ -616,7 +624,7 @@ To focus the under-target sampling pass on a specific radio station, pass the fu
 make sample-radio-snippets ARGS="--labels org.ent.radiostation.rtl"
 ```
 
-Multiple radio-station labels can be whitespace-separated inside the `--labels` value. `sample-radio-snippets` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-radio-snippets` only when you deliberately want broader radio-station sampling.
+Multiple radio-station labels can be whitespace-separated inside the `--labels` value. `sample-radio-snippets` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-radio-snippets ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter, or use `sample-freely-radio-snippets` without labels when you deliberately want broader radio-station sampling.
 
 Because the model can only predict labels it has already been trained on, radio-station suggestion combines two sources: the current NER model for trained media-source labels and deterministic radio-station seed/pattern matching for newer radio labels. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
 
