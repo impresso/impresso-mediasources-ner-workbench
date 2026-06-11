@@ -957,10 +957,10 @@ def test_export_snippets_three_way_split_keeps_one_train_group_when_possible() -
     assert Counter(row["split"] for row in split_rows) == {"train": 1, "validation": 1, "test": 1}
 
 
-def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> None:
+def test_annotation_stats_counts_dataset_and_snippet_coverage(tmp_path: Path) -> None:
     news_meta = tmp_path / "newsagency_seeds.json"
     radio_meta = tmp_path / "radiostation_seeds.json"
-    legacy = tmp_path / "legacy.jsonl"
+    dataset = tmp_path / "dataset.jsonl"
     news = tmp_path / "news.jsonl"
     radio = tmp_path / "radio.jsonl"
     news_reviewed = tmp_path / "news_reviewed.jsonl"
@@ -990,10 +990,10 @@ def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> 
         encoding="utf-8",
     )
     write_jsonl(
-        legacy,
+        dataset,
         [
-            {"id": "legacy-1", "language": "de", "entities": [{"label": "org.ent.pressagency.havas"}]},
-            {"id": "legacy-2", "language": "fr", "entities": [{"label": "org.ent.pressagency.havas"}]},
+            {"id": "dataset-1", "language": "de", "entities": [{"label": "org.ent.pressagency.havas"}]},
+            {"id": "dataset-2", "language": "fr", "entities": [{"label": "org.ent.pressagency.havas"}]},
         ],
     )
     write_jsonl(news, [{"id": "news-1", "language": "fr", "entities": [{"label": "org.ent.pressagency.havas"}]}])
@@ -1030,8 +1030,8 @@ def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> 
                 str(news_meta),
                 "--label-metadata",
                 str(radio_meta),
-                "--legacy-jsonl",
-                str(legacy),
+                "--dataset-jsonl",
+                str(dataset),
                 "--newsagency-snippet-jsonl",
                 str(news),
                 "--radiostation-snippet-jsonl",
@@ -1047,7 +1047,8 @@ def test_annotation_stats_counts_legacy_and_snippet_coverage(tmp_path: Path) -> 
     stats = build_stats(args)
     rows = {row["label"]: row for row in stats["rows"]}
 
-    assert rows["org.ent.pressagency.havas"]["legacy"] == 2
+    assert rows["org.ent.pressagency.havas"]["dataset"] == 2
+    assert "legacy" not in rows["org.ent.pressagency.havas"]
     assert rows["org.ent.pressagency.havas"]["newsagency_snippets"] == 1
     assert rows["org.ent.pressagency.havas"]["total"] == 3
     assert rows["org.ent.pressagency.havas"]["missing_to_target"] == 1

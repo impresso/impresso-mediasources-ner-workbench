@@ -94,9 +94,10 @@ Recommended target changes:
 
 | Current target | Canonical target | Notes |
 | --- | --- | --- |
-| `sample-newsagencies` | `sample-newsagency-snippets` | Align object with later snippet steps. |
-| `sample-needed-newsagencies` | `sample-needed-newsagency-snippets` | Coverage-driven variant. |
-| `sample-radio` | `sample-radio-snippets` | Align object with later snippet steps. |
+| `sample-newsagencies` | `sample-freely-newsagency-snippets` | Explicitly mark unconstrained sampling as free sampling. |
+| `sample-needed-newsagencies` | `sample-newsagency-snippets` | Coverage-driven sampling is the default curation path. |
+| `sample-radio` | `sample-freely-radio-snippets` | Explicitly mark unconstrained sampling as free sampling. |
+| `sample-needed-radiostations` | `sample-radio-snippets` | Coverage-driven sampling is the default curation path. |
 | `suggest-newsagency-snippet-spans` | keep | Good. |
 | `suggest-radio-snippet-spans` | keep | Good. |
 | `score-newsagency-snippets` | alias only | Replace in docs/help with `suggest-newsagency-snippet-spans`. |

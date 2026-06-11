@@ -93,8 +93,8 @@ Start by choosing the path that matches the kind of dataset change you want to m
 | You want to inspect coverage, state, and mention surfaces before deciding.   | Diagnostics and state inspection        | `curation-dashboard` or individual state/statistics targets                                                                             |
 | You want to audit already accepted annotations for boundary or label errors. | Existing-annotation audit               | `audit-existing-spans` -> `review-existing-spans` -> `refresh-existing-spans`                                                           |
 | You want to add missed annotations to existing documents.                    | Vertical span-patch audit               | `audit-empty-training-docs` -> `review-span-patches` -> `refresh-span-patches`                                                          |
-| You want new examples from Impresso search for news agencies.                | News-agency snippet curation            | `annotation-stats` -> `sample-needed-newsagency-snippets` -> `suggest-newsagency-snippet-spans` -> `review-newsagency-snippet-spans` -> `split-newsagency-snippets` -> `promote-snippets` |
-| You want new examples from Impresso search for radio stations.               | Radio snippet curation                  | `annotation-stats` -> `sample-radio-snippets` -> `suggest-radio-snippet-spans` -> `review-radio-snippet-spans` -> `split-radio-snippets` -> `promote-snippets`      |
+| You want new examples from Impresso search for news agencies.                | News-agency snippet curation            | `annotate-newsagency-snippets`, or step-by-step: `annotation-stats` -> `sample-newsagency-snippets` -> `suggest-newsagency-snippet-spans` -> `review-newsagency-snippet-spans` -> `split-newsagency-snippets` -> `promote-snippets` |
+| You want new examples from Impresso search for radio stations.               | Radio snippet curation                  | `annotate-radio-snippets`, or step-by-step: `annotation-stats` -> `sample-radio-snippets` -> `suggest-radio-snippet-spans` -> `review-radio-snippet-spans` -> `split-radio-snippets` -> `promote-snippets`      |
 | You want to clean HIPE-derived gold-vs-prediction disagreement files.       | Evaluation disagreement curation        | `curate-legacy-eval` -> `review-curation` -> `validate-curation` -> `apply-curation`                                                    |
 
 For new dataset growth, use the snippet paths for horizontal extension and the span-patch paths for vertical extension. Use the evaluation disagreement path only when you are deliberately correcting gold-vs-model disagreements in the configured train/validation/test folds.
@@ -150,9 +150,17 @@ Use `accept` for a correct suggested span, `modify` for a correct entity with wr
 
 Use this horizontal-extension path for more examples of existing agencies, language gaps, or newly added canonical agencies. The main coverage languages are German, French, and English; Luxembourgish and Italian are side languages with lower default targets.
 
+For the normal full cycle, run:
+
+```bash
+make annotate-newsagency-snippets REVIEWER="$USER"
+```
+
+For step-by-step control, run:
+
 ```bash
 make annotation-stats
-make sample-needed-newsagency-snippets
+make sample-newsagency-snippets
 make suggest-newsagency-snippet-spans
 make review-newsagency-snippet-spans REVIEWER="$USER"
 make split-newsagency-snippets
@@ -160,15 +168,23 @@ make preview-promote-snippets
 make promote-snippets
 ```
 
-Use `sample-needed-newsagency-snippets` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-newsagency-snippets` instead when you deliberately want unconstrained sampling or when no coverage report is available yet.
+Use `sample-newsagency-snippets` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-freely-newsagency-snippets` instead when you deliberately want unconstrained sampling or when no coverage report is available yet.
 
 ### D. Add new radio-station snippets
 
 Use this horizontal-extension path for radio-station coverage across the same language setup.
 
+For the normal full cycle, run:
+
+```bash
+make annotate-radio-snippets REVIEWER="$USER"
+```
+
+For step-by-step control, run:
+
 ```bash
 make annotation-stats
-make sample-radio-snippets RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
+make sample-radio-snippets
 make suggest-radio-snippet-spans
 make review-radio-snippet-spans REVIEWER="$USER"
 make split-radio-snippets
@@ -176,7 +192,7 @@ make preview-promote-snippets
 make promote-snippets
 ```
 
-Set `RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true` for routine coverage work. Omit it when you intentionally want broader radio-station sampling.
+Use `sample-radio-snippets` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-freely-radio-snippets` instead when you deliberately want broader radio-station sampling or when no coverage report is available yet.
 
 ### E. Correct HIPE-derived train/validation/test disagreements
 
@@ -479,17 +495,17 @@ When API/content fetches are too slow or unavailable, use `NEWSAGENCY_SAMPLE_CON
 
 Use real Impresso search snippets for new curation. Bootstrap snippets built from HIPE-derived JSONL are useful for testing the scoring/review/export workflow, but they are not new evidence. The parent sampler file `../newsagencies_by_article.json` maps agency names to article IDs only and must be combined with an Impresso API fetch before it can produce candidate snippets.
 
-Sample real Impresso search snippets:
-
-```bash
-make sample-newsagency-snippets NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
-```
-
-For routine coverage-driven sampling, first update coverage statistics and then sample only buckets below target:
+For routine gap filling, sample real Impresso search snippets from label/language buckets below target:
 
 ```bash
 make annotation-stats
-make sample-needed-newsagency-snippets
+make sample-newsagency-snippets NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
+```
+
+For deliberately unconstrained sampling, use the explicit free-sampling target:
+
+```bash
+make sample-freely-newsagency-snippets NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
 ```
 
 This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
@@ -502,7 +518,7 @@ make build-newsagency-snippets-from-legacy
 
 This writes `data/candidates/newsagency_legacy_snippets.jsonl` by default.
 
-Suggest spans for sampled snippets with the current model:
+Suggest spans for sampled snippets. The suggest step uses the configured model for entity labels already present in the trained model, and seed/pattern matching for newer labels that the model cannot predict yet:
 
 ```bash
 make suggest-newsagency-snippet-spans NEWSAGENCY_SNIPPETS=data/candidates/newsagency_search_snippets.jsonl HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner
@@ -602,22 +618,22 @@ The `i` info view in review and audit review displays this `mention_profile` fie
 
 ### Radio-Station Snippets
 
-The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radio-snippets`. For routine coverage-driven sampling, run `make annotation-stats` first and pass `RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true`.
+The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radio-snippets`. This is the routine coverage-driven target: run `make annotation-stats` first so it can focus on label/language buckets below target.
 
 ```bash
 make annotation-stats
-make sample-radio-snippets RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
+make sample-radio-snippets
 ```
 
 To focus the under-target sampling pass on a specific radio station, pass the full canonical label through `ARGS`:
 
 ```bash
-make sample-radio-snippets RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true ARGS="--labels org.ent.radiostation.rtl"
+make sample-radio-snippets ARGS="--labels org.ent.radiostation.rtl"
 ```
 
-Multiple radio-station labels can be whitespace-separated inside the `--labels` value. When `RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true` is set, the sampler uses the intersection of `--labels` and the labels that are still below target in the coverage report.
+Multiple radio-station labels can be whitespace-separated inside the `--labels` value. `sample-radio-snippets` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-radio-snippets` only when you deliberately want broader radio-station sampling.
 
-Because the current NER model was trained from HIPE-derived news-agency annotations and the current baseline label map does not contain radio-station labels yet, radio-station scoring combines two sources of span suggestions: deterministic radio-station seed-alias matching and the current NER model's media-agency predictions. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
+Because the model can only predict labels it has already been trained on, radio-station suggestion combines two sources: the current NER model for trained media-source labels and deterministic radio-station seed/pattern matching for newer radio labels. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` model prediction if the actual snippet contains that agency instead of the searched radio-station mention.
 
 Suggest spans for sampled radio snippets:
 
@@ -643,6 +659,6 @@ Use `refresh-snippet-dataset` when the reviewed radio rows are ready to be split
 
 Radio-station snippets use the same span-review model as news-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-radio-snippet-spans`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.
 
-The older `sample-newsagencies`, `sample-needed-newsagencies`, `sample-radio`, `sample-radiostations`, `score-radiostation-snippets`, `review-radiostation-spans`, `export-radiostation-snippets`, `score-newsagency-snippets`, `review-newsagency-snippets`, `export-newsagency-snippets`, `snippet-promotion-status`, `preview-snippet-merge`, `merge-snippets`, and `refresh-snippets` targets still work as compatibility aliases, but new documentation and routine commands should use the aligned `sample-*snippets`, `suggest-*`, `review-*`, `split-*`, `preview-promote-snippets`, `promote-snippets`, and `refresh-snippet-dataset` names above.
+The older `sample-newsagencies`, `sample-needed-newsagencies`, `sample-radio`, `sample-radiostations`, `sample-needed-radiostations`, `score-radiostation-snippets`, `review-radiostation-spans`, `export-radiostation-snippets`, `score-newsagency-snippets`, `review-newsagency-snippets`, `export-newsagency-snippets`, `snippet-promotion-status`, `preview-snippet-merge`, `merge-snippets`, and `refresh-snippets` targets still work as compatibility aliases. New documentation and routine commands should use the aligned `sample-*snippets`, `suggest-*`, `review-*`, `split-*`, `preview-promote-snippets`, `promote-snippets`, and `refresh-snippet-dataset` names above. Use `sample-freely-*snippets` only for deliberately unconstrained sampling.
 
 Before sharing a dataset extension, copy or generate the full release snapshot under `data/releases/<dataset-version>/`. Ignored local review files under `data/curated/` are not preserved by `make clean`.
