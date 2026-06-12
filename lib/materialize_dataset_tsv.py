@@ -62,9 +62,16 @@ def iter_conll_rows(rows: Iterable[dict[str, Any]], *, split: str) -> Iterable[s
 
 def materialize(input_path: Path, output_path: Path, *, split: str) -> dict[str, Any]:
     rows = load_jsonl(input_path)
+    rows = sorted(rows, key=row_sort_key)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(iter_conll_rows(rows, split=split)) + "\n", encoding="utf-8")
     return {"input": str(input_path), "output": str(output_path), "rows": len(rows), "split": split}
+
+
+def row_sort_key(row: dict[str, Any]) -> tuple[str, str]:
+    document_id = str(row.get("document_id") or row.get("id") or "")
+    row_id = str(row.get("id") or "")
+    return document_id.casefold(), document_id, row_id.casefold(), row_id
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

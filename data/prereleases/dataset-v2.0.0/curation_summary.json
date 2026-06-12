@@ -1,7 +1,7 @@
 {
-  "applied": 43,
-  "decisions": 89,
-  "disagreements": 43,
+  "applied": 4,
+  "decisions": 96,
+  "disagreements": 4,
   "input_dir": "data/prereleases/dataset-v2.0.0",
   "missing": 0,
   "output_dir": "data/prereleases/dataset-v2.0.0",

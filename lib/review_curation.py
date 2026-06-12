@@ -90,11 +90,7 @@ def format_token_indicator(item: dict[str, Any]) -> str:
     chunks = []
     for offset, token in enumerate(context["tokens"]):
         index = start + offset
-        marker = token_marker(index, item.get("gold"), item.get("prediction"))
-        if marker:
-            chunks.append(f"[{marker}:{index}:{token}]")
-        else:
-            chunks.append(f"{index}:{token}")
+        chunks.append(f"{index}:{token}")
     return " ".join(chunks)
 
 

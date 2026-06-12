@@ -17,19 +17,20 @@ def test_materialize_dataset_tsv_writes_doc_boundaries(tmp_path: Path) -> None:
         input_path,
         [
             {
-                "id": "doc-1",
-                "document_id": "doc-1",
+                "id": "row-b",
+                "document_id": "doc-b",
+                "tokens": ["BBC"],
+                "token_labels": ["B-org.ent.radiostation.bbc"],
+            },
+            {
+                "id": "row-a",
+                "document_id": "doc-a",
                 "split": "train",
                 "language": "fr",
                 "newspaper": "EXP",
                 "date": "1950-01-01",
                 "tokens": ["Agence", "Radio"],
                 "token_labels": ["B-org.ent.pressagency.agence-radio", "I-org.ent.pressagency.agence-radio"],
-            },
-            {
-                "id": "doc-2",
-                "tokens": ["BBC"],
-                "token_labels": ["B-org.ent.radiostation.bbc"],
             },
         ],
     )
@@ -38,8 +39,8 @@ def test_materialize_dataset_tsv_writes_doc_boundaries(tmp_path: Path) -> None:
 
     assert summary["rows"] == 2
     assert output_path.read_text(encoding="utf-8").splitlines() == [
-        "# doc_id = doc-1",
-        "# document_id = doc-1",
+        "# doc_id = row-a",
+        "# document_id = doc-a",
         "# split = train",
         "# language = fr",
         "# newspaper = EXP",
@@ -48,8 +49,8 @@ def test_materialize_dataset_tsv_writes_doc_boundaries(tmp_path: Path) -> None:
         "Agence\tB-org.ent.pressagency.agence-radio",
         "Radio\tI-org.ent.pressagency.agence-radio",
         "",
-        "# doc_id = doc-2",
-        "# document_id = doc-2",
+        "# doc_id = row-b",
+        "# document_id = doc-b",
         "# split = train",
         "TOKEN\tNERTAG",
         "BBC\tB-org.ent.radiostation.bbc",

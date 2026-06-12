@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches check-curation-checker sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -61,6 +61,9 @@ help-annotation:
 	@echo "  make span-patch-status                        Compare patched output with the configured promotion target"
 	@echo "  make promote-span-patches                     Promote patched output into the prerelease/source split"
 	@echo "  make integrate-span-patches                   Apply span-patch decisions, then promote the patched split"
+	@echo "  make create-tsv-span-patches TSV_PATCH_SPLIT=test"
+	@echo "                                             Paste TSV token lines, enter a label, and create accepted manual span patches"
+	@echo "  make integrate-tsv-span-patches               Apply and promote accepted TSV-derived patches"
 	@echo ""
 	@echo "Evaluation disagreement annotation:"
 	@echo "  make suggest-eval-disagreements               Score train/validation/test and build review queue"
@@ -378,6 +381,41 @@ promote-span-patches:
 integrate-span-patches: apply-span-patches promote-span-patches
 	@echo "Next step:"
 	@echo "  make validate-dataset-splits # Validate train/validation/test after integration"
+
+create-tsv-span-patches:
+	@echo "Creating accepted manual span patches from pasted TOKEN/NERTAG TSV lines."
+	$(PYTHON) -m lib.create_span_patches_from_tsv --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --label "$(TSV_PATCH_LABEL)" --reviewer "$(REVIEWER)" --summary-json "$(TSV_PATCH_SUMMARY_JSON)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
+	@echo "Next step:"
+	@echo "  make apply-tsv-span-patches TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT) # Apply accepted TSV-derived span patches"
+
+apply-tsv-span-patches:
+	@echo "Applying accepted TSV-derived span patches to the configured split."
+	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --output-jsonl "$(TSV_PATCH_OUTPUT_JSONL)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --target-label "$(TSV_PATCH_LABEL)" --changes-jsonl "$(TSV_PATCH_CHANGES_JSONL)" --changes-tsv "$(TSV_PATCH_CHANGES_TSV)" --summary-json "$(TSV_PATCH_APPLY_SUMMARY_JSON)" $(ARGS)
+	@echo "Next step:"
+	@echo "  make tsv-span-patch-status TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT) # Check whether the patched split is ready for promotion"
+
+tsv-span-patch-status:
+	@echo "Checking whether the TSV-derived patched output is ready for promotion."
+	@echo "audit id:        $(TSV_PATCH_AUDIT_ID)"
+	@echo "target label:    $(TSV_PATCH_LABEL)"
+	@echo "source split:    $(TSV_PATCH_SOURCE_JSONL)"
+	@echo "patched output:  $(TSV_PATCH_OUTPUT_JSONL)"
+	@echo "promote target:  $(TSV_PATCH_PROMOTE_JSONL)"
+	@test -f "$(TSV_PATCH_OUTPUT_JSONL)" || { echo "patched output:  missing; run make apply-tsv-span-patches first"; exit 1; }
+	@test -f "$(TSV_PATCH_PROMOTE_JSONL)" || { echo "promote target:  missing"; exit 1; }
+	@if cmp -s "$(TSV_PATCH_OUTPUT_JSONL)" "$(TSV_PATCH_PROMOTE_JSONL)"; then echo "state:           promoted target is up to date"; else echo "state:           patched output differs from promote target"; fi
+
+promote-tsv-span-patches:
+	@echo "Promoting the TSV-derived patched split into the configured source split."
+	@test -f "$(TSV_PATCH_OUTPUT_JSONL)" || { echo "Missing patched output: $(TSV_PATCH_OUTPUT_JSONL). Run make apply-tsv-span-patches first."; exit 1; }
+	@echo "Promoting $(TSV_PATCH_OUTPUT_JSONL) -> $(TSV_PATCH_PROMOTE_JSONL)"
+	cp "$(TSV_PATCH_OUTPUT_JSONL)" "$(TSV_PATCH_PROMOTE_JSONL)"
+	@echo "Next step:"
+	@echo "  make materialize-dataset-tsv # Regenerate TSV views for inspection"
+
+integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches materialize-dataset-tsv
+	@echo "Next step:"
+	@echo "  make validate-dataset-splits # Validate train/validation/test after TSV inspection"
 
 sample-freely-newsagency-snippets:
 	@echo "Sampling news-agency snippets freely, without restricting to below-target coverage buckets."

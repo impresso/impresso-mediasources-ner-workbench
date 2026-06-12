@@ -60,7 +60,7 @@ def test_suggested_label_returns_selected_entity_label() -> None:
     assert suggested_label(item, "prediction") == "org.ent.pressagency.afp"
 
 
-def test_format_token_indicator_marks_prediction_span() -> None:
+def test_format_token_indicator_omits_span_markers_for_copying() -> None:
     item = {
         "gold": None,
         "prediction": {"token_start": 13, "token_stop": 14},
@@ -71,7 +71,7 @@ def test_format_token_indicator_marks_prediction_span() -> None:
         },
     }
 
-    assert format_token_indicator(item) == "10:On 11:télégraphie 12:à [P:13:Agence] 14:Wolff 15:que"
+    assert format_token_indicator(item) == "10:On 11:télégraphie 12:à 13:Agence 14:Wolff 15:que"
 
 
 def test_format_highlighted_context_marks_prediction_without_numbering() -> None:
