@@ -12,6 +12,9 @@ from .snippet_data import candidate_tokens, load_jsonl, strip_html, tokenize_wit
 
 
 ACCEPTED_STATUSES = {"auto_accepted", "accepted"}
+LABEL_ALIASES = {
+    "org.ent.pressagency.reuter": "org.ent.pressagency.reuters",
+}
 
 
 def load_label_map(path: Path) -> dict[str, Any]:
@@ -54,6 +57,21 @@ def selected_spans(row: dict[str, Any]) -> list[dict[str, Any]]:
             return matching or spans
         return spans
     return []
+
+
+def canonical_label(label: Any) -> str:
+    value = str(label or "")
+    return LABEL_ALIASES.get(value, value)
+
+
+def canonicalize_span_labels(row_id: str, spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for span in spans:
+        label = canonical_label(span.get("label"))
+        if label != span.get("label"):
+            print(f"{row_id}: canonicalized snippet label {span.get('label')} -> {label}")
+        out.append({**span, "label": label})
+    return out
 
 
 def empty_labels(token_count: int) -> list[str]:
@@ -375,6 +393,7 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         spans = selected_spans(row)
         if not spans:
             continue
+        spans = canonicalize_span_labels(str(row.get("id") or row.get("document_id") or ""), spans)
         text, tokens, starts, stops = candidate_tokens(row)
         text, tokens, starts, stops, spans = patch_window_for_accepted_spans(row, spans, text=text, tokens=tokens, starts=starts, stops=stops)
         spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)

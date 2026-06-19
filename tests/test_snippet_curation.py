@@ -1342,6 +1342,58 @@ def test_export_snippet_rows_suffixes_duplicate_source_ids(tmp_path: Path) -> No
     assert {row["legacy"]["source_id"] for row in rows} == {"doc-1#match-0"}
 
 
+def test_export_snippet_rows_canonicalizes_known_label_aliases(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.pressagency.reuters": 1,
+                    "I-org.ent.pressagency.reuters": 2,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.pressagency.reuters",
+                    "2": "I-org.ent.pressagency.reuters",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "doc-1#match-0",
+                "curation": {"status": "accepted"},
+                "date": "1946-05-20",
+                "language": "fr",
+                "text": "Reuter annonce.",
+                "tokens": ["Reuter", "annonce", "."],
+                "token_start_offsets": [0, 7, 14],
+                "token_end_offsets": [6, 13, 15],
+                "accepted_spans": [
+                    {
+                        "label": "org.ent.pressagency.reuter",
+                        "start": 0,
+                        "stop": 6,
+                        "surface": "Reuter",
+                        "token_start": 0,
+                        "token_stop": 1,
+                    }
+                ],
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert rows[0]["token_labels"] == ["B-org.ent.pressagency.reuters", "O", "O"]
+    assert rows[0]["entities"][0]["label"] == "org.ent.pressagency.reuters"
+
+
 def test_export_snippet_rows_ignores_stale_out_of_window_accepted_spans(tmp_path: Path) -> None:
     input_path = tmp_path / "reviewed.jsonl"
     label_map_path = tmp_path / "label_map.json"
