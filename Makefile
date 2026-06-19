@@ -195,8 +195,10 @@ sync-label-map:
 
 materialize-dataset-tsv: $(DATASET_TSV_TRAIN) $(DATASET_TSV_VALIDATION) $(DATASET_TSV_TEST)
 	@echo "Materialized CoNLL-style TSV views under $(DATASET_TSV_DIR)."
-	@echo "Next step:"
-	@echo "  diff -u OLD.tsv NEW.tsv # Compare TOKEN/NERTAG materializations between dataset versions"
+	@echo "Next step: compare against $(DATASET_TSV_COMPARE_VERSION)."
+	@echo "  diff -u $(DATASET_TSV_COMPARE_TRAIN) $(DATASET_TSV_TRAIN)"
+	@echo "  diff -u $(DATASET_TSV_COMPARE_VALIDATION) $(DATASET_TSV_VALIDATION)"
+	@echo "  diff -u $(DATASET_TSV_COMPARE_TEST) $(DATASET_TSV_TEST)"
 
 $(DATASET_TSV_TRAIN): $(TRAIN_JSONL)
 	@echo "Materializing train JSONL as TOKEN/NERTAG TSV."
