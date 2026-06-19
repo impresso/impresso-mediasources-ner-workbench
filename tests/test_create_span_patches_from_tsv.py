@@ -8,6 +8,7 @@ from lib.create_span_patches_from_tsv import (
     actionable_matches,
     build_accepted_patches,
     find_token_matches,
+    match_context,
     parse_match_selection,
     parse_tsv_paste,
     resolve_label,
@@ -88,6 +89,14 @@ def test_parse_match_selection_accepts_numbers_and_ranges() -> None:
     assert parse_match_selection("1,3-4", 5) == [0, 2, 3]
     assert parse_match_selection("all", 3) == [0, 1, 2]
     assert parse_match_selection("", 3) == []
+
+
+def test_match_context_shows_three_tokens_on_each_side() -> None:
+    sequence = parse_tsv_paste("d O\ne O\n")
+    row = {"id": "doc", "tokens": ["a", "b", "c", "d", "e", "f", "g", "h", "i"]}
+    match = find_token_matches([row], sequence)[0]
+
+    assert match_context(match) == "a b c [d e] f g h ..."
 
 
 def test_resolve_label_accepts_known_short_alias_only() -> None:

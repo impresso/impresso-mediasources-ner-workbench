@@ -101,6 +101,16 @@ def expected_labels(label: str, length: int) -> list[str]:
     return [f"{'B' if index == 0 else 'I'}-{label}" for index in range(length)]
 
 
+def match_context(match: Match, *, radius: int = 3) -> str:
+    tokens = [str(token) for token in match.row.get("tokens") or []]
+    left = tokens[max(0, match.token_start - radius) : match.token_start]
+    focus = tokens[match.token_start : match.token_stop]
+    right = tokens[match.token_stop : match.token_stop + radius]
+    prefix = "... " if match.token_start > radius else ""
+    suffix = " ..." if match.token_stop + radius < len(tokens) else ""
+    return f"{prefix}{' '.join(left)} [{' '.join(focus)}] {' '.join(right)}{suffix}".strip()
+
+
 def actionable_matches(matches: Iterable[Match], *, label: str, include_existing: bool = False) -> list[Match]:
     if include_existing:
         return list(matches)
@@ -252,6 +262,7 @@ def print_matches(matches: list[Match], label: str) -> None:
         surface = str(row.get("text") or "")[start:stop]
         labels = " ".join(current_labels(match))
         print(f"  {index}. {row_id(row)} tokens={match.token_start}:{match.token_stop} surface={surface!r} current={labels}")
+        print(f"     context: {match_context(match)}")
 
 
 def parse_match_selection(raw: str, total: int) -> list[int]:
