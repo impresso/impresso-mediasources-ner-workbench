@@ -2588,6 +2588,42 @@ def test_newsagency_review_accepts_all_prediction_spans_with_A(tmp_path: Path, m
     assert decision["notes"] == ""
 
 
+def test_snippet_review_auto_accepted_rows_require_explicit_status(tmp_path: Path, monkeypatch) -> None:
+    decisions_path = tmp_path / "decisions.jsonl"
+    row = {
+        "id": "snippet-auto",
+        "candidate_label": "org.ent.pressagency.havas",
+        "curation": {"status": "auto_accepted", "label": "org.ent.pressagency.havas", "reasons": []},
+        "text": "Havas.",
+        "tokens": ["Havas", "."],
+        "token_start_offsets": [0, 5],
+        "token_end_offsets": [5, 6],
+        "model": {
+            "predicted_spans": [
+                {
+                    "token_start": 0,
+                    "token_stop": 1,
+                    "label": "org.ent.pressagency.havas",
+                    "surface": "Havas",
+                    "confidence": 1.0,
+                    "margin": 1.0,
+                }
+            ]
+        },
+    }
+
+    assert review_loop([row], decisions_path, "tester", limit=0) == 0
+
+    answers = iter(["a"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+    reviewed = review_loop([row], decisions_path, "tester", limit=0, review_statuses={"auto_accepted"})
+
+    decision = json.loads(decisions_path.read_text(encoding="utf-8"))
+    assert reviewed == 1
+    assert decision["status"] == "accepted"
+    assert decision["accepted_spans"][0]["surface"] == "Havas"
+
+
 def test_snippet_review_notes_are_explicit(tmp_path: Path, monkeypatch, capsys) -> None:
     decisions_path = tmp_path / "decisions.jsonl"
     row = {

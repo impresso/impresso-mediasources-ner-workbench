@@ -318,14 +318,16 @@ def review_loop(
     review_prefix: str = "newsagency-snippet",
     coverage_json: Path | None = None,
     only_under_target: bool = False,
+    review_statuses: set[str] | None = None,
 ) -> int:
     decisions = latest_decisions(decisions_path)
     label_metadata = load_label_metadata(label_metadata_path)
     coverage = load_coverage(coverage_json)
+    review_statuses = review_statuses or {"needs_review"}
     pending = [
         row
         for row in rows
-        if row.get("curation", {}).get("status") == "needs_review"
+        if row.get("curation", {}).get("status") in review_statuses
         and decisions.get(review_id(row, prefix=review_prefix), {}).get("status") not in FINAL_STATUSES
     ]
     if coverage and only_under_target:
@@ -433,6 +435,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--review-prefix", default="newsagency-snippet")
     parser.add_argument("--coverage-json", type=Path)
     parser.add_argument("--only-under-target", action="store_true")
+    parser.add_argument(
+        "--review-status",
+        action="append",
+        default=[],
+        help="Curation status to review. Can be repeated. Defaults to needs_review. Use auto_accepted to audit auto-accepted rows.",
+    )
     parser.add_argument("--materialize-only", action="store_true")
     return parser.parse_args(argv)
 
@@ -443,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
     reviewed = 0
     if not args.materialize_only:
         input_path = Path(args.input)
+        review_statuses = set(args.review_status or ["needs_review"])
         reviewed = review_loop(
             rows,
             Path(args.decisions),
@@ -453,6 +462,7 @@ def main(argv: list[str] | None = None) -> int:
             review_prefix=args.review_prefix,
             coverage_json=args.coverage_json,
             only_under_target=args.only_under_target,
+            review_statuses=review_statuses,
         )
     revised = apply_decisions(rows, Path(args.decisions), review_prefix=args.review_prefix)
     write_jsonl(Path(args.output), revised)
