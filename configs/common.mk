@@ -7,6 +7,7 @@
 MODEL ?= models.d/newsagency_radiostation_modernbert
 TRAINING_PKG ?= training/newsagency-radiostation-modernbert-classifier/src
 HF_HOME ?= hf.d
+LOCAL_CONFIG ?= config.local.mk
 STAGING_DIR ?= staging.d
 MLM_DATA_DIR ?= mlm.d/multilingual_max300k_per_lang_lbfix
 MLM_DATASET_DIR ?= mlm.d/source

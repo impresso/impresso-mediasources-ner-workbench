@@ -6,6 +6,11 @@ CFG ?= configs/model-v2.0.0.mk
 
 include $(CFG)
 
+ifneq ($(wildcard $(LOCAL_CONFIG)),)
+$(info Loading local config overrides from $(LOCAL_CONFIG))
+include $(LOCAL_CONFIG)
+endif
+
 export HF_HOME
 
 .PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
