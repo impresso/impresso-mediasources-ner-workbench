@@ -507,7 +507,7 @@ test-official: sync-label-map
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 
 check-curation-checker:
-	@test -f "$(CURATION_LABEL_MAP)" || { echo "Missing curation checker label map: $(CURATION_LABEL_MAP)"; echo "Next step:"; echo "  make train # Train the configured model and write its label_map.json"; echo "Or pass both CURATION_MODEL=... and CURATION_LABEL_MAP=... for another checker."; exit 1; }
+	@test -f "$(CURATION_LABEL_MAP)" || { echo "Missing curation checker label map: $(CURATION_LABEL_MAP)"; echo "Next step:"; echo "  # Train the configured model and write its label_map.json."; echo "  make train"; echo "Or pass both CURATION_MODEL=... and CURATION_LABEL_MAP=... for another checker."; exit 1; }
 
 curation-eval: check-curation-checker
 	@echo "Evaluating train/validation/test to build gold-vs-prediction disagreement inputs."
@@ -515,101 +515,119 @@ curation-eval: check-curation-checker
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make curation-review # Build the train/validation/test disagreement review queue"
+	@echo "  # Build the train/validation/test disagreement review queue."
+	@echo "  make curation-review"
 
 curation-eval-train: check-curation-checker
 	@echo "Evaluating train to build gold-vs-prediction disagreement inputs."
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TRAIN_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make curation-review-train # Build the train disagreement review queue"
+	@echo "  # Build the train disagreement review queue."
+	@echo "  make curation-review-train"
 
 curation-eval-validation: check-curation-checker
 	@echo "Evaluating validation to build gold-vs-prediction disagreement inputs."
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make curation-review-validation # Build the validation disagreement review queue"
+	@echo "  # Build the validation disagreement review queue."
+	@echo "  make curation-review-validation"
 
 curation-eval-test: check-curation-checker
 	@echo "Evaluating test to build gold-vs-prediction disagreement inputs."
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make curation-review-test # Build the test disagreement review queue"
+	@echo "  # Build the test disagreement review queue."
+	@echo "  make curation-review-test"
 
 curation-review:
 	@echo "Building the train/validation/test disagreement review queue from evaluation predictions."
 	$(PYTHON) -m lib.build_curation_review --train-jsonl "$(TRAIN_JSONL)" --train-predictions "$(CURATION_OUTPUT_DIR)/eval/train_predictions.jsonl" --validation-jsonl "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "train validation test" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending disagreements"
+	@echo "  # Review pending disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 curation-review-train:
 	@echo "Building the train disagreement review queue from evaluation predictions."
 	$(PYTHON) -m lib.build_curation_review --train-jsonl "$(TRAIN_JSONL)" --train-predictions "$(CURATION_OUTPUT_DIR)/eval/train_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "train" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending train disagreements"
+	@echo "  # Review pending train disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 curation-review-validation:
 	@echo "Building the validation disagreement review queue from evaluation predictions."
 	$(PYTHON) -m lib.build_curation_review --validation-jsonl "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "validation" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending validation disagreements"
+	@echo "  # Review pending validation disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 curation-review-test:
 	@echo "Building the test disagreement review queue from evaluation predictions."
 	$(PYTHON) -m lib.build_curation_review --test-jsonl "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --output-dir "$(CURATION_OUTPUT_DIR)/review" --decisions-jsonl "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --languages "$(CURATION_LANGS)" --context-radius "$(CURATION_CONTEXT_RADIUS)" --splits "test" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending test disagreements"
+	@echo "  # Review pending test disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 suggest-eval-disagreements: curation-eval curation-review
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending disagreements"
+	@echo "  # Review pending disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 suggest-eval-disagreements-train: curation-eval-train curation-review-train
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending train disagreements"
+	@echo "  # Review pending train disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 suggest-eval-disagreements-validation: curation-eval-validation curation-review-validation
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending validation disagreements"
+	@echo "  # Review pending validation disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 suggest-eval-disagreements-test: curation-eval-test curation-review-test
 	@echo "Next step:"
-	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending test disagreements"
+	@echo "  # Review pending test disagreements."
+	@echo "  make review-curation REVIEWER=\"$$USER\""
 
 suggest-media-snippet-spans:
 	@echo "Suggesting $(MEDIA_FAMILY) snippet spans: use the configured model and known entity metadata matchers."
 	$(PYTHON) -m lib.score_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SNIPPETS)" --output "$(MEDIA_SCORED_SNIPPETS)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newspapers "$(NEWSPAPER_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) REVIEWER=\"$$USER\" # Review suggested media-source snippet spans"
+	@echo "  # Review suggested media-source snippet spans."
+	@echo "  make review-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) REVIEWER=\"$$USER\""
 
 review-media-snippet-spans:
 	@echo "Reviewing $(MEDIA_FAMILY) snippet span suggestions and writing append-only decisions."
 	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 	@echo "Next step:"
-	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY) # Split accepted snippets into train/validation/test"
+	@echo "  # Split accepted snippets into train/validation/test."
+	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY)"
 
 review-auto-media-snippet-spans:
 	@echo "Auditing auto-accepted $(MEDIA_FAMILY) snippet spans and writing append-only decisions."
 	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --review-status auto_accepted $(ARGS)
 	@echo "Next step:"
-	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY) # Split accepted snippets into train/validation/test"
+	@echo "  # Split accepted snippets into train/validation/test."
+	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY)"
 
 split-media-snippets:
 	@echo "Splitting accepted $(MEDIA_FAMILY) snippet decisions into train/validation/test JSONL."
 	$(PYTHON) -m lib.export_snippet_training_data --input "$(MEDIA_REVIEWED_SNIPPETS)" --output "$(MEDIA_SNIPPET_TRAIN_JSONL)" --validation-output "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --test-output "$(MEDIA_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make preview-promote-snippets # Preview integration after snippet splits are up to date"
+	@echo "  # Preview integration after snippet splits are up to date."
+	@echo "  make preview-promote-snippets"
 
 preview-promote-snippets:
 	@echo "Previewing promotion of split snippet rows into the configured dataset splits."
 	$(PYTHON) -m lib.promote_snippet_splits --dry-run --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make promote-snippets # Promote split snippets into configured dataset splits"
+	@echo "  # Promote split snippets into configured dataset splits."
+	@echo "  make promote-snippets"
 
 promote-snippets:
 	@echo "Promoting split snippet rows into the configured dataset splits."
 	$(PYTHON) -m lib.promote_snippet_splits --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after snippet promotion"
+	@echo "  # Validate train/validation/test after snippet promotion."
+	@echo "  make validate-dataset-splits"
 
 integrate-snippets:
 	@echo "Integrating reviewed snippets: split press-agency and radio-station decisions, preview promotion, then promote."
@@ -618,25 +636,29 @@ integrate-snippets:
 	$(MAKE) preview-promote-snippets
 	$(MAKE) promote-snippets
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after snippet integration"
+	@echo "  # Validate train/validation/test after snippet integration."
+	@echo "  make validate-dataset-splits"
 
 review-curation:
 	@echo "Reviewing pending gold-vs-prediction disagreement items in the terminal."
 	$(PYTHON) -m lib.review_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/todo_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --reviewer "$(REVIEWER)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make validate-curation # Validate reviewed disagreement decisions"
+	@echo "  # Validate reviewed disagreement decisions."
+	@echo "  make validate-curation"
 
 validate-curation:
 	@echo "Validating reviewed gold-vs-prediction disagreement decisions."
 	$(PYTHON) -m lib.validate_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --require-complete $(ARGS)
 	@echo "Next step:"
-	@echo "  make apply-curation # Apply validated disagreement decisions"
+	@echo "  # Apply validated disagreement decisions."
+	@echo "  make apply-curation"
 
 apply-curation:
 	@echo "Applying reviewed curation decisions to train/validation/test JSONL annotations."
 	$(PYTHON) -m lib.apply_curation_decisions --input-dir "$(CURATION_INPUT_DIR)" --output-dir "$(CURATION_APPLIED_DIR)" --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --splits "train validation test" --require-complete $(ARGS)
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after applying curation"
+	@echo "  # Validate train/validation/test after applying curation."
+	@echo "  make validate-dataset-splits"
 
 push-model:
 	@echo "Pushing the fine-tuned model payload to Hugging Face."

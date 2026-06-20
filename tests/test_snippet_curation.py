@@ -21,6 +21,7 @@ from lib.sample_newsagencies import (
     RateLimitThrottle,
     balanced_select,
     bucket_is_undercovered,
+    context_window,
     expand_candidate_with_full_content,
     extract_candidate,
     load_sample_pairs,
@@ -813,6 +814,27 @@ def test_sample_full_content_context_randomizes_match_offset() -> None:
     assert first["context_start"] != second["context_start"]
     assert first["context_stop"] - first["context_start"] - (first["match_stop"] - first["match_start"]) >= 100
     assert second["context_stop"] - second["context_start"] - (second["match_stop"] - second["match_start"]) >= 100
+
+
+def test_sample_random_context_keeps_following_text_when_available() -> None:
+    class MaxRng:
+        def randint(self, _minimum: int, maximum: int) -> int:
+            return maximum
+
+    content = (
+        " ".join(f"before{i}" for i in range(60))
+        + " Domei "
+        + " ".join(f"after{i}" for i in range(60))
+    )
+    start = content.index("Domei")
+    stop = start + len("Domei")
+
+    text, _context_start, context_stop = context_window(content, start, stop, 80, rng=MaxRng())
+
+    assert "Domei" in text
+    assert "after0" in text
+    assert context_stop > stop
+    assert not text.rstrip().endswith("Domei")
 
 
 def test_sample_radiostations_loads_specific_label_alias_queries(tmp_path: Path) -> None:

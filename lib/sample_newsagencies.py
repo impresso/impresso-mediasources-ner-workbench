@@ -149,14 +149,21 @@ def context_window(content: str, start: int, stop: int, radius: int, *, rng: ran
         max_context = radius * 2
         min_context = min(max_context, 100)
         total_context = rng.randint(min_context, max_context)
-        min_before = max(0, min(radius // 2, total_context))
-        max_before = min(total_context, radius + radius // 2)
+        min_side = min(radius // 2, total_context // 4)
+        min_before = min_side
+        max_before = total_context - min_side
         if min_before > max_before:
-            min_before = 0
+            min_before = max_before = total_context // 2
         before = rng.randint(min_before, max_before)
         after = total_context - before
     left = max(0, start - before)
     right = min(len(content), stop + after)
+    missing_left = before - (start - left)
+    missing_right = after - (right - stop)
+    if missing_left > 0 and right < len(content):
+        right = min(len(content), right + missing_left)
+    if missing_right > 0 and left > 0:
+        left = max(0, left - missing_right)
     while left > 0 and not content[left - 1].isspace():
         left -= 1
     while right < len(content) and not content[right].isspace():

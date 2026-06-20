@@ -269,6 +269,7 @@
     "label": "org.ent.pressagency.domei",
     "display_name": "Domei Tsushin",
     "aliases": ["Domei", "Domei News Agency"],
+    "search_aliases": ["Domei"],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Domei_Tsushin",
     "wikidata_url": "https://www.wikidata.org/wiki/Q2913752",
     "trainable": true,
