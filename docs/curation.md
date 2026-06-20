@@ -137,7 +137,9 @@ Use this path one canonical label at a time. It is the safest way to normalize a
 
 ### B. Add missed annotations to existing documents
 
-Use the target-specific vertical-extension path when you want to scan an existing split for one entity, for example possible missed `org.ent.pressagency.ata` mentions in train, validation, or test. The audit uses high-precision metadata patterns by default. If model prediction files exist from `suggest-eval-disagreements-*`, it also includes current-model suggestions for the target label.
+Use the target-specific vertical-extension path when you want to scan current dataset text for one entity that may be mentioned but not annotated yet. This is the right workflow for questions such as: "find SDA / ATS-SDA mentions in the current validation split that are missing `org.ent.pressagency.ats-sda` annotations." The audit reads the active configured split files (`TRAIN_JSONL`, `VALIDATION_JSONL`, or `TEST_JSONL`), so for a prerelease it also includes snippets that have already been promoted into that split.
+
+The audit uses high-precision metadata patterns by default. If model prediction files exist from `suggest-eval-disagreements-*`, it also includes current-model suggestions for the target label.
 
 ```bash
 make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
@@ -145,7 +147,15 @@ make review-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISS
 make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
 ```
 
-Use `MISSING_SPAN_SPLIT=validation` or `MISSING_SPAN_SPLIT=test` to audit those configured splits instead. The audit output, decisions, patched split, and change logs are namespaced by label and split.
+For SDA / ATS-SDA in validation, use:
+
+```bash
+make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ats-sda MISSING_SPAN_SPLIT=validation
+make review-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ats-sda MISSING_SPAN_SPLIT=validation REVIEWER="$USER"
+make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ats-sda MISSING_SPAN_SPLIT=validation
+```
+
+Use `MISSING_SPAN_SPLIT=train`, `MISSING_SPAN_SPLIT=validation`, or `MISSING_SPAN_SPLIT=test` to choose which configured split is audited. The audit output, decisions, patched split, and change logs are namespaced by label and split.
 
 To include current-model suggestions, run the split-specific evaluation first:
 
@@ -264,12 +274,18 @@ make integrate-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.hav
 
 ## Path B: Add Missed Annotations To Existing Documents
 
-Use this vertical-extension path when an audit has found likely false negatives — documents that are already in the training base but are missing an annotation entirely.
+Use this vertical-extension path when an audit has found likely false negatives: documents that are already in the configured dataset split but are missing an annotation entirely. This does not sample new documents. It inspects current text rows, including promoted snippet rows, and proposes missing spans for the selected canonical label.
 
 For routine entity-by-entity repair, build a target-specific missing-span queue. This scans one configured split and suggests spans for one canonical label when the current model and/or metadata patterns find a mention that does not overlap an existing annotation:
 
 ```bash
 make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+```
+
+For example, to audit the active validation split for unannotated SDA / ATS-SDA mentions:
+
+```bash
+make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ats-sda MISSING_SPAN_SPLIT=validation
 ```
 
 Review the target-specific suggestions:
