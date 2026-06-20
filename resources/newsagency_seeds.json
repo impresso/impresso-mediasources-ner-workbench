@@ -400,6 +400,10 @@
       "agence de presse Palach Press",
       "agenzia di stampa Palach Press"
     ],
+    "search_aliases": [
+      "Palach Press",
+      "Palach"
+    ],
     "wikipedia_url": "https://cs.wikipedia.org/wiki/Palach_Press",
     "wikidata_url": "https://www.wikidata.org/wiki/Q115584719",
     "trainable": true,

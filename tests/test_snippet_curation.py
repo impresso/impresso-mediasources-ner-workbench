@@ -360,6 +360,30 @@ def test_sample_newsagencies_loads_label_alias_queries(tmp_path: Path) -> None:
     assert {query["label"] for query in queries} == {"org.ent.pressagency.reuters"}
 
 
+def test_sample_newsagencies_prefers_search_alias_queries(tmp_path: Path) -> None:
+    seeds = tmp_path / "newsagency_seeds.json"
+    seeds.write_text(
+        json.dumps(
+            [
+                {
+                    "label": "org.ent.pressagency.palach-press",
+                    "canonical_id": "palach-press",
+                    "display_name": "Palach Press",
+                    "aliases": ["Palach Press", "agence de presse Palach Press"],
+                    "search_aliases": ["Palach Press", "Palach"],
+                    "trainable": True,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    queries = load_seed_queries(seeds, languages=["fr"], labels=None, max_queries_per_label=0)
+
+    assert [query["query"] for query in queries] == ["Palach Press", "Palach"]
+    assert {query["label"] for query in queries} == {"org.ent.pressagency.palach-press"}
+
+
 def test_sample_newsagencies_can_shuffle_alias_choice_by_seed(tmp_path: Path) -> None:
     seeds = tmp_path / "newsagency_seeds.json"
     seeds.write_text(

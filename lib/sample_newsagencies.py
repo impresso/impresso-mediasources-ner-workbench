@@ -205,17 +205,21 @@ def expand_candidate_with_full_content(
 
 def clean_aliases(row: dict[str, Any], languages: list[str]) -> list[str]:
     aliases: list[str] = []
-    for value in row.get("aliases") or []:
-        if isinstance(value, str) and value.strip():
-            aliases.append(value.strip())
-    aliases_by_language = row.get("aliases_by_language") or {}
+    search_aliases = row.get("search_aliases") or []
+    alias_fields = [search_aliases] if search_aliases else [row.get("aliases") or []]
+    for values in alias_fields:
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                aliases.append(value.strip())
+    search_aliases_by_language = row.get("search_aliases_by_language") or {}
+    aliases_by_language = search_aliases_by_language if search_aliases else row.get("aliases_by_language") or {}
     if isinstance(aliases_by_language, dict):
         for language in languages:
             values = aliases_by_language.get(language) or []
             for value in values:
                 if isinstance(value, str) and value.strip():
                     aliases.append(value.strip())
-    if isinstance(row.get("display_name"), str) and row["display_name"].strip():
+    if not search_aliases and isinstance(row.get("display_name"), str) and row["display_name"].strip():
         aliases.append(row["display_name"].strip())
     seen = set()
     out = []
