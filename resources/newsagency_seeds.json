@@ -390,6 +390,72 @@
     ]
   },
   {
+    "canonical_id": "palach-press",
+    "label": "org.ent.pressagency.palach-press",
+    "display_name": "Palach Press",
+    "aliases": [
+      "Palach Press",
+      "Palach Press Agency",
+      "Palach Press Limited",
+      "agence de presse Palach Press",
+      "agenzia di stampa Palach Press"
+    ],
+    "wikipedia_url": "https://cs.wikipedia.org/wiki/Palach_Press",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q115584719",
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "London-based Czechoslovak exile press and literary agency associated with Jan Kavan. Palach Press disseminated information from Czechoslovakia to Western journalists and Czechoslovak exile journalists during the communist period, especially in connection with the alternative public sphere, Charter 77, and other dissident material.",
+    "active_period": {
+      "start": "1975",
+      "end": "1990",
+      "note": "Czechoslovak exile press and literary agency active in London. The Charles University thesis describes Palach Press as operating in the 1970s and 1980s; the Wikidata/Czech Wikipedia metadata gives 1975-1990."
+    },
+    "aliases_by_language": {
+      "en": [
+        "Palach Press",
+        "Palach Press Agency",
+        "Palach Press Limited"
+      ],
+      "de": [
+        "Palach Press",
+        "Palach Press Agency",
+        "Palach-Presseagentur"
+      ],
+      "fr": [
+        "Palach Press",
+        "agence de presse Palach Press"
+      ],
+      "it": [
+        "Palach Press",
+        "agenzia di stampa Palach Press"
+      ],
+      "cs": [
+        "Palach Press",
+        "Agentura Palach Press"
+      ]
+    },
+    "annotation_note": "Annotate the proper name Palach Press / Palach Press Agency. Do not map descriptive phrases such as agence de presse tchèque dissidente or agence de presse tchécoslovaque en exil to CTK/ČTK when they describe Palach Press. If the proper name is present with a descriptive apposition, prefer only the proper-name span unless the project guidelines decide to include descriptive appositions.",
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q115584719"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://cs.wikipedia.org/wiki/Palach_Press"
+      },
+      {
+        "type": "thesis",
+        "url": "https://dspace.cuni.cz/handle/20.500.11956/118896",
+        "citation": "Poláková, Tereza. Palach Press: tisková a literární agentura. Studie o exilové agentuře a komparace její prezentace událostí s oficiálními československými médii. Praha, 2020. Diplomová práce (Mgr.), Univerzita Karlova, Fakulta sociálních věd, Institut Komunikačních studií a žurnalistiky."
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Jan_Kavan"
+      }
+    ]
+  },
+  {
     "canonical_id": "ansa",
     "label": "org.ent.pressagency.ansa",
     "display_name": "Agenzia Nazionale Stampa Associata",
