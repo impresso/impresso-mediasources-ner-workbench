@@ -402,6 +402,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--model", default="")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)
+    parser.add_argument("--auto-accept-min-confidence", type=float, default=0.99)
+    parser.add_argument("--auto-accept-min-margin", type=float, default=0.30)
+    parser.add_argument("--auto-accept-multiple-min-confidence", type=float, default=0.99)
     return parser.parse_args(argv)
 
 

@@ -250,9 +250,9 @@ def input_help(path: Path) -> str:
     lines = [
         "Next steps:",
         "  - Create real search snippets:",
-        "      make sample-newsagency-snippets",
+        "      make sample-media-snippets MEDIA_FAMILY=pressagency",
         "  - Or score an existing candidate file:",
-        f"      make suggest-newsagency-snippet-spans NEWSAGENCY_SNIPPETS={existing_candidate}",
+        f"      make suggest-media-snippet-spans MEDIA_FAMILY=pressagency MEDIA_SNIPPETS={existing_candidate}",
     ]
     if alternatives:
         lines.extend(["", f"JSONL files currently present in {path.parent}:"])
@@ -419,7 +419,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Suggest known media-source spans in sampled news-agency snippets.")
+    parser = argparse.ArgumentParser(description="Suggest known media-source spans in sampled press-agency snippets.")
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--model", default="")

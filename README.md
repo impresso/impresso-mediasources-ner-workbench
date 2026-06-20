@@ -261,12 +261,12 @@ make publish-testset ARGS="--dry-run"
 make train CFG=configs/model-v2.0.0.mk
 make test CFG=configs/model-v2.0.0.mk
 make apply-curation CFG=configs/model-v2.0.0.mk
-make suggest-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk
-make review-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make split-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make suggest-radio-snippet-spans CFG=configs/model-v2.0.0.mk
-make review-radio-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make split-radio-snippets CFG=configs/model-v2.0.0.mk
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
 make push-model CFG=configs/model-v2.0.0.mk
 ```
 
@@ -344,15 +344,15 @@ Coverage and targeted sampling are label-language aware. By default, `de`, `fr`,
 
 ```bash
 make annotation-stats CFG=configs/model-v2.0.0.mk
-make sample-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make sample-radio-snippets CFG=configs/model-v2.0.0.mk
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
 ```
 
 Restrict a sampling pass to one canonical label with `ARGS="--labels ..."`:
 
 ```bash
-make sample-newsagency-snippets CFG=configs/model-v2.0.0.mk ARGS="--labels org.ent.pressagency.reuters"
-make sample-radio-snippets CFG=configs/model-v2.0.0.mk ARGS="--labels org.ent.radiostation.rtl"
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency ARGS="--labels org.ent.pressagency.reuters"
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation ARGS="--labels org.ent.radiostation.rtl"
 ```
 
 Override the defaults from the command line when needed:

@@ -33,7 +33,7 @@ make curation-state CFG=configs/model-v2.1.0.mk
 Review targets require a `REVIEWER` override to tag decisions with the curator's identity. The examples use the shell variable `$USER`, which expands to your login name:
 
 ```bash
-make review-newsagency-snippet-spans REVIEWER="$USER"
+make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
 ```
 
 You can substitute any short identifier instead of `$USER`.
@@ -94,8 +94,8 @@ Start by choosing the path that matches the kind of dataset change you want to m
 | You want to audit already accepted annotations for boundary or label errors. | Existing-annotation audit               | `audit-existing-spans` -> `review-existing-spans` -> `integrate-existing-spans`                                                          |
 | You want to add missed annotations to existing documents for one entity.     | Target-specific missing-span audit      | `audit-missing-spans` -> `review-missing-spans` -> `integrate-missing-spans`                                                             |
 | You want to inspect empty-gold training documents for broad false negatives. | Empty-document span-patch audit         | `audit-empty-training-docs` -> `review-span-patches` -> `integrate-span-patches`                                                         |
-| You want new examples from Impresso search for news agencies.                | News-agency snippet curation            | `annotation-stats` -> `sample-newsagency-snippets` -> `suggest-newsagency-snippet-spans` -> `review-newsagency-snippet-spans` -> `integrate-snippets` |
-| You want new examples from Impresso search for radio stations.               | Radio snippet curation                  | `annotation-stats` -> `sample-radio-snippets` -> `suggest-radio-snippet-spans` -> `review-radio-snippet-spans` -> `integrate-snippets`      |
+| You want new examples from Impresso search for press agencies.               | Media-source snippet curation           | `annotation-stats` -> `sample-media-snippets MEDIA_FAMILY=pressagency` -> `suggest-media-snippet-spans MEDIA_FAMILY=pressagency` -> `review-media-snippet-spans MEDIA_FAMILY=pressagency` -> `integrate-snippets` |
+| You want new examples from Impresso search for radio stations.               | Media-source snippet curation           | `annotation-stats` -> `sample-media-snippets MEDIA_FAMILY=radiostation` -> `suggest-media-snippet-spans MEDIA_FAMILY=radiostation` -> `review-media-snippet-spans MEDIA_FAMILY=radiostation` -> `integrate-snippets` |
 | You want to clean HIPE-derived gold-vs-prediction disagreement files.       | Evaluation disagreement curation        | `suggest-eval-disagreements` -> `review-curation` -> `validate-curation` -> `apply-curation`                                             |
 
 For new dataset growth, use the snippet paths for horizontal extension and the span-patch paths for vertical extension. Use the evaluation disagreement path only when you are deliberately correcting gold-vs-model disagreements in the configured train/validation/test folds.
@@ -174,13 +174,13 @@ Run the human-in-the-loop cycle step by step:
 
 ```bash
 make annotation-stats
-make sample-newsagency-snippets
-make suggest-newsagency-snippet-spans
-make review-newsagency-snippet-spans REVIEWER="$USER"
+make sample-media-snippets MEDIA_FAMILY=pressagency
+make suggest-media-snippet-spans MEDIA_FAMILY=pressagency
+make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
 make integrate-snippets
 ```
 
-Use `sample-newsagency-snippets` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-freely-newsagency-snippets` instead when you deliberately want unconstrained sampling or when no coverage report is available yet.
+Use `sample-media-snippets MEDIA_FAMILY=pressagency` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-freely-media-snippets MEDIA_FAMILY=pressagency` instead when you deliberately want unconstrained sampling or when no coverage report is available yet.
 
 ### D. Add new radio-station snippets
 
@@ -190,13 +190,13 @@ Run the human-in-the-loop cycle step by step:
 
 ```bash
 make annotation-stats
-make sample-radio-snippets
-make suggest-radio-snippet-spans
-make review-radio-snippet-spans REVIEWER="$USER"
+make sample-media-snippets MEDIA_FAMILY=radiostation
+make suggest-media-snippet-spans MEDIA_FAMILY=radiostation
+make review-media-snippet-spans MEDIA_FAMILY=radiostation REVIEWER="$USER"
 make integrate-snippets
 ```
 
-Use `sample-radio-snippets` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-freely-radio-snippets` instead when you deliberately want broader radio-station sampling or when no coverage report is available yet.
+Use `sample-media-snippets MEDIA_FAMILY=radiostation` for routine coverage work because it uses the label-language coverage report to focus on buckets below target. Use `sample-freely-media-snippets MEDIA_FAMILY=radiostation` instead when you deliberately want broader radio-station sampling or when no coverage report is available yet.
 
 ### E. Correct HIPE-derived train/validation/test disagreements
 
@@ -332,8 +332,8 @@ Snippet curation is the horizontal-extension path. News-agency and radio snippet
 Snippet review produces ignored working files under `data/curated/snippets/`. Splitting snippets converts accepted review decisions into train/validation/test JSONL rows for each entity family:
 
 ```bash
-make split-newsagency-snippets
-make split-radio-snippets
+make split-media-snippets MEDIA_FAMILY=pressagency
+make split-media-snippets MEDIA_FAMILY=radiostation
 ```
 
 The split rows are not yet part of the training data. Promotion integrates them into the configured prerelease/source split, which is the file that feeds into training and dataset export. Check what would be promoted before committing:
@@ -359,7 +359,7 @@ make integrate-snippets
 `integrate-snippets` splits both reviewed news-agency and reviewed radio snippets, previews promotion, and then promotes. If only one family currently has reviewed rows, run the family-specific split target first and then promote separately, or make sure the other family's configured split files exist and are intentionally empty:
 
 ```bash
-make split-newsagency-snippets
+make split-media-snippets MEDIA_FAMILY=pressagency
 make preview-promote-snippets
 make promote-snippets
 ```
@@ -522,29 +522,29 @@ For routine gap filling, sample real Impresso search snippets from label/languag
 
 ```bash
 make annotation-stats
-make sample-newsagency-snippets NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
+make sample-media-snippets MEDIA_FAMILY=pressagency MEDIA_SAMPLE_TARGET_PER_QUERY_LANG=5 MEDIA_SAMPLE_MAX_PER_LABEL=5 MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=3
 ```
 
 For deliberately unconstrained sampling, use the explicit free-sampling target:
 
 ```bash
-make sample-freely-newsagency-snippets NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG=5 NEWSAGENCY_SAMPLE_MAX_PER_LABEL=5 NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL=3
+make sample-freely-media-snippets MEDIA_FAMILY=pressagency MEDIA_SAMPLE_TARGET_PER_QUERY_LANG=5 MEDIA_SAMPLE_MAX_PER_LABEL=5 MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=3
 ```
 
 To focus the under-target sampling pass on a specific news agency, pass the full canonical label through `ARGS`:
 
 ```bash
-make sample-newsagency-snippets ARGS="--labels org.ent.pressagency.reuters"
+make sample-media-snippets MEDIA_FAMILY=pressagency ARGS="--labels org.ent.pressagency.reuters"
 ```
 
-Multiple news-agency labels can be whitespace-separated inside the `--labels` value. `sample-newsagency-snippets` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-newsagency-snippets ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter.
+Multiple press-agency labels can be whitespace-separated inside the `--labels` value. `sample-media-snippets MEDIA_FAMILY=pressagency` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-media-snippets MEDIA_FAMILY=pressagency ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter.
 
 This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
 
 Suggest spans for sampled snippets. The suggest step uses the configured model plus known-entity metadata matchers across the configured news-agency, radio-station, and optional newspaper catalogs. This means a news-agency sample can still be preannotated with radio-station or newspaper spans when those known entities occur in the same snippet:
 
 ```bash
-make suggest-newsagency-snippet-spans NEWSAGENCY_SNIPPETS=data/candidates/newsagency_search_snippets.jsonl HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner
+make suggest-media-snippet-spans MEDIA_FAMILY=pressagency MEDIA_SNIPPETS=data/candidates/newsagency_search_snippets.jsonl HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner
 ```
 
 The scorer writes `data/curated/snippets/newsagencies/scored.jsonl` by default. Rows are marked:
@@ -557,7 +557,7 @@ By default, `AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE` inherits `AUTO_ACCEPT_MIN_CONF
 Review uncertain rows:
 
 ```bash
-make review-newsagency-snippet-spans REVIEWER="$USER"
+make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
 ```
 
 Choices are accept/review prediction spans, enter a manual token span, reject a suggested annotation, remove a bad sample, skip temporarily, or show info. If several agencies are predicted in the same snippet, choosing `a` reviews them one after another so multiple spans can be accepted in one decision. During per-span review, `a` accepts the predicted span and predicted label. If the boundary is correct but the label should be the candidate label, use `c`; for example, in `Telegraphen-Union berichtet:`, keep `Telegraphen-Union` as `org.ent.pressagency.telegraphen-union` and reject `berichtet`. In manual mode, the numbered tokens are shown automatically and you can add several spans before saving. You can type an explicit span with a full label or canonical id, such as `12:13 org.ent.pressagency.reuters` or `12:13 reuters`. You can also paste the numbered tokens themselves, for example `9:B 10:. 11:B 12:. 13:C 14:. bbc` or `33:Radio 34:. agence-radio`; the review tool infers the contiguous token range, resolves the canonical id to the full label, and prints an `interpreted:` line with the final span and label. If no label is supplied, the tool uses the current candidate label when one is available. Press `i` to print the current review input file, the local label metadata from `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`, the agency description, active period, multilingual aliases, annotation notes, contextual aliases, source links, the source file when known, and a direct Impresso article URL such as `https://impresso-project.ch/app/article/ARTICLEID` when the source document ID is known. Decisions are append-only in `data/curated/snippets/newsagencies/decisions.jsonl`, and the reviewed rows are materialized to `data/curated/snippets/newsagencies/reviewed.jsonl`.
@@ -574,7 +574,7 @@ The review target defaults to 20 items per run. Override with `REVIEW_MAX_ITEMS=
 Split accepted rows into train/validation/test JSONL:
 
 ```bash
-make split-newsagency-snippets
+make split-media-snippets MEDIA_FAMILY=pressagency
 ```
 
 The default outputs are `data/curated/snippets/newsagencies/train.jsonl`, `data/curated/snippets/newsagencies/validation.jsonl`, and `data/curated/snippets/newsagencies/test.jsonl`. They use the compact v2 token-label/entity schema: integer label IDs are derived later from `label_map.json`, and public entity rows do not carry synthetic entity IDs or normalization compatibility fields. The default policy is 80/10/10 train/validation/test, with deterministic grouping by source issue/document so snippets from the same source issue do not leak across splits. Override the holdout sizes with `SNIPPET_VALIDATION_FRACTION=...` and `SNIPPET_TEST_FRACTION=...`.
@@ -641,45 +641,45 @@ The `i` info view in review and audit review displays this `mention_profile` fie
 
 ### Radio-Station Snippets
 
-The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-radio-snippets`. This is the routine coverage-driven target: run `make annotation-stats` first so it can focus on label/language buckets below target.
+The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-media-snippets MEDIA_FAMILY=radiostation`. This is the routine coverage-driven target: run `make annotation-stats` first so it can focus on label/language buckets below target.
 
 ```bash
 make annotation-stats
-make sample-radio-snippets
+make sample-media-snippets MEDIA_FAMILY=radiostation
 ```
 
 To focus the under-target sampling pass on a specific radio station, pass the full canonical label through `ARGS`:
 
 ```bash
-make sample-radio-snippets ARGS="--labels org.ent.radiostation.rtl"
+make sample-media-snippets MEDIA_FAMILY=radiostation ARGS="--labels org.ent.radiostation.rtl"
 ```
 
-Multiple radio-station labels can be whitespace-separated inside the `--labels` value. `sample-radio-snippets` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-radio-snippets ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter, or use `sample-freely-radio-snippets` without labels when you deliberately want broader radio-station sampling.
+Multiple radio-station labels can be whitespace-separated inside the `--labels` value. `sample-media-snippets MEDIA_FAMILY=radiostation` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-media-snippets MEDIA_FAMILY=radiostation ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter, or use `sample-freely-media-snippets MEDIA_FAMILY=radiostation` without labels when you deliberately want broader radio-station sampling.
 
 Because the model can only predict labels it has already been trained on, snippet suggestion combines the current NER model with deterministic metadata matchers for known media-source labels. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` span if the actual snippet contains that agency instead of, or in addition to, the searched radio-station mention.
 
 Suggest spans for sampled radio snippets:
 
 ```bash
-make suggest-radio-snippet-spans
+make suggest-media-snippet-spans MEDIA_FAMILY=radiostation
 ```
 
 Review suggested radio-station spans:
 
 ```bash
-make review-radio-snippet-spans REVIEWER="$USER"
+make review-media-snippet-spans MEDIA_FAMILY=radiostation REVIEWER="$USER"
 ```
 
 Split accepted radio spans into train/validation/test JSONL:
 
 ```bash
-make split-radio-snippets
+make split-media-snippets MEDIA_FAMILY=radiostation
 ```
 
 This writes `data/curated/snippets/radiostations/train.jsonl`, `data/curated/snippets/radiostations/validation.jsonl`, and `data/curated/snippets/radiostations/test.jsonl`. The exporter extends the baseline HIPE-derived label map in memory with labels from `resources/radiostation_seeds.json`, so radio-station rows can be prepared before retraining a model with radio labels. The default policy is 80/10/10 train/validation/test, with deterministic grouping by source issue/document.
 
 Use `integrate-snippets` when the reviewed radio rows are ready to be split, previewed, and promoted into the configured prerelease/source split.
 
-Radio-station snippets use the same span-review model as news-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-radio-snippet-spans`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.
+Radio-station snippets use the same span-review model as press-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-media-snippet-spans MEDIA_FAMILY=radiostation`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.
 
 Before sharing a dataset extension, copy or generate the full release snapshot under `data/releases/<dataset-version>/`. Ignored local review files under `data/curated/` are not preserved by `make clean`.

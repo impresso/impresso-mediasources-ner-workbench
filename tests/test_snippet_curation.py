@@ -99,8 +99,8 @@ def test_newsagency_scorer_missing_input_explains_next_steps(tmp_path: Path) -> 
         raise AssertionError("missing input should fail")
 
     assert "Input JSONL does not exist" in message
-    assert "make sample-newsagency-snippets" in message
-    assert f"NEWSAGENCY_SNIPPETS={existing}" in message
+    assert "make sample-media-snippets MEDIA_FAMILY=pressagency" in message
+    assert f"MEDIA_SNIPPETS={existing}" in message
     assert f"- {existing}" in message
 
 
@@ -117,8 +117,8 @@ def test_newsagency_scorer_empty_input_explains_next_steps(tmp_path: Path) -> No
         raise AssertionError("empty input should fail")
 
     assert "Input JSONL is empty" in message
-    assert "make sample-newsagency-snippets" in message
-    assert "make suggest-newsagency-snippet-spans" in message
+    assert "make sample-media-snippets MEDIA_FAMILY=pressagency" in message
+    assert "make suggest-media-snippet-spans MEDIA_FAMILY=pressagency" in message
 
 
 def test_newsagency_scoring_matches_radio_and_pressagency_aliases(tmp_path: Path) -> None:

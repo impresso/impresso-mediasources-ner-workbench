@@ -8,7 +8,7 @@ include $(CFG)
 
 export HF_HOME
 
-.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-newsagency-snippets sample-freely-newsagency-snippets sample-radio-snippets sample-freely-radio-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-newsagency-snippet-spans review-newsagency-snippet-spans review-auto-newsagency-snippet-spans split-newsagency-snippets suggest-radio-snippet-spans review-radio-snippet-spans review-auto-radio-snippet-spans split-radio-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -74,32 +74,25 @@ help-annotation:
 	@echo "  make validate-curation                        Validate curation decisions"
 	@echo "  make apply-curation                           Write curated JSONL folds"
 	@echo ""
-	@echo "News-agency snippet annotation:"
-	@echo "  make sample-newsagency-snippets             Sample label/language buckets below target"
-	@echo "  make sample-newsagency-snippets ARGS=\"--labels org.ent.pressagency.reuters\""
-	@echo "                                             Sample one news-agency label below target"
-	@echo "  make suggest-newsagency-snippet-spans        Suggest spans: model plus known entity metadata matchers"
-	@echo "  make review-newsagency-snippet-spans         Review uncertain snippet spans; press i for label info"
-	@echo "  make review-auto-newsagency-snippet-spans    Audit auto-accepted news-agency snippet spans manually"
-	@echo "  make split-newsagency-snippets               Split accepted snippets into train/validation/test JSONL"
-	@echo "  make preview-promote-snippets                Preview promotion into configured dataset splits"
-	@echo "  make promote-snippets                        Promote split snippets into configured dataset splits"
-	@echo "  make integrate-snippets                      Split, preview, then promote reviewed snippets"
-	@echo ""
-	@echo "Radio snippet annotation:"
-	@echo "  make sample-radio-snippets                   Sample radio label/language buckets below target"
-	@echo "  make sample-radio-snippets ARGS=\"--labels org.ent.radiostation.rtl\""
+	@echo "Media-source snippet annotation:"
+	@echo "  make sample-media-snippets MEDIA_FAMILY=pressagency"
+	@echo "                                             Sample press-agency label/language buckets below target"
+	@echo "  make sample-media-snippets MEDIA_FAMILY=radiostation ARGS=\"--labels org.ent.radiostation.rtl\""
 	@echo "                                             Sample one radio-station label below target"
-	@echo "  make suggest-radio-snippet-spans             Suggest spans: model plus known entity metadata matchers"
-	@echo "  make review-radio-snippet-spans              Review radio span suggestions"
-	@echo "  make review-auto-radio-snippet-spans         Audit auto-accepted radio snippet spans manually"
-	@echo "  make split-radio-snippets                    Split accepted radio spans into train/validation/test JSONL"
+	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=pressagency"
+	@echo "                                             Suggest spans: model plus known entity metadata matchers"
+	@echo "  make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER=\"$$USER\""
+	@echo "                                             Review uncertain snippet spans; press i for label info"
+	@echo "  make review-auto-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER=\"$$USER\""
+	@echo "                                             Audit auto-accepted snippet spans manually"
+	@echo "  make split-media-snippets MEDIA_FAMILY=pressagency"
+	@echo "                                             Split accepted snippets into train/validation/test JSONL"
 	@echo "  make preview-promote-snippets                Preview promotion into configured dataset splits"
 	@echo "  make promote-snippets                        Promote split snippets into configured dataset splits"
 	@echo "  make integrate-snippets                      Split, preview, then promote reviewed snippets"
 	@echo ""
 	@echo "Useful overrides:"
-	@echo "  REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, NEWSAGENCY_SNIPPETS=..., RADIOSTATION_SNIPPETS=..."
+	@echo "  MEDIA_FAMILY=pressagency|radiostation, REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, MEDIA_SNIPPETS=..."
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=true"
 	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
 	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
@@ -421,29 +414,17 @@ integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches mate
 	@echo "Next step:"
 	@echo "  make validate-dataset-splits # Validate train/validation/test after TSV inspection"
 
-sample-freely-newsagency-snippets:
-	@echo "Sampling news-agency snippets freely, without restricting to below-target coverage buckets."
-	$(PYTHON) -m lib.sample_newsagencies --seeds "$(NEWSAGENCY_LABEL_METADATA)" --out "$(NEWSAGENCY_SNIPPETS)" --summary-out "$(NEWSAGENCY_SNIPPET_SUMMARY)" --languages $(NEWSAGENCY_SAMPLE_LANGS) --target-per-query-lang "$(NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(NEWSAGENCY_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(NEWSAGENCY_SAMPLE_YEAR_START)" --year-end "$(NEWSAGENCY_SAMPLE_YEAR_END)" --context-source "$(NEWSAGENCY_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(NEWSAGENCY_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
+sample-freely-media-snippets:
+	@echo "Sampling $(MEDIA_FAMILY) snippets freely, without restricting to below-target coverage buckets."
+	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make suggest-newsagency-snippet-spans # Suggest spans for sampled news-agency snippets"
+	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) # Suggest spans for sampled media-source snippets"
 
-sample-newsagency-snippets:
-	@echo "Sampling news-agency snippets for label/language coverage buckets below target."
-	$(PYTHON) -m lib.sample_newsagencies --seeds "$(NEWSAGENCY_LABEL_METADATA)" --out "$(NEWSAGENCY_SNIPPETS)" --summary-out "$(NEWSAGENCY_SNIPPET_SUMMARY)" --languages $(NEWSAGENCY_SAMPLE_LANGS) --target-per-query-lang "$(NEWSAGENCY_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(NEWSAGENCY_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(NEWSAGENCY_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(NEWSAGENCY_SAMPLE_YEAR_START)" --year-end "$(NEWSAGENCY_SAMPLE_YEAR_END)" --context-source "$(NEWSAGENCY_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(NEWSAGENCY_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
+sample-media-snippets:
+	@echo "Sampling $(MEDIA_FAMILY) snippets for label/language coverage buckets below target."
+	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
 	@echo "Next step:"
-	@echo "  make suggest-newsagency-snippet-spans # Suggest spans for sampled news-agency snippets"
-
-sample-freely-radio-snippets:
-	@echo "Sampling radio-station snippets freely, without restricting to below-target coverage buckets."
-	$(PYTHON) -m lib.sample_radiostations --seeds "$(RADIOSTATION_LABEL_METADATA)" --out "$(RADIOSTATION_SNIPPETS)" --summary-out "$(RADIOSTATION_SNIPPET_SUMMARY)" --languages $(RADIOSTATION_SAMPLE_LANGS) --target-per-query-lang "$(RADIOSTATION_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(RADIOSTATION_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(RADIOSTATION_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(RADIOSTATION_SAMPLE_YEAR_START)" --year-end "$(RADIOSTATION_SAMPLE_YEAR_END)" --context-source "$(RADIOSTATION_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(RADIOSTATION_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
-	@echo "Next step:"
-	@echo "  make suggest-radio-snippet-spans # Suggest spans for sampled radio snippets"
-
-sample-radio-snippets:
-	@echo "Sampling radio-station snippets for label/language coverage buckets below target."
-	$(PYTHON) -m lib.sample_radiostations --seeds "$(RADIOSTATION_LABEL_METADATA)" --out "$(RADIOSTATION_SNIPPETS)" --summary-out "$(RADIOSTATION_SNIPPET_SUMMARY)" --languages $(RADIOSTATION_SAMPLE_LANGS) --target-per-query-lang "$(RADIOSTATION_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(RADIOSTATION_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(RADIOSTATION_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(RADIOSTATION_SAMPLE_YEAR_START)" --year-end "$(RADIOSTATION_SAMPLE_YEAR_END)" --context-source "$(RADIOSTATION_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(RADIOSTATION_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
-	@echo "Next step:"
-	@echo "  make suggest-radio-snippet-spans # Suggest spans for sampled radio snippets"
+	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) # Suggest spans for sampled media-source snippets"
 
 curate:
 	@echo "Running the generic candidate curation command with ARGS."
@@ -564,51 +545,27 @@ suggest-eval-disagreements-test: curation-eval-test curation-review-test
 	@echo "Next step:"
 	@echo "  make review-curation REVIEWER=\"$$USER\" # Review pending test disagreements"
 
-suggest-newsagency-snippet-spans:
-	@echo "Suggesting snippet spans: use the configured model and known entity metadata matchers."
-	$(PYTHON) -m lib.score_newsagency_snippets --input "$(NEWSAGENCY_SNIPPETS)" --output "$(NEWSAGENCY_SCORED_SNIPPETS)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newspapers "$(NEWSPAPER_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
+suggest-media-snippet-spans:
+	@echo "Suggesting $(MEDIA_FAMILY) snippet spans: use the configured model and known entity metadata matchers."
+	$(PYTHON) -m lib.score_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SNIPPETS)" --output "$(MEDIA_SCORED_SNIPPETS)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newspapers "$(NEWSPAPER_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-newsagency-snippet-spans REVIEWER=\"$$USER\" # Review suggested news-agency snippet spans"
+	@echo "  make review-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) REVIEWER=\"$$USER\" # Review suggested media-source snippet spans"
 
-review-newsagency-snippet-spans:
-	@echo "Reviewing news-agency snippet span suggestions and writing append-only decisions."
-	$(PYTHON) -m lib.review_newsagency_snippets --input "$(NEWSAGENCY_SCORED_SNIPPETS)" --output "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
+review-media-snippet-spans:
+	@echo "Reviewing $(MEDIA_FAMILY) snippet span suggestions and writing append-only decisions."
+	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 	@echo "Next step:"
-	@echo "  make split-newsagency-snippets # Split accepted news-agency snippets into train/validation/test"
+	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY) # Split accepted snippets into train/validation/test"
 
-review-auto-newsagency-snippet-spans:
-	@echo "Auditing auto-accepted news-agency snippet spans and writing append-only decisions."
-	$(PYTHON) -m lib.review_newsagency_snippets --input "$(NEWSAGENCY_SCORED_SNIPPETS)" --output "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --review-status auto_accepted $(ARGS)
+review-auto-media-snippet-spans:
+	@echo "Auditing auto-accepted $(MEDIA_FAMILY) snippet spans and writing append-only decisions."
+	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --review-status auto_accepted $(ARGS)
 	@echo "Next step:"
-	@echo "  make split-newsagency-snippets # Split accepted news-agency snippets into train/validation/test"
+	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY) # Split accepted snippets into train/validation/test"
 
-split-newsagency-snippets:
-	@echo "Splitting accepted news-agency snippet decisions into train/validation/test JSONL."
-	$(PYTHON) -m lib.export_snippet_training_data --input "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --output "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --validation-output "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --test-output "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
-	@echo "Next step:"
-	@echo "  make preview-promote-snippets # Preview integration after snippet splits are up to date"
-
-suggest-radio-snippet-spans:
-	@echo "Suggesting radio snippet spans: use the configured model and known entity metadata matchers."
-	$(PYTHON) -m lib.score_radiostation_snippets --input "$(RADIOSTATION_SNIPPETS)" --output "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" $(ARGS)
-	@echo "Next step:"
-	@echo "  make review-radio-snippet-spans REVIEWER=\"$$USER\" # Review suggested radio snippet spans"
-
-review-radio-snippet-spans:
-	@echo "Reviewing radio-station snippet span suggestions and writing append-only decisions."
-	$(PYTHON) -m lib.review_newsagency_snippets --input "$(RADIOSTATION_SCORED_SNIPPETS)" --output "$(RADIOSTATION_REVIEWED_SNIPPETS)" --decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --review-prefix "radiostation-span" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
-	@echo "Next step:"
-	@echo "  make split-radio-snippets # Split accepted radio snippets into train/validation/test"
-
-review-auto-radio-snippet-spans:
-	@echo "Auditing auto-accepted radio-station snippet spans and writing append-only decisions."
-	$(PYTHON) -m lib.review_newsagency_snippets --input "$(RADIOSTATION_SCORED_SNIPPETS)" --output "$(RADIOSTATION_REVIEWED_SNIPPETS)" --decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --review-prefix "radiostation-span" --review-status auto_accepted $(ARGS)
-	@echo "Next step:"
-	@echo "  make split-radio-snippets # Split accepted radio snippets into train/validation/test"
-
-split-radio-snippets:
-	@echo "Splitting accepted radio-station snippet decisions into train/validation/test JSONL."
-	$(PYTHON) -m lib.export_snippet_training_data --input "$(RADIOSTATION_REVIEWED_SNIPPETS)" --output "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --validation-output "$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --test-output "$(RADIOSTATION_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" $(ARGS)
+split-media-snippets:
+	@echo "Splitting accepted $(MEDIA_FAMILY) snippet decisions into train/validation/test JSONL."
+	$(PYTHON) -m lib.export_snippet_training_data --input "$(MEDIA_REVIEWED_SNIPPETS)" --output "$(MEDIA_SNIPPET_TRAIN_JSONL)" --validation-output "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --test-output "$(MEDIA_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 	@echo "Next step:"
 	@echo "  make preview-promote-snippets # Preview integration after snippet splits are up to date"
 
@@ -625,9 +582,9 @@ promote-snippets:
 	@echo "  make validate-dataset-splits # Validate train/validation/test after snippet promotion"
 
 integrate-snippets:
-	@echo "Integrating reviewed snippets: split news-agency and radio decisions, preview promotion, then promote."
-	$(MAKE) split-newsagency-snippets
-	$(MAKE) split-radio-snippets
+	@echo "Integrating reviewed snippets: split press-agency and radio-station decisions, preview promotion, then promote."
+	$(MAKE) split-media-snippets MEDIA_FAMILY=pressagency
+	$(MAKE) split-media-snippets MEDIA_FAMILY=radiostation
 	$(MAKE) preview-promote-snippets
 	$(MAKE) promote-snippets
 	@echo "Next step:"

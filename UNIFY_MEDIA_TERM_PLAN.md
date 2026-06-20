@@ -16,6 +16,24 @@ The repository should still preserve meaningful entity-family distinctions:
 
 The simplification should remove historical command/script duplication where possible. Seed resources should usually remain family-specific because they encode family-specific canonical metadata, aliases, and provenance.
 
+## Current Implementation Status
+
+Implemented in the first slice:
+
+- Generic Make targets exist for snippet curation: `sample-media-snippets`, `sample-freely-media-snippets`, `suggest-media-snippet-spans`, `review-media-snippet-spans`, `review-auto-media-snippet-spans`, and `split-media-snippets`.
+- `MEDIA_FAMILY=pressagency|radiostation|newspaper` selects the active family in `configs/common.mk`.
+- The old `newsagency` and `radio` snippet Make targets have been removed, not aliased.
+- The generic Python modules `lib.sample_media_snippets`, `lib.score_media_snippets`, and `lib.review_media_snippets` exist as dispatch modules.
+- Existing press-agency storage paths still use `newsagency`/`newsagencies` to avoid moving active curation files.
+- `integrate-snippets` now splits press-agency and radio-station snippets through the generic target, then previews and promotes them.
+
+Still planned:
+
+- Move the sampler, scorer, and review implementation fully into generic modules instead of dispatching to older family-specific modules.
+- Generalize `curation_state.py` and `annotation_stats.py` so they consume configured media-source families rather than hard-coded newsagency/radiostation argument groups.
+- Decide later whether to migrate press-agency storage paths from `newsagency`/`newsagencies` to `pressagency`/`pressagencies`.
+- Add newspaper-specific sampling/scoring implementation before enabling `MEDIA_FAMILY=newspaper` for end-to-end curation.
+
 ## Recommended Terminology
 
 Use **media-source** for human-facing documentation when clarity matters. It describes the project domain better than the shorter **media**, because the annotations are citations or mentions of sources in historical newspaper text, not generic media content.
@@ -31,9 +49,9 @@ Use these names consistently:
 | CLI module prefix | media | `lib.sample_media_snippets`, `lib.score_media_snippets` |
 | Family parameter | family | `MEDIA_FAMILY=pressagency`, `--family radiostation` |
 | Entity family values | semantic label family | `pressagency`, `radiostation`, `newspaper` |
-| Historical compatibility | old command aliases | `sample-newsagency-snippets`, `sample-radio-snippets` |
+| Historical compatibility | none for Make targets | old `newsagency`/`radio` Make targets are removed during this migration |
 
-Also prefer **press agency** over **news agency** in new documentation, help text, and target descriptions. Keep `newsagency` only where it is already part of a compatibility target, old file path, or historical module name during migration.
+Also prefer **press agency** over **news agency** in new documentation, help text, and target descriptions. Keep `newsagency` only where it is already part of an old config variable, old file path, or historical module name during migration.
 
 ## Scope
 
@@ -45,7 +63,7 @@ This plan covers dataset curation only:
 - exporting reviewed snippets into JSONL split rows
 - promoting materialized curation output into prerelease/source splits
 - curation state and coverage reporting
-- docs, Make help, tests, and migration aliases
+- docs, Make help, tests, and removal of the old family-specific Make targets
 
 Out of scope:
 
@@ -103,20 +121,7 @@ make split-media-snippets MEDIA_FAMILY=newspaper
 make promote-snippets
 ```
 
-Compatibility aliases should remain during the migration:
-
-```bash
-make sample-newsagency-snippets      # alias for MEDIA_FAMILY=pressagency
-make sample-radio-snippets           # alias for MEDIA_FAMILY=radiostation
-make suggest-newsagency-snippet-spans
-make suggest-radio-snippet-spans
-make review-newsagency-snippet-spans
-make review-radio-snippet-spans
-make split-newsagency-snippets
-make split-radio-snippets
-```
-
-These aliases should print the generic replacement in their "Next step" messages once the generic targets are stable.
+The old `newsagency` and `radio` Make targets are removed rather than kept as aliases. This workbench is still developer-facing, so carrying a second public command surface would add noise without protecting a large user group.
 
 ## Family Configuration Model
 
@@ -126,36 +131,37 @@ Introduce one selected family variable:
 MEDIA_FAMILY ?= pressagency
 ```
 
-Use family-specific variable sets behind it:
+Use family-specific variable sets behind it. During the current migration, keep existing storage variables and paths for press-agency work to avoid moving active v2 curation files:
 
 ```make
-PRESSAGENCY_LABEL_METADATA ?= resources/newsagency_seeds.json
+NEWSAGENCY_LABEL_METADATA ?= resources/newsagency_seeds.json
 RADIOSTATION_LABEL_METADATA ?= resources/radiostation_seeds.json
 NEWSPAPER_LABEL_METADATA ?= resources/newspaper_seeds.json
 
-PRESSAGENCY_SNIPPETS ?= data/candidates/pressagency_search_snippets.jsonl
+NEWSAGENCY_SNIPPETS ?= data/candidates/newsagency_search_snippets.jsonl
 RADIOSTATION_SNIPPETS ?= data/candidates/radiostation_search_snippets.jsonl
 NEWSPAPER_SNIPPETS ?= data/candidates/newspaper_search_snippets.jsonl
 ```
 
-Keep legacy variable aliases while migrating:
+Future path cleanup may introduce `PRESSAGENCY_*` variables, but that should be separate from the command unification:
 
 ```make
-NEWSAGENCY_LABEL_METADATA ?= $(PRESSAGENCY_LABEL_METADATA)
-NEWSAGENCY_SNIPPETS ?= $(PRESSAGENCY_SNIPPETS)
+PRESSAGENCY_LABEL_METADATA ?= $(NEWSAGENCY_LABEL_METADATA)
+PRESSAGENCY_SNIPPETS ?= $(NEWSAGENCY_SNIPPETS)
 ```
 
-For selected-family targets, derive effective variables using Make conditionals:
+For selected-family targets, derive effective variables using explicit Make conditionals:
 
 ```make
-MEDIA_LABEL_METADATA = $($(call upper,$(MEDIA_FAMILY))_LABEL_METADATA)
-MEDIA_SNIPPETS = $($(call upper,$(MEDIA_FAMILY))_SNIPPETS)
-MEDIA_SCORED_SNIPPETS = $($(call upper,$(MEDIA_FAMILY))_SCORED_SNIPPETS)
-MEDIA_REVIEWED_SNIPPETS = $($(call upper,$(MEDIA_FAMILY))_REVIEWED_SNIPPETS)
-MEDIA_SNIPPET_DECISIONS = $($(call upper,$(MEDIA_FAMILY))_SNIPPET_DECISIONS)
+ifeq ($(MEDIA_FAMILY),pressagency)
+MEDIA_LABEL_METADATA ?= $(NEWSAGENCY_LABEL_METADATA)
+MEDIA_SNIPPETS ?= $(NEWSAGENCY_SNIPPETS)
+MEDIA_SCORED_SNIPPETS ?= $(NEWSAGENCY_SCORED_SNIPPETS)
+MEDIA_REVIEW_PREFIX ?= pressagency-span
+endif
 ```
 
-Make does not have a simple built-in uppercase function, so implement this either with explicit `ifeq ($(MEDIA_FAMILY),...)` blocks or avoid computed names and pass all selected values through a small Python config resolver. Explicit `ifeq` blocks are more readable and sufficient for three families.
+Avoid clever computed variable names here. Explicit `ifeq ($(MEDIA_FAMILY),...)` blocks are readable and sufficient for three families.
 
 Recommended family values:
 
@@ -299,7 +305,7 @@ Do not merge seed resources. The family config should point to them.
 
 ## Proposed Make Target Changes
 
-Add generic targets:
+Add generic targets. The first six targets are implemented; `integrate-media-snippets` remains optional future work because `split-media-snippets MEDIA_FAMILY=...` plus `integrate-snippets` currently covers the required workflow:
 
 ```make
 sample-media-snippets
@@ -311,24 +317,14 @@ split-media-snippets
 integrate-media-snippets
 ```
 
-Keep existing aliases:
-
-```make
-sample-newsagency-snippets: MEDIA_FAMILY=pressagency
-sample-newsagency-snippets: sample-media-snippets
-
-sample-radio-snippets: MEDIA_FAMILY=radiostation
-sample-radio-snippets: sample-media-snippets
-```
-
-Use the same alias pattern for suggest/review/split.
+Remove the previous family-specific snippet targets instead of keeping aliases. Existing config variable names and Python modules can remain during implementation migration, but the public Make command surface should be generic.
 
 Update help:
 
 - top-level help should say "media-source curation"
 - `help-annotation` should have one "Media-source snippet annotation" section
 - add examples with `MEDIA_FAMILY=pressagency` and `MEDIA_FAMILY=radiostation`
-- mention that old `newsagency` and `radio` targets remain as aliases during transition
+- state that old `newsagency` and `radio` snippet targets have been removed
 
 Keep `integrate-snippets` as a convenience target that integrates all configured families. Add `integrate-media-snippets` for one selected family if useful.
 
@@ -355,7 +351,7 @@ Pros:
 Cons:
 
 - existing diffs and local curated files move
-- aliases need more careful backward-compatible path handling
+- legacy paths need careful migration handling
 
 ### Option B: Rename commands first, keep paths initially
 
@@ -385,15 +381,14 @@ Recommendation: use **Option B first**. Rename paths only after the generic comm
 
 - `Makefile`
   - add generic media snippet targets
-  - keep existing `newsagency` and `radio` aliases
+  - remove existing `newsagency` and `radio` snippet targets
   - simplify `help-annotation`
   - update `.PHONY`
   - make `integrate-snippets` call generic family targets
 - `configs/common.mk`
   - add `MEDIA_FAMILY`
   - add selected-family effective variables
-  - introduce `PRESSAGENCY_*` variables as preferred names
-  - keep `NEWSAGENCY_*` aliases during transition
+  - keep existing `NEWSAGENCY_*` variables for path stability
   - add `NEWSPAPER_*` placeholders without enabling them by default
 - `configs/model-v1.0.0.mk`, `configs/model-v2.0.0.mk`
   - only adjust if they override snippet paths or family-specific defaults
@@ -467,24 +462,24 @@ Do not rename `resources/newsagency_seeds.json` immediately unless there is a se
 
 ## Migration Phases
 
-### Phase 1: Add generic commands without removing old ones
+### Phase 1: Add generic commands and remove old Make targets
 
-Implement generic `sample-media-*`, `suggest-media-*`, `review-media-*`, and `split-media-*` targets. They should call either new generic scripts or existing scripts via family-specific conditionals.
+Implement generic `sample-media-*`, `suggest-media-*`, `review-media-*`, and `split-media-*` targets. They should call generic dispatch modules, which may still delegate to existing family-specific implementation modules internally.
 
 Acceptance criteria:
 
 - `make sample-media-snippets MEDIA_FAMILY=pressagency ARGS="--dry-run"` works.
 - `make sample-media-snippets MEDIA_FAMILY=radiostation ARGS="--dry-run"` works.
-- old `sample-newsagency-snippets` and `sample-radio-snippets` still work.
+- old `sample-newsagency-snippets` and `sample-radio-snippets` no longer exist.
 - help text points curators to the generic commands.
 
-### Phase 2: Move implementation behind generic Python modules
+### Phase 2: Move implementation behind fully generic Python modules
 
-Introduce `sample_media_snippets.py`, `score_media_snippets.py`, and `review_media_snippets.py`. Convert old modules to compatibility wrappers.
+The first implementation can use `sample_media_snippets.py`, `score_media_snippets.py`, and `review_media_snippets.py` as dispatch modules. The next step is to move the actual implementation into those generic modules and convert old modules to wrappers or delete them when imports no longer need them.
 
 Acceptance criteria:
 
-- test coverage proves both pressagency and radiostation use the generic code path.
+- test coverage proves both pressagency and radiostation use the generic implementation path, not only generic dispatch.
 - existing user commands still produce byte-compatible or semantically equivalent outputs.
 - review decisions remain append-only and readable by the export step.
 
@@ -511,7 +506,7 @@ Acceptance criteria:
 
 - `README.md` top section explains the unified workflow.
 - `docs/curation.md` has one generic snippet workflow with family-specific examples.
-- old `newsagency` target names are documented only as compatibility aliases.
+- old `newsagency` target names are not documented as active commands.
 
 ### Phase 5: Optional path migration
 
@@ -532,12 +527,7 @@ Acceptance criteria:
 
 ## Compatibility Policy
 
-Keep old Make targets for at least one dataset release cycle:
-
-- `newsagency` targets become aliases for `MEDIA_FAMILY=pressagency`
-- `radio` targets become aliases for `MEDIA_FAMILY=radiostation`
-
-Old Python modules may remain wrappers indefinitely if external scripts use them.
+Do not keep old Make targets. Old Python modules may remain as internal compatibility wrappers while the implementation is migrated, because imports and tests may still refer to them.
 
 Do not change the label namespace. `org.ent.pressagency.*` is already the correct semantic namespace.
 
@@ -557,9 +547,8 @@ Start with a low-risk facade:
 
 1. Add `MEDIA_FAMILY` and selected-family variables in `configs/common.mk`.
 2. Add generic Make targets that dispatch to the existing family-specific scripts.
-3. Make old targets aliases to the generic targets.
+3. Remove old family-specific Make targets.
 4. Update help text and `docs/curation.md` to teach generic commands.
 5. Add dry-run tests or Make dry-run checks for `pressagency` and `radiostation`.
 
 Only after that, refactor Python modules into generic implementations. This keeps current v2 prerelease curation usable while reducing the command surface immediately.
-

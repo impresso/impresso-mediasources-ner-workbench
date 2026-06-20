@@ -94,8 +94,8 @@ Primary commands:
 ```bash
 make import-hipe ARGS="..."
 make apply-curation CFG=configs/model-v2.0.0.mk
-make split-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make split-radio-snippets CFG=configs/model-v2.0.0.mk
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
 make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--dry-run"
 ```
 
@@ -186,15 +186,15 @@ flowchart TD
 Primary commands:
 
 ```bash
-make sample-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make suggest-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk
-make review-newsagency-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make split-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
 
-make sample-radio-snippets CFG=configs/model-v2.0.0.mk
-make suggest-radio-snippet-spans CFG=configs/model-v2.0.0.mk
-make review-radio-snippet-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make split-radio-snippets CFG=configs/model-v2.0.0.mk
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
 make preview-promote-snippets CFG=configs/model-v2.0.0.mk
 make promote-snippets CFG=configs/model-v2.0.0.mk
 ```
