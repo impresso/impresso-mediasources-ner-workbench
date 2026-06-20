@@ -259,7 +259,8 @@ audit-empty-training-docs:
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(EMPTY_TRAIN_MODEL)" --eval-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --label-map "$(EMPTY_TRAIN_LABEL_MAP)" --output-dir "$(EMPTY_TRAIN_AUDIT_DIR)/eval" --split-name empty_train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
 	$(PYTHON) -m lib.audit_empty_training_docs summarize --source-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --predictions-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/eval/empty_train_predictions.jsonl" --candidates-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.jsonl" --candidates-tsv "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.tsv" --summary-json "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_summary.json"
 	@echo "Next step:"
-	@echo "  make review-span-patches # Review concrete span patches if candidates should enter the dataset"
+	@echo "  # Review concrete span patches if candidates should enter the dataset."
+	@echo "  make review-span-patches"
 
 audit-missing-spans:
 	@echo "Building a target-specific missing-span audit queue for $(MISSING_SPAN_TARGET_LABEL) in $(MISSING_SPAN_SPLIT)."
@@ -306,32 +307,37 @@ promote-missing-spans:
 	@echo "Promoting $(MISSING_SPAN_OUTPUT_JSONL) -> $(MISSING_SPAN_PROMOTE_JSONL)"
 	cp "$(MISSING_SPAN_OUTPUT_JSONL)" "$(MISSING_SPAN_PROMOTE_JSONL)"
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after promotion"
+	@echo "  # Validate train/validation/test after promotion."
+	@echo "  make validate-dataset-splits"
 
 integrate-missing-spans: apply-missing-spans promote-missing-spans
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after integration"
+	@echo "  # Validate train/validation/test after integration."
+	@echo "  make validate-dataset-splits"
 
 audit-existing-spans:
 	@echo "Building a boundary/label/removal audit queue for existing spans of $(SPAN_BOUNDARY_TARGET_LABEL)."
 	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
 	$(PYTHON) -m lib.audit_existing_spans --input-jsonl "$(TRAIN_JSONL)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --candidates-jsonl "$(SPAN_BOUNDARY_CANDIDATES)" --candidates-tsv "$(SPAN_BOUNDARY_CANDIDATES_TSV)" --summary-json "$(SPAN_BOUNDARY_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) REVIEWER=\"$$USER\" # Review existing-span boundary candidates"
+	@echo "  # Review existing-span boundary candidates."
+	@echo "  make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) REVIEWER=\"$$USER\""
 
 review-existing-spans:
 	@echo "Reviewing existing-span audit candidates and writing append-only decisions."
 	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
 	$(PYTHON) -m lib.span_patch_review --candidates "$(SPAN_BOUNDARY_CANDIDATES)" --decisions "$(SPAN_BOUNDARY_DECISIONS)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(SPAN_BOUNDARY_REVIEW_SUMMARY_JSON)" --queue-jsonl "$(SPAN_BOUNDARY_QUEUE_JSONL)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make apply-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) # Apply reviewed existing-span decisions"
+	@echo "  # Apply reviewed existing-span decisions."
+	@echo "  make apply-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL)"
 
 apply-existing-spans:
 	@echo "Applying reviewed existing-span decisions to a patched split."
 	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
 	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(TRAIN_JSONL)" --output-jsonl "$(SPAN_BOUNDARY_OUTPUT_JSONL)" --candidates "$(SPAN_BOUNDARY_CANDIDATES)" --decisions "$(SPAN_BOUNDARY_DECISIONS)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --changes-jsonl "$(SPAN_BOUNDARY_CHANGES_JSONL)" --changes-tsv "$(SPAN_BOUNDARY_CHANGES_TSV)" --summary-json "$(SPAN_BOUNDARY_APPLY_SUMMARY_JSON)" --replace-overlaps $(ARGS)
 	@echo "Next step:"
-	@echo "  make existing-span-status SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) # Check whether the patched split is ready for promotion"
+	@echo "  # Check whether the patched split is ready for promotion."
+	@echo "  make existing-span-status SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL)"
 
 existing-span-status:
 	@echo "Checking whether the existing-span patched output is ready for promotion."
@@ -350,23 +356,27 @@ promote-existing-spans:
 	@echo "Promoting $(SPAN_BOUNDARY_OUTPUT_JSONL) -> $(SPAN_BOUNDARY_PROMOTE_JSONL)"
 	cp "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after promotion"
+	@echo "  # Validate train/validation/test after promotion."
+	@echo "  make validate-dataset-splits"
 
 integrate-existing-spans: apply-existing-spans promote-existing-spans
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after integration"
+	@echo "  # Validate train/validation/test after integration."
+	@echo "  make validate-dataset-splits"
 
 review-span-patches:
 	@echo "Reviewing audit-suggested span patches and writing append-only decisions."
 	$(PYTHON) -m lib.span_patch_review --candidates "$(SPAN_PATCH_CANDIDATES)" --decisions "$(SPAN_PATCH_DECISIONS)" --audit-id "$(SPAN_PATCH_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(SPAN_PATCH_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(SPAN_PATCH_SUMMARY_JSON)" --queue-jsonl "$(SPAN_PATCH_QUEUE_JSONL)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make apply-span-patches # Apply accepted or corrected span patches"
+	@echo "  # Apply accepted or corrected span patches."
+	@echo "  make apply-span-patches"
 
 apply-span-patches:
 	@echo "Applying accepted or corrected span-patch decisions to a patched JSONL split."
 	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(SPAN_PATCH_SOURCE_JSONL)" --output-jsonl "$(SPAN_PATCH_OUTPUT_JSONL)" --candidates "$(SPAN_PATCH_CANDIDATES)" --decisions "$(SPAN_PATCH_DECISIONS)" --audit-id "$(SPAN_PATCH_AUDIT_ID)" --target-label "$(SPAN_PATCH_TARGET_LABEL)" --changes-jsonl "$(SPAN_PATCH_CHANGES_JSONL)" --changes-tsv "$(SPAN_PATCH_CHANGES_TSV)" --summary-json "$(SPAN_PATCH_APPLY_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make span-patch-status # Check whether the patched split is ready for promotion"
+	@echo "  # Check whether the patched split is ready for promotion."
+	@echo "  make span-patch-status"
 
 span-patch-status:
 	@echo "Checking whether the span-patch output is ready for promotion."
@@ -385,23 +395,27 @@ promote-span-patches:
 	@echo "Promoting $(SPAN_PATCH_OUTPUT_JSONL) -> $(SPAN_PATCH_PROMOTE_JSONL)"
 	cp "$(SPAN_PATCH_OUTPUT_JSONL)" "$(SPAN_PATCH_PROMOTE_JSONL)"
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after promotion"
+	@echo "  # Validate train/validation/test after promotion."
+	@echo "  make validate-dataset-splits"
 
 integrate-span-patches: apply-span-patches promote-span-patches
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after integration"
+	@echo "  # Validate train/validation/test after integration."
+	@echo "  make validate-dataset-splits"
 
 create-tsv-span-patches:
 	@echo "Creating accepted manual span patches from pasted TOKEN/NERTAG TSV lines."
 	$(PYTHON) -m lib.create_span_patches_from_tsv --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --label "$(TSV_PATCH_LABEL)" --reviewer "$(REVIEWER)" --summary-json "$(TSV_PATCH_SUMMARY_JSON)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make apply-tsv-span-patches TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT) # Apply accepted TSV-derived span patches"
+	@echo "  # Apply accepted TSV-derived span patches."
+	@echo "  make apply-tsv-span-patches TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT)"
 
 apply-tsv-span-patches:
 	@echo "Applying accepted TSV-derived span patches to the configured split."
 	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --output-jsonl "$(TSV_PATCH_OUTPUT_JSONL)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --target-label "$(TSV_PATCH_LABEL)" --changes-jsonl "$(TSV_PATCH_CHANGES_JSONL)" --changes-tsv "$(TSV_PATCH_CHANGES_TSV)" --summary-json "$(TSV_PATCH_APPLY_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make tsv-span-patch-status TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT) # Check whether the patched split is ready for promotion"
+	@echo "  # Check whether the patched split is ready for promotion."
+	@echo "  make tsv-span-patch-status TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT)"
 
 tsv-span-patch-status:
 	@echo "Checking whether the TSV-derived patched output is ready for promotion."
@@ -420,23 +434,27 @@ promote-tsv-span-patches:
 	@echo "Promoting $(TSV_PATCH_OUTPUT_JSONL) -> $(TSV_PATCH_PROMOTE_JSONL)"
 	cp "$(TSV_PATCH_OUTPUT_JSONL)" "$(TSV_PATCH_PROMOTE_JSONL)"
 	@echo "Next step:"
-	@echo "  make materialize-dataset-tsv # Regenerate TSV views for inspection"
+	@echo "  # Regenerate TSV views for inspection."
+	@echo "  make materialize-dataset-tsv"
 
 integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches materialize-dataset-tsv
 	@echo "Next step:"
-	@echo "  make validate-dataset-splits # Validate train/validation/test after TSV inspection"
+	@echo "  # Validate train/validation/test after TSV inspection."
+	@echo "  make validate-dataset-splits"
 
 sample-freely-media-snippets:
 	@echo "Sampling $(MEDIA_FAMILY) snippets freely, without restricting to below-target coverage buckets."
 	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) # Suggest spans for sampled media-source snippets"
+	@echo "  # Suggest spans for sampled media-source snippets."
+	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY)"
 
 sample-media-snippets:
 	@echo "Sampling $(MEDIA_FAMILY) snippets for label/language coverage buckets below target."
 	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
 	@echo "Next step:"
-	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) # Suggest spans for sampled media-source snippets"
+	@echo "  # Suggest spans for sampled media-source snippets."
+	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY)"
 
 curate:
 	@echo "Running the generic candidate curation command with ARGS."
