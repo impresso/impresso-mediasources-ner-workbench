@@ -266,21 +266,28 @@ audit-missing-spans:
 	@test -n "$(MISSING_SPAN_TARGET_LABEL)" || { echo "MISSING_SPAN_TARGET_LABEL is required, e.g. MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"; exit 1; }
 	$(PYTHON) -m lib.audit_missing_spans --input-jsonl "$(MISSING_SPAN_SOURCE_JSONL)" --predictions-jsonl "$(MISSING_SPAN_PREDICTIONS_JSONL)" --target-label "$(MISSING_SPAN_TARGET_LABEL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --audit-id "$(MISSING_SPAN_AUDIT_ID)" --split "$(MISSING_SPAN_SPLIT)" --candidates-jsonl "$(MISSING_SPAN_CANDIDATES)" --candidates-tsv "$(MISSING_SPAN_CANDIDATES_TSV)" --summary-json "$(MISSING_SPAN_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
-	@echo "  make review-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT) REVIEWER=\"$$USER\" # Review the missing-span queue"
+	@echo "  # Review the missing-span queue."
+	@echo "  make review-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT) REVIEWER=\"$$USER\""
 
 review-missing-spans:
 	@echo "Reviewing target-specific missing-span suggestions and writing append-only decisions."
 	@test -n "$(MISSING_SPAN_TARGET_LABEL)" || { echo "MISSING_SPAN_TARGET_LABEL is required, e.g. MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"; exit 1; }
 	$(PYTHON) -m lib.span_patch_review --candidates "$(MISSING_SPAN_CANDIDATES)" --decisions "$(MISSING_SPAN_DECISIONS)" --audit-id "$(MISSING_SPAN_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(MISSING_SPAN_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(MISSING_SPAN_REVIEW_SUMMARY_JSON)" --queue-jsonl "$(MISSING_SPAN_QUEUE_JSONL)" $(ARGS)
-	@echo "Next step:"
-	@echo "  make apply-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT) # Apply accepted missing-span decisions"
+	@echo "Next steps:"
+	@echo "  # Apply accepted missing-span decisions to a patched split."
+	@echo "  make apply-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT)"
+	@echo "  # Apply accepted decisions and promote the patched split directly."
+	@echo "  make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT)"
 
 apply-missing-spans:
 	@echo "Applying reviewed missing-span decisions to the configured split."
 	@test -n "$(MISSING_SPAN_TARGET_LABEL)" || { echo "MISSING_SPAN_TARGET_LABEL is required, e.g. MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"; exit 1; }
 	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(MISSING_SPAN_SOURCE_JSONL)" --output-jsonl "$(MISSING_SPAN_OUTPUT_JSONL)" --candidates "$(MISSING_SPAN_CANDIDATES)" --decisions "$(MISSING_SPAN_DECISIONS)" --audit-id "$(MISSING_SPAN_AUDIT_ID)" --target-label "$(MISSING_SPAN_TARGET_LABEL)" --changes-jsonl "$(MISSING_SPAN_CHANGES_JSONL)" --changes-tsv "$(MISSING_SPAN_CHANGES_TSV)" --summary-json "$(MISSING_SPAN_APPLY_SUMMARY_JSON)" $(ARGS)
-	@echo "Next step:"
-	@echo "  make missing-span-status MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT) # Check whether the patched split is ready for promotion"
+	@echo "Next steps:"
+	@echo "  # Check whether the patched split is ready for promotion."
+	@echo "  make missing-span-status MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT)"
+	@echo "  # Promote the patched split."
+	@echo "  make promote-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT)"
 
 missing-span-status:
 	@echo "Checking whether the missing-span patched output is ready for promotion."
