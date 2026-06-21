@@ -248,16 +248,15 @@ This path writes a non-destructive curated copy under `data/curated/legacy-impor
 
 ### F. Patch directly from TSV inspection
 
-Use this when a direct token search is faster than a model-assisted audit queue, for example to inspect one-word or short-form hits such as `tan`, `DNB`, `Havas`, or `Reuter`. This is still an audit workflow: `create-tsv-span-patches` writes span-patch audit candidates and verified decisions, and applying the result persists reviewer-neutral `audit_marks` in the JSONL rows.
+Use this when a direct token search is faster than a model-assisted audit queue, for example to inspect one-word or short-form hits such as `tan`, `DNB`, `Havas`, or `Reuter`. This is still an audit workflow: TSV span-patch commands write audit candidates and verified decisions, and applying the result persists reviewer-neutral `audit_marks` in the JSONL rows.
 
 ```bash
 make materialize-dataset-tsv
-make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan
-make create-tsv-span-patches TSV_PATCH_SPLIT=train TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
-make integrate-tsv-span-patches TSV_PATCH_SPLIT=train
+make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
+make integrate-tsv-span-patches
 ```
 
-Paste the TSV token lines that belong to the entity occurrence into `create-tsv-span-patches`, finish with a single `.` line, and confirm the matching document/span.
+Use `search-tsv` plus `create-tsv-span-patches` instead when you want a read-only search pass first and a separate paste-based patch step.
 
 ## Path A: Audit Existing Annotations
 
@@ -389,12 +388,16 @@ Materialize TSV views:
 make materialize-dataset-tsv
 ```
 
-Inspect a single split with the interactive TSV hit pager. It shows one context block at a time, highlights the matching token or adjacent token pair, and supports Enter/`n` for next, `p` for previous, and `q` to quit:
+Inspect all splits with the interactive TSV hit pager. When `TSV_PATCH_SPLIT` is omitted, TSV search and integrated TSV review iterate over `train`, `validation`, and `test` in that order. The pager shows one context block at a time, highlights the matching token or adjacent token pair, and supports Enter/`n` for next, `p` for previous, and `q` to quit:
+
+```bash
+make search-tsv TSV_SEARCH=tan
+```
+
+Constrain TSV search to one fold by setting `TSV_PATCH_SPLIT`:
 
 ```bash
 make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan
-make search-tsv TSV_PATCH_SPLIT=validation TSV_SEARCH=tan
-make search-tsv TSV_PATCH_SPLIT=test TSV_SEARCH=tan
 ```
 
 Search for two adjacent tokens by quoting the `TSV_SEARCH` value:
@@ -409,6 +412,14 @@ Restrict hits to tokens currently tagged `O` when you are looking specifically f
 make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan TSV_SEARCH_ONLY_O=true
 ```
 
+When the search hits themselves are the review queue, use the integrated TSV search reviewer. It pages through the same hits, shows the document ID and split in the header, and creates an accepted span-patch decision from the selected token range. The current hit token range is the default, and `TSV_PATCH_LABEL` is the default label:
+
+```bash
+make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
+```
+
+In the reviewer, choose `a` to annotate the displayed hit, press Enter to accept the default token range, and press Enter again to accept the default label. Use `n`, `p`, `s`, and `q` to move through the queue. Use a manual token range such as `7:8` when the correct span is adjacent to, but not exactly the same as, the search hit.
+
 For a non-interactive shell view, either use the pager's no-pager mode or plain grep:
 
 ```bash
@@ -416,13 +427,13 @@ make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan TSV_SEARCH_NO_PAGER=true
 grep -i -w -P -C 7 tan data/prereleases/dataset-v2.0.0/tsv/train.tsv
 ```
 
-When a hit is a true missing entity, copy the TSV token lines that belong to that occurrence and create a TSV-derived patch:
+When a hit is a true missing entity and you prefer the older paste-based path, copy the TSV token lines that belong to that occurrence and create a TSV-derived patch. Paste-based TSV patching operates on one split, so `TSV_PATCH_SPLIT` is required:
 
 ```bash
 make create-tsv-span-patches TSV_PATCH_SPLIT=train TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
 ```
 
-The command asks you to paste TSV token lines and finish with a single `.` line. It resolves the pasted token sequence back to the configured JSONL split, asks you to select the matching document/span if there are several matches, and writes an accepted span-patch decision under `data/curated/span-patches/`.
+The paste-based command asks you to paste TSV token lines and finish with a single `.` line. It resolves the pasted token sequence back to the configured JSONL split, asks you to select the matching document/span if there are several matches, and writes an accepted span-patch decision under `data/curated/span-patches/`.
 
 Then apply and promote:
 
@@ -434,10 +445,10 @@ make promote-tsv-span-patches TSV_PATCH_SPLIT=train
 or use the combined path:
 
 ```bash
-make integrate-tsv-span-patches TSV_PATCH_SPLIT=train
+make integrate-tsv-span-patches
 ```
 
-The TSV hit pager is intentionally read-only. When a hit should be patched, copy the relevant TSV token lines from the displayed block and continue with `create-tsv-span-patches`. A later integrated TSV reviewer could remove this copy/paste step by combining `search-tsv` navigation with the normal manual span/label flow.
+The TSV hit pager remains intentionally read-only. Use `review-tsv-search` when you want search navigation and patch creation in one integrated audit-review loop.
 
 ## Path C/D: Add New Sampled Snippets
 

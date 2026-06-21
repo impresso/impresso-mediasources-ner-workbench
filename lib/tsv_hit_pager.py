@@ -95,6 +95,57 @@ def find_hits(
     return hits
 
 
+def is_document_start(line: str) -> bool:
+    return line.startswith("# doc_id =")
+
+
+def document_bounds(lines: list[str], hit: tuple[int, int]) -> tuple[int, int]:
+    start, end = hit
+    block_start = start
+    while block_start > 0:
+        previous = lines[block_start - 1]
+        if not previous.strip():
+            break
+        block_start -= 1
+        if is_document_start(lines[block_start]):
+            break
+
+    block_end = end
+    while block_end < len(lines):
+        line = lines[block_end]
+        if not line.strip() or is_document_start(line):
+            break
+        block_end += 1
+    return block_start, block_end
+
+
+def metadata_for_hit(lines: list[str], hit: tuple[int, int]) -> dict[str, str]:
+    document_start, _document_end = document_bounds(lines, hit)
+    metadata: dict[str, str] = {}
+    for index in range(document_start, hit[0] + 1):
+        line = lines[index].strip()
+        if not line.startswith("#"):
+            continue
+        key, separator, value = line[1:].strip().partition("=")
+        if separator:
+            metadata[key.strip()] = value.strip()
+    return metadata
+
+
+def document_id_for_hit(lines: list[str], hit: tuple[int, int]) -> str:
+    metadata = metadata_for_hit(lines, hit)
+    return metadata.get("document_id") or metadata.get("doc_id") or ""
+
+
+def hit_label_for_hit(lines: list[str], hit: tuple[int, int]) -> str:
+    metadata = metadata_for_hit(lines, hit)
+    document_id = metadata.get("document_id") or metadata.get("doc_id") or ""
+    split = metadata.get("split") or ""
+    if document_id and split:
+        return f"{document_id} [{split}]"
+    return document_id or (f"[{split}]" if split else "")
+
+
 def build_block(
     lines: list[str],
     hit: tuple[int, int],
@@ -105,8 +156,9 @@ def build_block(
     color: bool = True,
 ) -> str:
     start, end = hit
-    block_start = max(0, start - context)
-    block_end = min(len(lines), end + context)
+    document_start, document_end = document_bounds(lines, hit)
+    block_start = max(document_start, start - context)
+    block_end = min(document_end, end + context)
     out: list[str] = []
     for index in range(block_start, block_end):
         if start <= index < end:
@@ -120,16 +172,22 @@ def clear_screen() -> None:
     os.system("clear" if os.name != "nt" else "cls")
 
 
-def page_hits(blocks: list[str]) -> None:
+def hit_title(index: int, total: int, label: str = "") -> str:
+    title = f"Hit {index}/{total}"
+    return f"{title} {label}" if label else title
+
+
+def page_hits(blocks: list[str], labels: list[str] | None = None) -> None:
     if not blocks:
         print("No matches.")
         return
+    labels = labels or [""] * len(blocks)
     index = 0
     total = len(blocks)
     while True:
         clear_screen()
         width = shutil.get_terminal_size((80, 24)).columns
-        print(f"Hit {index + 1}/{total}")
+        print(hit_title(index + 1, total, labels[index]))
         print("-" * width)
         print(blocks[index], end="")
         print("-" * width)
@@ -169,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
         query_tokens.append(args.token2)
     lines = load_lines(args.file)
     hits = find_hits(lines, args.token, args.token2, only_o=args.only_O, ignore_case=ignore_case)
+    labels = [hit_label_for_hit(lines, hit) for hit in hits]
     blocks = [
         build_block(
             lines,
@@ -187,9 +246,10 @@ def main(argv: list[str] | None = None) -> int:
         for index, block in enumerate(blocks):
             if index:
                 print("--")
+            print(hit_title(index + 1, len(blocks), labels[index]))
             print(block, end="")
         return 0
-    page_hits(blocks)
+    page_hits(blocks, labels)
     return 0 if blocks else 1
 
 

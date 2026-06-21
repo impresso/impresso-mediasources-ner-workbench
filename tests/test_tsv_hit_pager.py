@@ -1,4 +1,4 @@
-from lib.tsv_hit_pager import RED, RESET, build_block, find_hits, highlight_token_line, is_token_line, parse_token_line
+from lib.tsv_hit_pager import RED, RESET, build_block, document_id_for_hit, find_hits, highlight_token_line, hit_label_for_hit, hit_title, is_token_line, parse_token_line
 
 
 def test_tsv_hit_pager_identifies_token_lines() -> None:
@@ -37,6 +37,57 @@ def test_tsv_hit_pager_builds_context_block_with_highlight() -> None:
     assert "before\tO" in block
     assert f"{RED}BBC{RESET}\tO" in block
     assert "after\tO" in block
+
+
+def test_tsv_hit_pager_context_does_not_cross_into_next_document() -> None:
+    lines = [
+        "# doc_id = doc-1\n",
+        "TOKEN\tNERTAG\n",
+        "die\tO\n",
+        "BBC\tO\n",
+        "# doc_id = doc-2\n",
+        "TOKEN\tNERTAG\n",
+        "BBC\tO\n",
+    ]
+
+    block = build_block(lines, (3, 4), context=10, query_tokens=["bbc"], color=False)
+
+    assert "die\tO" in block
+    assert "BBC\tO" in block
+    assert "doc-2" not in block
+
+
+def test_tsv_hit_pager_context_does_not_cross_from_previous_document() -> None:
+    lines = [
+        "# doc_id = doc-1\n",
+        "TOKEN\tNERTAG\n",
+        "BBC\tO\n",
+        "\n",
+        "# doc_id = doc-2\n",
+        "TOKEN\tNERTAG\n",
+        "BBC\tO\n",
+        "after\tO\n",
+    ]
+
+    block = build_block(lines, (6, 7), context=10, query_tokens=["bbc"], color=False)
+
+    assert "doc-1" not in block
+    assert block.startswith("# doc_id = doc-2\n")
+    assert "after\tO" in block
+
+
+def test_tsv_hit_pager_extracts_document_id_for_hit_title() -> None:
+    lines = [
+        "# doc_id = row-id\n",
+        "# document_id = DTT-1953-08-23-a-i0006\n",
+        "# split = train\n",
+        "TOKEN\tNERTAG\n",
+        "BBC\tO\n",
+    ]
+
+    assert document_id_for_hit(lines, (4, 5)) == "DTT-1953-08-23-a-i0006"
+    assert hit_label_for_hit(lines, (4, 5)) == "DTT-1953-08-23-a-i0006 [train]"
+    assert hit_title(1, 7, hit_label_for_hit(lines, (4, 5))) == "Hit 1/7 DTT-1953-08-23-a-i0006 [train]"
 
 
 def test_tsv_hit_pager_can_disable_highlight_color() -> None:
