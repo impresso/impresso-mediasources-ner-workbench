@@ -115,6 +115,7 @@
     "trainable": true,
     "status": "metadata_enriched",
     "description": "International news agency founded in London in 1851 by Paul Julius Reuter. In historical German and French newspaper text it often appears as Reuter, Reuters, or Agence Reuters; it remains an active global news provider.",
+    "annotation_note": "Annotate Reuters/Reuter when it refers to the news agency, its reports, institutional activity, staff, offices, or media-source role. Do not annotate stock-market quotation tables, securities listings, or share-price reports where Reuters appears only as a traded company/security entry among other stocks.",
     "active_period": {
       "start": "1851",
       "end": null,
@@ -646,6 +647,7 @@
     "trainable": true,
     "status": "metadata_enriched",
     "description": "Swiss national news agency founded in 1895, known in French as Agence télégraphique suisse (ATS) and in German as Schweizerische Depeschenagentur (SDA). The modern successor branding is Keystone-SDA.",
+    "annotation_note": "Annotate ATS, SDA, Agence télégraphique suisse, Schweizerische Depeschenagentur, and explicit Keystone-SDA forms with this label. Do not annotate bare Keystone as ATS-SDA unless the visible text explicitly identifies Keystone-SDA or the context clearly names the modern Keystone-SDA agency rather than a photo credit or unrelated Keystone mention.",
     "active_period": {
       "start": "1895",
       "end": null,

@@ -113,15 +113,15 @@ Promotion updates the configured local prerelease/source split that later feeds 
 
 Start by choosing the path that matches the kind of dataset change you want to make.
 
-| Situation                                                                    | Use this path                           | Main commands                                                                                                                           |
-| ---------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| You want to inspect coverage, state, and mention surfaces before deciding.   | Diagnostics and state inspection        | `curation-dashboard` or individual state/statistics targets                                                                             |
-| You want to audit already accepted annotations for boundary or label errors. | Existing-annotation audit               | `audit-existing-spans` -> `review-existing-spans` -> `integrate-existing-spans`                                                          |
-| You want to add missed annotations to existing documents for one entity.     | Target-specific missing-span audit      | `audit-missing-spans` -> `review-missing-spans` -> `integrate-missing-spans`                                                             |
-| You want to inspect empty-gold training documents for broad false negatives. | Empty-document span-patch audit         | `audit-empty-training-docs` -> `review-span-patches` -> `integrate-span-patches`                                                         |
-| You want new examples from Impresso search for press agencies.               | Media-source snippet curation           | `annotation-stats` -> `sample-media-snippets MEDIA_FAMILY=pressagency` -> `suggest-media-snippet-spans MEDIA_FAMILY=pressagency` -> `review-media-snippet-spans MEDIA_FAMILY=pressagency` -> `integrate-snippets` |
-| You want new examples from Impresso search for radio stations.               | Media-source snippet curation           | `annotation-stats` -> `sample-media-snippets MEDIA_FAMILY=radiostation` -> `suggest-media-snippet-spans MEDIA_FAMILY=radiostation` -> `review-media-snippet-spans MEDIA_FAMILY=radiostation` -> `integrate-snippets` |
-| You want to clean HIPE-derived gold-vs-prediction disagreement files.       | Evaluation disagreement curation        | `suggest-eval-disagreements` -> `review-curation` -> `validate-curation` -> `apply-curation`                                             |
+| Situation                                                    | Use this path                      | Main commands                                                |
+| ------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------ |
+| You want to inspect coverage, state, and mention surfaces before deciding. | Diagnostics and state inspection   | `curation-dashboard` or individual state/statistics targets  |
+| You want to audit already accepted annotations for boundary or label errors. | Existing-annotation audit          | `audit-existing-spans` -> `review-existing-spans` -> `integrate-existing-spans` |
+| You want to add missed annotations to existing documents for one entity. | Target-specific missing-span audit | `audit-missing-spans` -> `review-missing-spans` -> `integrate-missing-spans` |
+| You want to inspect empty-gold training documents for broad false negatives. | Empty-document span-patch audit    | `audit-empty-training-docs` -> `review-span-patches` -> `integrate-span-patches` |
+| You want new examples from Impresso search for press agencies. | Media-source snippet curation      | `annotation-stats` -> `mention-profiles` -> `plan-media-sampling MEDIA_FAMILY=pressagency` -> `sample-media-snippets MEDIA_FAMILY=pressagency` -> `suggest-media-snippet-spans MEDIA_FAMILY=pressagency` -> `review-media-snippet-spans MEDIA_FAMILY=pressagency` -> `integrate-snippets` |
+| You want new examples from Impresso search for radio stations. | Media-source snippet curation      | `annotation-stats` -> `mention-profiles` -> `plan-media-sampling MEDIA_FAMILY=radiostation` -> `sample-media-snippets MEDIA_FAMILY=radiostation` -> `suggest-media-snippet-spans MEDIA_FAMILY=radiostation` -> `review-media-snippet-spans MEDIA_FAMILY=radiostation` -> `integrate-snippets` |
+| You want to clean HIPE-derived gold-vs-prediction disagreement files. | Evaluation disagreement curation   | `suggest-eval-disagreements` -> `review-curation` -> `validate-curation` -> `apply-curation` |
 
 For new dataset growth, use the snippet paths for horizontal extension and the span-patch paths for vertical extension. Use the evaluation disagreement path only when you are deliberately correcting gold-vs-model disagreements in the configured train/validation/test folds.
 
@@ -669,13 +669,17 @@ For routine gap filling, sample real Impresso search snippets from label/languag
 
 ```bash
 make annotation-stats
-make sample-media-snippets MEDIA_FAMILY=pressagency MEDIA_SAMPLE_TARGET_PER_QUERY_LANG=5 MEDIA_SAMPLE_MAX_PER_LABEL=5 MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=3
+make mention-profiles
+make plan-media-sampling MEDIA_FAMILY=pressagency
+make sample-media-snippets MEDIA_FAMILY=pressagency
 ```
+
+Routine sampling is now focused by default. It builds a sampling plan from language-aware coverage, pending snippet work, and empirical mention-surface profiles, then searches only the planned label/language/query buckets. This avoids repeatedly searching surfaces that are already well represented or creating more snippets while pending sampled/reviewed rows already fill the gap.
 
 For deliberately unconstrained sampling, use the explicit free-sampling target:
 
 ```bash
-make sample-freely-media-snippets MEDIA_FAMILY=pressagency MEDIA_SAMPLE_TARGET_PER_QUERY_LANG=5 MEDIA_SAMPLE_MAX_PER_LABEL=5 MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=3
+make sample-freely-media-snippets MEDIA_FAMILY=pressagency MEDIA_SAMPLE_TARGET_PER_QUERY_LANG=5 MEDIA_SAMPLE_MAX_PER_LABEL=20 MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=3
 ```
 
 To focus the under-target sampling pass on a specific news agency, pass the full canonical label through `ARGS`:
@@ -684,9 +688,15 @@ To focus the under-target sampling pass on a specific news agency, pass the full
 make sample-media-snippets MEDIA_FAMILY=pressagency ARGS="--labels org.ent.pressagency.reuters"
 ```
 
-Multiple press-agency labels can be whitespace-separated inside the `--labels` value. `sample-media-snippets MEDIA_FAMILY=pressagency` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-media-snippets MEDIA_FAMILY=pressagency ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter.
+For focused sampling, prefer `MEDIA_SAMPLE_LABELS` because both the planner and sampler can use it:
 
-This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default per-round cap is intentionally small: at most five selected samples per entity.
+```bash
+make sample-media-snippets MEDIA_FAMILY=pressagency MEDIA_SAMPLE_LABELS="org.ent.pressagency.reuters"
+```
+
+Multiple press-agency labels can be whitespace-separated. `sample-media-snippets MEDIA_FAMILY=pressagency` uses the intersection of requested labels and the labels that are still below target in the coverage report. Use `sample-freely-media-snippets MEDIA_FAMILY=pressagency ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter.
+
+This writes `data/candidates/newsagency_search_snippets.jsonl` by default. Query strings are derived from the trainable labels in `resources/newsagency_seeds.json`, including multilingual aliases. Sampling keeps an append-only issue/entity registry at `data/candidates/sample_entity_pairs.jsonl` by default and skips later results from newspaper issues already sampled for the same canonical label. The default focused round is intentionally small: at most five selected samples per entity, two selected samples per planned query/language bucket, and a pool factor of two.
 
 Suggest spans for sampled snippets. The suggest step uses the configured model plus known-entity metadata matchers across the configured news-agency, radio-station, and optional newspaper catalogs. This means a news-agency sample can still be preannotated with radio-station or newspaper spans when those known entities occur in the same snippet:
 
@@ -788,10 +798,12 @@ The `i` info view in review and audit review displays this `mention_profile` fie
 
 ### Radio-Station Snippets
 
-The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-media-snippets MEDIA_FAMILY=radiostation`. This is the routine coverage-driven target: run `make annotation-stats` first so it can focus on label/language buckets below target.
+The default radio-station input is sampled into `data/candidates/radiostation_search_snippets.jsonl` with `make sample-media-snippets MEDIA_FAMILY=radiostation`. This is the routine focused target: run the state/profile steps first so it can focus on label/language gaps that are not already covered by pending work or saturated mention surfaces.
 
 ```bash
 make annotation-stats
+make mention-profiles
+make plan-media-sampling MEDIA_FAMILY=radiostation
 make sample-media-snippets MEDIA_FAMILY=radiostation
 ```
 
@@ -801,7 +813,13 @@ To focus the under-target sampling pass on a specific radio station, pass the fu
 make sample-media-snippets MEDIA_FAMILY=radiostation ARGS="--labels org.ent.radiostation.rtl"
 ```
 
-Multiple radio-station labels can be whitespace-separated inside the `--labels` value. `sample-media-snippets MEDIA_FAMILY=radiostation` uses the intersection of `--labels` and the labels that are still below target in the coverage report. Use `sample-freely-media-snippets MEDIA_FAMILY=radiostation ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter, or use `sample-freely-media-snippets MEDIA_FAMILY=radiostation` without labels when you deliberately want broader radio-station sampling.
+For focused sampling, prefer `MEDIA_SAMPLE_LABELS` so the planner and sampler use the same label filter:
+
+```bash
+make sample-media-snippets MEDIA_FAMILY=radiostation MEDIA_SAMPLE_LABELS="org.ent.radiostation.rtl"
+```
+
+Multiple radio-station labels can be whitespace-separated. `sample-media-snippets MEDIA_FAMILY=radiostation` uses the intersection of requested labels and the labels that are still below target in the coverage report. Use `sample-freely-media-snippets MEDIA_FAMILY=radiostation ARGS="--labels ..."` when you want to sample a specific label without the under-target coverage filter, or use `sample-freely-media-snippets MEDIA_FAMILY=radiostation` without labels when you deliberately want broader radio-station sampling.
 
 Because the model can only predict labels it has already been trained on, snippet suggestion combines the current NER model with deterministic metadata matchers for known media-source labels. This means a search hit sampled for `BBC` can still show a `Reuter` or `Havas` span if the actual snippet contains that agency instead of, or in addition to, the searched radio-station mention.
 

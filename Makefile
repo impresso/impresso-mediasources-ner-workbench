@@ -13,7 +13,7 @@ endif
 
 export HF_HOME
 
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -85,8 +85,10 @@ help-anno:
 	@echo "  make apply-curation                           Write curated JSONL folds"
 	@echo ""
 	@echo "Media-source snippet annotation:"
+	@echo "  make plan-media-sampling MEDIA_FAMILY=pressagency"
+	@echo "                                             Plan focused sampling from coverage, pending work, and mention surfaces"
 	@echo "  make sample-media-snippets MEDIA_FAMILY=pressagency"
-	@echo "                                             Sample press-agency label/language buckets below target"
+	@echo "                                             Focused sample press-agency label/language/surface gaps"
 	@echo "  make sample-media-snippets MEDIA_FAMILY=radiostation ARGS=\"--labels org.ent.radiostation.rtl\""
 	@echo "                                             Sample one radio-station label below target"
 	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=pressagency"
@@ -103,6 +105,7 @@ help-anno:
 	@echo ""
 	@echo "Useful overrides:"
 	@echo "  MEDIA_FAMILY=pressagency|radiostation, REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, MEDIA_SNIPPETS=..."
+	@echo "  MEDIA_SAMPLE_LABELS='org.ent.pressagency.reuters', MEDIA_SAMPLE_MODE=focused|coverage|surface"
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=true"
 	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
 	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
@@ -480,16 +483,24 @@ endif
 integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches materialize-dataset-tsv-quiet
 	@echo "TSV-derived span-patch integration complete."
 
+plan-media-sampling:
+	@echo "Planning focused $(MEDIA_FAMILY) sampling from coverage, pending work, and mention surfaces."
+	$(PYTHON) -m lib.plan_media_sampling --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --coverage-json "$(ANNOTATION_STATS_JSON)" --profiles-json "$(MENTION_PROFILE_JSON)" --json-output "$(MEDIA_SAMPLING_PLAN_JSON)" --tsv-output "$(MEDIA_SAMPLING_PLAN_TSV)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-bucket "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-bucket "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --min-missing "$(MEDIA_SAMPLE_MIN_MISSING)" --surface-saturation "$(MEDIA_SAMPLE_SURFACE_SATURATION)" $(if $(MEDIA_SAMPLE_LABELS),--labels "$(MEDIA_SAMPLE_LABELS)",) --pending-jsonl "$(MEDIA_SNIPPETS)" --pending-jsonl "$(MEDIA_SCORED_SNIPPETS)" --pending-jsonl "$(MEDIA_REVIEWED_SNIPPETS)" --pending-jsonl "$(MEDIA_SNIPPET_TRAIN_JSONL)" --pending-jsonl "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --pending-jsonl "$(MEDIA_SNIPPET_TEST_JSONL)"
+	@echo "Next step:"
+	@echo "  # Sample only the planned focused gaps."
+	@echo "  make sample-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY)"
+
 sample-freely-media-snippets:
 	@echo "Sampling $(MEDIA_FAMILY) snippets freely, without restricting to below-target coverage buckets."
-	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
+	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --pool-factor "$(MEDIA_SAMPLE_POOL_FACTOR)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Suggest spans for sampled media-source snippets."
 	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY)"
 
 sample-media-snippets:
-	@echo "Sampling $(MEDIA_FAMILY) snippets for label/language coverage buckets below target."
-	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(ARGS)
+	@echo "Sampling $(MEDIA_FAMILY) snippets for focused label/language/surface gaps."
+	@if [ -n "$(MEDIA_SAMPLE_PLAN)" ]; then $(MAKE) annotation-stats ARGS=""; $(MAKE) mention-profiles ARGS=""; $(MAKE) plan-media-sampling MEDIA_FAMILY="$(MEDIA_FAMILY)"; fi
+	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --pool-factor "$(MEDIA_SAMPLE_POOL_FACTOR)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(if $(MEDIA_SAMPLE_PLAN),--sampling-plan "$(MEDIA_SAMPLE_PLAN)",) $(if $(MEDIA_SAMPLE_LABELS),--labels "$(MEDIA_SAMPLE_LABELS)",) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Suggest spans for sampled media-source snippets."
 	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY)"

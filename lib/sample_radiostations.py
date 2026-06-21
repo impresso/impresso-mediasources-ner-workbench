@@ -26,6 +26,7 @@ from .sample_newsagencies import (
     collect_pool_for_bucket,
     import_runtime,
     load_sample_pairs,
+    load_sampling_plan_queries,
     load_sample_issues,
     load_undercovered_buckets,
     load_undercovered_labels,
@@ -104,6 +105,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--languages", nargs="+", default=DEFAULT_LANGUAGES)
     parser.add_argument("--labels", default="", help="Optional whitespace-separated canonical labels to sample.")
     parser.add_argument("--coverage-json", type=Path, help="Annotation coverage JSON from make annotation-stats.")
+    parser.add_argument("--sampling-plan", type=Path, help="Focused sampling plan JSON from make plan-media-sampling.")
     parser.add_argument("--only-under-target", action="store_true", help="Only sample labels still below the target in --coverage-json.")
     parser.add_argument("--min-missing", type=int, default=1, help="Minimum missing_to_target needed when --only-under-target is set.")
     parser.add_argument("--max-queries-per-label", type=int, default=3)
@@ -162,13 +164,17 @@ def main(argv: list[str] | None = None) -> int:
         labels = undercovered if labels is None else labels & undercovered
     rng = random.Random(args.random_seed) if args.random_seed is not None else random.Random()
     alias_rng = (random.Random(args.random_seed) if args.random_seed is not None else random.Random()) if args.shuffle_aliases else None
-    queries = load_seed_queries(
-        args.seeds,
-        languages=languages,
-        labels=labels,
-        max_queries_per_label=args.max_queries_per_label,
-        rng=alias_rng,
-    )
+    sampling_plan_targets: dict[tuple[str, str, str], int] = {}
+    if args.sampling_plan:
+        queries, sampling_plan_targets = load_sampling_plan_queries(args.sampling_plan, family="radiostation", labels=labels)
+    else:
+        queries = load_seed_queries(
+            args.seeds,
+            languages=languages,
+            labels=labels,
+            max_queries_per_label=args.max_queries_per_label,
+            rng=alias_rng,
+        )
     print("Seed file:", args.seeds)
     print("Queries:", len(queries))
     print("Languages:", languages)
@@ -176,6 +182,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Under-target labels:", len(labels or []))
         print("Under-target label-language buckets:", len(undercovered_buckets))
     print("Output:", args.out)
+    if args.sampling_plan:
+        print("Sampling plan:", args.sampling_plan)
     print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
     existing_sample_pairs = load_sample_pairs(existing_sample_paths)
@@ -192,26 +200,31 @@ def main(argv: list[str] | None = None) -> int:
     date_range_cls, connect_fn = import_runtime()
     client = connect_fn()
     require_matches = not args.allow_snippet_only
-    target_pool_size = args.target_per_query_lang * args.pool_factor
     pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    bucket_targets: dict[tuple[str, str, str], int] = {}
     for query in queries:
         print(
             f"\n=== ALIAS SEARCH: {query['query']!r} ===\n"
             f"  canonical label: {query['label']}\n"
             f"  canonical id: {query['canonical_id']}\n"
-            f"  display name: {query['display_name']}\n"
-            f"  target accepted snippets per language: {target_pool_size}\n"
-            f"  maximum candidate pool per language: {target_pool_size}"
+            f"  display name: {query['display_name']}"
         )
         for language in languages:
+            if args.sampling_plan:
+                planned_languages = query.get("planned_languages") or {}
+                if language not in planned_languages:
+                    continue
             if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
                 print(f"  SKIP language={language!r}: this label-language bucket is already at target")
                 continue
+            bucket = (query["label"], query["query"], language)
+            bucket_target = sampling_plan_targets[bucket] if args.sampling_plan else args.target_per_query_lang
+            bucket_targets[bucket] = bucket_target
+            target_pool_size = bucket_target * args.pool_factor
             print(
                 f"  SEARCH language={language!r}: looking for alias {query['query']!r}; "
-                f"kept candidates will be assigned to {query['label']}"
+                f"target={bucket_target}, pool={target_pool_size}; kept candidates will be assigned to {query['label']}"
             )
-            bucket = (query["label"], query["query"], language)
             pool, client = collect_pool_for_bucket(
                 client=client,
                 date_range_cls=date_range_cls,
@@ -238,7 +251,8 @@ def main(argv: list[str] | None = None) -> int:
 
     selected, summary = balanced_select(
         pools,
-        target_per_bucket=target_pool_size,
+        target_per_bucket=args.target_per_query_lang,
+        target_per_bucket_by_key=bucket_targets,
         rng=rng,
         max_per_label=args.max_per_label,
         existing_sample_pairs=existing_sample_pairs,
@@ -257,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
         "languages": languages,
         "labels": sorted(parse_labels(args.labels) or []),
         "coverage_json": str(args.coverage_json) if args.coverage_json else "",
+        "sampling_plan": str(args.sampling_plan) if args.sampling_plan else "",
         "only_under_target": args.only_under_target,
         "undercovered_label_languages": [f"{label} || {language}" for label, language in sorted(undercovered_buckets)],
         "min_missing": args.min_missing,

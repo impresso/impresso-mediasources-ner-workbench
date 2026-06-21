@@ -274,6 +274,44 @@ def load_seed_queries(
     return queries
 
 
+def load_sampling_plan_queries(path: Path, *, family: str = "pressagency", labels: set[str] | None = None) -> tuple[list[dict[str, Any]], dict[tuple[str, str, str], int]]:
+    if not path.is_file():
+        raise SystemExit(f"Sampling plan does not exist: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise SystemExit(f"Sampling plan has no rows array: {path}")
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    bucket_targets: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        if not isinstance(row, dict) or row.get("family") != family:
+            continue
+        label = str(row.get("label") or "")
+        if labels is not None and label not in labels:
+            continue
+        query = str(row.get("query") or "").strip()
+        language = str(row.get("language") or "").strip()
+        planned_new = int(row.get("planned_new") or 0)
+        if not label or not query or not language or planned_new <= 0:
+            continue
+        key = (label, query)
+        item = grouped.setdefault(
+            key,
+            {
+                "query": query,
+                "label": label,
+                "canonical_id": str(row.get("canonical_id") or label.rsplit(".", 1)[-1]),
+                "display_name": str(row.get("display_name") or query),
+                "planned_languages": {},
+            },
+        )
+        item["planned_languages"][language] = planned_new
+        bucket_targets[(label, query, language)] = planned_new
+    queries = list(grouped.values())
+    queries.sort(key=lambda item: (str(item["label"]), str(item["query"]).casefold()))
+    return queries, bucket_targets
+
+
 def extract_candidate(
     hit: dict[str, Any],
     *,
@@ -797,6 +835,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--languages", nargs="+", default=DEFAULT_LANGUAGES)
     parser.add_argument("--labels", default="", help="Optional whitespace-separated canonical labels to sample.")
     parser.add_argument("--coverage-json", type=Path, help="Annotation coverage JSON from make annotation-stats.")
+    parser.add_argument("--sampling-plan", type=Path, help="Focused sampling plan JSON from make plan-media-sampling.")
     parser.add_argument("--only-under-target", action="store_true", help="Only sample labels still below the target in --coverage-json.")
     parser.add_argument("--min-missing", type=int, default=1, help="Minimum missing_to_target needed when --only-under-target is set.")
     parser.add_argument("--max-queries-per-label", type=int, default=3)
@@ -860,13 +899,17 @@ def main(argv: list[str] | None = None) -> int:
     reported_undercovered_buckets = filter_buckets_for_labels(undercovered_buckets, labels)
     rng = random.Random(args.random_seed) if args.random_seed is not None else random.Random()
     alias_rng = (random.Random(args.random_seed) if args.random_seed is not None else random.Random()) if args.shuffle_aliases else None
-    queries = load_seed_queries(
-        args.seeds,
-        languages=languages,
-        labels=labels,
-        max_queries_per_label=args.max_queries_per_label,
-        rng=alias_rng,
-    )
+    sampling_plan_targets: dict[tuple[str, str, str], int] = {}
+    if args.sampling_plan:
+        queries, sampling_plan_targets = load_sampling_plan_queries(args.sampling_plan, family="pressagency", labels=labels)
+    else:
+        queries = load_seed_queries(
+            args.seeds,
+            languages=languages,
+            labels=labels,
+            max_queries_per_label=args.max_queries_per_label,
+            rng=alias_rng,
+        )
     print("Seed file:", args.seeds)
     print("Queries:", len(queries))
     print("Languages:", languages)
@@ -874,6 +917,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Under-target labels:", len(labels or []))
         print("Under-target label-language buckets:", len(reported_undercovered_buckets))
     print("Output:", args.out)
+    if args.sampling_plan:
+        print("Sampling plan:", args.sampling_plan)
     print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
     existing_sample_pairs = load_sample_pairs(existing_sample_paths)
@@ -899,11 +944,18 @@ def main(argv: list[str] | None = None) -> int:
         for query in queries:
             print(f"\n=== QUERY: {query['query']} [{query['label']}] ===")
             for language in languages:
+                if args.sampling_plan:
+                    planned_languages = query.get("planned_languages") or {}
+                    if language not in planned_languages:
+                        continue
                 if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
                     continue
                 bucket = (query["label"], query["query"], language)
-                missing = missing_for_bucket(query["label"], language, undercovered_missing) if args.only_under_target else None
-                bucket_target = min(args.target_per_query_lang, missing) if missing is not None else args.target_per_query_lang
+                if args.sampling_plan:
+                    bucket_target = sampling_plan_targets[bucket]
+                else:
+                    missing = missing_for_bucket(query["label"], language, undercovered_missing) if args.only_under_target else None
+                    bucket_target = min(args.target_per_query_lang, missing) if missing is not None else args.target_per_query_lang
                 bucket_targets[bucket] = bucket_target
                 target_pool_size = bucket_target * args.pool_factor
                 interrupted_at = f"{query['label']} || {query['query']} || {language}"
@@ -958,6 +1010,7 @@ def main(argv: list[str] | None = None) -> int:
         "languages": languages,
         "labels": sorted(parse_labels(args.labels) or []),
         "coverage_json": str(args.coverage_json) if args.coverage_json else "",
+        "sampling_plan": str(args.sampling_plan) if args.sampling_plan else "",
         "only_under_target": args.only_under_target,
         "undercovered_label_languages": [f"{label} || {language}" for label, language in sorted(reported_undercovered_buckets)],
         "min_missing": args.min_missing,

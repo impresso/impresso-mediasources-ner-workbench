@@ -51,6 +51,7 @@ Typical negative contexts:
 - a generic phrase such as `une agence`, `ag.`, or `Agentur` without a resolved real organization
 - an author signature or correspondent attribution
 - a homographic non-media organization, club, or team such as `BBC (Damen)` in a basketball fixture list
+- a stock-market or securities-price listing where a media-company name such as `Reuters` appears only as a traded company/security among other quoted stocks
 
 The annotation target is the organization mention, not the whole sentence and not the article.
 
@@ -166,6 +167,8 @@ Also annotate institutional, business, and programme contexts:
 - `BBC Orchestra ...`
 
 Do not annotate the string when the context clearly refers to a different, derived, or homographic non-media organization rather than the canonical agency/broadcaster. For example, a sports fixture `BBC (Damen) — Nilvange (Damen)` is negative because `BBC` denotes a basketball/club/team context, not the broadcaster. The same principle applies to football clubs, local associations, teams, or other organizations that share an acronym or name with a media source.
+
+Do not annotate stock-market quotation tables, securities listings, or share-price reports when the string names a listed company/security rather than a media-source mention. For example, in a list such as `Prudential ... Rank Org ... Reed ... Reuters 15.2 ... Shell Transp ... Unilever ...`, `Reuters` is a stock/security entry and should remain `O`, even though the underlying company is historically connected to the news agency. This exclusion applies to comparable quoted-company contexts for any media-source organization.
 
 ### Agence Radio vs Radio Stations
 
@@ -399,6 +402,7 @@ The practical consequence is that annotators should spend less time deciding whe
 | `un programme de BBC TV ...`                 | annotate                                             | `BBC TV`          | `org.ent.radiostation.bbc`                                   |
 | `BBC Scottish Orchestra ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
 | `BBC (Damen) — Nilvange (Damen)`             | do not annotate                                      | none              | all `O`; basketball/team context, not broadcaster function   |
+| `Reed 7.125 7 Reuters 15.2 15.4 Shell Transp 6.61` | do not annotate                              | none              | all `O`; stock/security quotation table, not media-source mention |
 | `la radio diffuse le concert ...`            | do not annotate                                      | none              | generic medium, not Agence Radio                            |
 | `Radio Paris annonce ...`                    | annotate                                             | `Radio Paris`     | `org.ent.radiostation.radio_paris`                           |
 | `la station BBC annonce ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
