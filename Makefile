@@ -13,7 +13,7 @@ endif
 
 export HF_HOME
 
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -72,7 +72,7 @@ help-anno:
 	@echo "                                             Page through token/tag TSV hits in all splits unless TSV_PATCH_SPLIT is set"
 	@echo "                                             Set TSV_SEARCH_INCLUDE_AUDITED=true to show verified audited hits"
 	@echo "  make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER=\"$$USER\""
-	@echo "                                             Page through TSV hits and verify entity or O decisions"
+	@echo "                                             Page through TSV hits; annotate with TSV lines or verify the current hit"
 	@echo "  make integrate-tsv-span-patches               Apply and promote accepted TSV-derived patches in all splits unless TSV_PATCH_SPLIT is set"
 	@echo ""
 	@echo "Evaluation disagreement annotation:"
@@ -198,7 +198,12 @@ sync-label-map:
 	@echo "Deriving label_map.json from minimal train/validation/test token_labels."
 	$(PYTHON) -m lib.sync_label_map --input-jsonl "$(TRAIN_JSONL)" --input-jsonl "$(VALIDATION_JSONL)" --input-jsonl "$(TEST_JSONL)" --output "$(LABEL_MAP)" $(ARGS)
 
-materialize-dataset-tsv: $(DATASET_TSV_TRAIN) $(DATASET_TSV_VALIDATION) $(DATASET_TSV_TEST)
+materialize-dataset-tsv-quiet:
+	@$(PYTHON) -m lib.materialize_dataset_tsv --input "$(TRAIN_JSONL)" --output "$(DATASET_TSV_TRAIN)" --split train >/dev/null
+	@$(PYTHON) -m lib.materialize_dataset_tsv --input "$(VALIDATION_JSONL)" --output "$(DATASET_TSV_VALIDATION)" --split validation >/dev/null
+	@$(PYTHON) -m lib.materialize_dataset_tsv --input "$(TEST_JSONL)" --output "$(DATASET_TSV_TEST)" --split test >/dev/null
+
+materialize-dataset-tsv: materialize-dataset-tsv-quiet
 	@echo "Materialized CoNLL-style TSV views under $(DATASET_TSV_DIR)."
 	@echo "Next step: compare against $(DATASET_TSV_COMPARE_VERSION)."
 	@echo "  diff -u $(DATASET_TSV_COMPARE_TRAIN) $(DATASET_TSV_TRAIN)"
@@ -396,7 +401,7 @@ promote-span-patches:
 integrate-span-patches: apply-span-patches promote-span-patches
 	@echo "Span-patch integration complete."
 
-search-tsv: materialize-dataset-tsv
+search-tsv: materialize-dataset-tsv-quiet
 ifeq ($(strip $(TSV_PATCH_SPLIT)),)
 	@for split in $(TSV_PATCH_SPLITS); do $(MAKE) $@ TSV_PATCH_SPLIT=$$split || exit $$?; done
 else
@@ -405,7 +410,7 @@ else
 	$(PYTHON) -m lib.tsv_hit_pager "$(TSV_SEARCH_TSV)" $(TSV_SEARCH) --context "$(TSV_SEARCH_CONTEXT)" --source-jsonl "$(TSV_PATCH_SOURCE_JSONL)" $(if $(filter true,$(TSV_SEARCH_ONLY_O)),--only-O,) $(if $(filter true,$(TSV_SEARCH_NO_PAGER)),--no-pager,) $(if $(filter true,$(TSV_SEARCH_INCLUDE_AUDITED)),--include-audited,)
 endif
 
-review-tsv-search: materialize-dataset-tsv
+review-tsv-search: materialize-dataset-tsv-quiet
 ifeq ($(strip $(TSV_PATCH_SPLIT)),)
 	@for split in $(TSV_PATCH_SPLITS); do $(MAKE) $@ TSV_PATCH_SPLIT=$$split || exit $$?; done
 else
@@ -472,7 +477,7 @@ else
 	@echo "  make materialize-dataset-tsv"
 endif
 
-integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches materialize-dataset-tsv
+integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches materialize-dataset-tsv-quiet
 	@echo "TSV-derived span-patch integration complete."
 
 sample-freely-media-snippets:

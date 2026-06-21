@@ -148,7 +148,7 @@ def patch_span(row: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, replace_overlaps: bool) -> tuple[dict[str, Any], dict[str, Any]]:
+def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, replace_overlaps: bool) -> tuple[dict[str, Any], dict[str, Any] | None]:
     span = patch_span(row, decision)
     if span.get("token_start") is not None and span.get("token_stop") is not None:
         token_start = int(span["token_start"])
@@ -199,6 +199,8 @@ def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, repl
     out = dict(row)
     out["entities"] = sorted(existing, key=lambda entity: (int(entity["start"]), int(entity["stop"]), str(entity["label"])))
     out["token_labels"] = labels_from_entities(out)
+    if exists:
+        return out, None
     return out, {
         "choice": decision.get("choice"),
         "document_id": row_id(row),
@@ -360,18 +362,19 @@ def apply_span_patches(
             decision,
             replace_overlaps=replace_overlaps or existing_boundary_patch(patch),
         )
-        change.update(
-            {
-                "audit_id": audit_id,
-                "date": rows_by_id[doc_id].get("date", ""),
-                "language": rows_by_id[doc_id].get("language", ""),
-                "newspaper": rows_by_id[doc_id].get("newspaper", ""),
-                "suggested_label": patch.get("suggested_label", ""),
-                "target_label": patch.get("target_label", ""),
-            }
-        )
-        changes.append(change)
-        changed_ids.add(doc_id)
+        if change is not None:
+            change.update(
+                {
+                    "audit_id": audit_id,
+                    "date": rows_by_id[doc_id].get("date", ""),
+                    "language": rows_by_id[doc_id].get("language", ""),
+                    "newspaper": rows_by_id[doc_id].get("newspaper", ""),
+                    "suggested_label": patch.get("suggested_label", ""),
+                    "target_label": patch.get("target_label", ""),
+                }
+            )
+            changes.append(change)
+            changed_ids.add(doc_id)
 
     output_rows = [rows_by_id[row_id(row)] for row in rows]
     write_jsonl(output_jsonl, output_rows)

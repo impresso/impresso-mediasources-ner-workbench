@@ -122,6 +122,33 @@ def read_annotation_span(row: dict[str, Any], default: tuple[int, int], *, bound
     return nearest_token_sequence(row, wanted, default, bounds=bounds)
 
 
+def label_from_token_label(token_label: str) -> str:
+    return token_label.split("-", 1)[1] if "-" in token_label else ""
+
+
+def verified_span_for_hit(row: dict[str, Any], hit: TsvHit) -> tuple[int, int, str]:
+    entities = sorted(row.get("entities") or [], key=lambda entity: (int(entity.get("token_start", 0)), int(entity.get("token_stop", 0))))
+    for entity in entities:
+        token_start = int(entity.get("token_start"))
+        token_stop = int(entity.get("token_stop"))
+        if token_start < hit.token_stop and hit.token_start < token_stop:
+            return token_start, token_stop, str(entity.get("label") or "O")
+
+    labels = [str(label) for label in row.get("token_labels") or []]
+    for index in range(hit.token_start, min(hit.token_stop, len(labels))):
+        label = label_from_token_label(labels[index])
+        if not label:
+            continue
+        start = index
+        while start > 0 and label_from_token_label(labels[start - 1]) == label and not labels[start].startswith("B-"):
+            start -= 1
+        stop = index + 1
+        while stop < len(labels) and labels[stop] == f"I-{label}":
+            stop += 1
+        return start, stop, label
+    return hit.token_start, hit.token_stop, "O"
+
+
 def row_by_document_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     by_id: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -189,7 +216,7 @@ def review_hits(
         if row is None:
             raise ValueError(f"source document not found for TSV hit: {current.document_id}")
         print_hit(lines, hit, index=index + 1, total=len(hits), context=context, query_tokens=query_tokens)
-        command = input("[Enter/n] next, [a] verify entity, [v] verify O, [p] previous, [s] skip, [q] quit: ").strip().lower()
+        command = input("[Enter/n/s] skip, [a] annotate, [v] verify hit, [p] previous, [q] quit: ").strip().lower()
         if command in {"q", "quit"}:
             break
         if command in {"p", "prev", "previous"}:
@@ -224,15 +251,16 @@ def review_hits(
             accepted += int(summary["new_decisions"])
             print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
             index += 1
-        elif command in {"v", "verify", "verify-o", "verify_o", "o", "0", "true-o", "true_o"}:
-            match = Match(row=row, token_start=current.token_start, token_stop=current.token_stop)
+        elif command in {"v", "verify", "verified"}:
+            token_start, token_stop, verified_label = verified_span_for_hit(row, current)
+            match = Match(row=row, token_start=token_start, token_stop=token_stop)
             summary = build_accepted_patches(
                 input_jsonl=input_jsonl,
                 candidates_path=candidates_path,
                 decisions_path=decisions_path,
                 audit_id=audit_id,
-                label="O",
-                pasted_tsv=pasted_tsv_for_match(row, current.token_start, current.token_stop),
+                label=verified_label,
+                pasted_tsv=pasted_tsv_for_match(row, token_start, token_stop),
                 reviewer=reviewer,
                 label_metadata=label_metadata,
                 selected_matches=[match],

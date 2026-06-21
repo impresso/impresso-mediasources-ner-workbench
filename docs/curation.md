@@ -419,13 +419,13 @@ make search-tsv TSV_SEARCH=tan TSV_SEARCH_INCLUDE_AUDITED=true
 make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER" TSV_SEARCH_INCLUDE_AUDITED=true
 ```
 
-When the search hits themselves are the review queue, use the integrated TSV search reviewer. It pages through the same hits, shows the document ID and split in the header, and creates an accepted span-patch decision from TSV token lines selected by the annotator. The highlighted hit is the default span, and `TSV_PATCH_LABEL` is the default label:
+When the search hits themselves are the review queue, use the integrated TSV search reviewer. It pages through the same hits, shows the document ID and split in the header, and can either verify the current hit as-is or create an accepted span-patch decision from TSV token lines selected by the annotator. `TSV_PATCH_LABEL` is the default label for manual annotations:
 
 ```bash
 make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
 ```
 
-In the reviewer, choose `a` to verify the displayed hit as an entity. Press Enter to accept the highlighted hit as the span, or paste the TSV line or lines that should become the entity. Finish a multi-line paste with an empty line, then press Enter again to accept the default label. Choose `v` to verify the highlighted hit as `O`; this writes a verified non-entity audit mark so the same hit is not shown again by default. Matching is restricted to the currently shown context block, so repeated short forms elsewhere in the same document are not selected accidentally. Use Enter/`n`, `p`, `s`, and `q` to move through the queue without writing a decision.
+In the reviewer, choose `a` to annotate with TSV lines. Press Enter to use the highlighted hit as the candidate span, or paste the TSV line or lines that should become the entity. Finish a multi-line paste with an empty line, then press Enter again to accept the default label. Choose `v` to verify the current hit as-is: if the hit touches an existing entity, the full entity span is verified; otherwise the highlighted hit is verified as `O`. Verified hits write persistent audit marks and are hidden from later TSV searches by default. Matching for pasted TSV lines is restricted to the currently shown context block, so repeated short forms elsewhere in the same document are not selected accidentally. Use Enter/`n`, `s`, `p`, and `q` to move through the queue without writing a decision.
 
 For a non-interactive shell view, either use the pager's no-pager mode or plain grep:
 
