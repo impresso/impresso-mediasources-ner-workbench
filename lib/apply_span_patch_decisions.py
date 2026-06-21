@@ -241,7 +241,7 @@ def remove_source_entity(row: dict[str, Any], decision: dict[str, Any]) -> tuple
     }
 
 
-def remove_overlapping_entities(row: dict[str, Any], decision: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def remove_overlapping_entities(row: dict[str, Any], decision: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
     span = patch_span(row, decision)
     existing = list(row.get("entities") or [])
     removed = [
@@ -255,7 +255,7 @@ def remove_overlapping_entities(row: dict[str, Any], decision: dict[str, Any]) -
         if not overlaps(int(entity["start"]), int(entity["stop"]), span["start"], span["stop"])
     ]
     if not removed:
-        raise ValueError(f"{row_id(row)}: no entity overlaps removal span {span['start']}:{span['stop']}")
+        return row, None
     out = dict(row)
     out["entities"] = sorted(kept, key=lambda entity: (int(entity["start"]), int(entity["stop"]), str(entity["label"])))
     out["token_labels"] = labels_from_entities(out)
@@ -339,18 +339,19 @@ def apply_span_patches(
             continue
         if removal_patch(patch) and accepted_patch(decision):
             rows_by_id[doc_id], change = remove_overlapping_entities(rows_by_id[doc_id], decision)
-            change.update(
-                {
-                    "audit_id": audit_id,
-                    "date": rows_by_id[doc_id].get("date", ""),
-                    "language": rows_by_id[doc_id].get("language", ""),
-                    "newspaper": rows_by_id[doc_id].get("newspaper", ""),
-                    "suggested_label": patch.get("suggested_label", ""),
-                    "target_label": patch.get("target_label", ""),
-                }
-            )
-            changes.append(change)
-            changed_ids.add(doc_id)
+            if change is not None:
+                change.update(
+                    {
+                        "audit_id": audit_id,
+                        "date": rows_by_id[doc_id].get("date", ""),
+                        "language": rows_by_id[doc_id].get("language", ""),
+                        "newspaper": rows_by_id[doc_id].get("newspaper", ""),
+                        "suggested_label": patch.get("suggested_label", ""),
+                        "target_label": patch.get("target_label", ""),
+                    }
+                )
+                changes.append(change)
+                changed_ids.add(doc_id)
             continue
         if not accepted_patch(decision):
             continue

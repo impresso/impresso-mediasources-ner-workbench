@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 
 RED = "\033[31;1m"
@@ -137,6 +138,80 @@ def document_id_for_hit(lines: list[str], hit: tuple[int, int]) -> str:
     return metadata.get("document_id") or metadata.get("doc_id") or ""
 
 
+def token_index_for_line(lines: list[str], hit: tuple[int, int], line_index: int) -> int:
+    document_start, _document_end = document_bounds(lines, hit)
+    token_index = 0
+    for index in range(document_start, line_index + 1):
+        if parse_token_line(lines[index]) is None:
+            continue
+        if index == line_index:
+            return token_index
+        token_index += 1
+    raise ValueError(f"line {line_index} is not a token line")
+
+
+def token_span_for_hit(lines: list[str], hit: tuple[int, int]) -> tuple[int, int]:
+    return token_index_for_line(lines, hit, hit[0]), token_index_for_line(lines, hit, hit[1] - 1) + 1
+
+
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                rows.append(json.loads(line))
+    return rows
+
+
+def row_by_document_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        for key in {str(row.get("document_id") or ""), str(row.get("id") or "")}:
+            if key:
+                by_id[key] = row
+    return by_id
+
+
+def overlaps(a_start: int, a_stop: int, b_start: int, b_stop: int) -> bool:
+    return a_start < b_stop and b_start < a_stop
+
+
+def hit_is_audited(lines: list[str], hit: tuple[int, int], rows_by_id: dict[str, dict[str, Any]]) -> bool:
+    document_id = document_id_for_hit(lines, hit)
+    row = rows_by_id.get(document_id)
+    if row is None:
+        return False
+    token_start, token_stop = token_span_for_hit(lines, hit)
+    starts = row.get("token_start_offsets") or []
+    stops = row.get("token_end_offsets") or []
+    if token_start < 0 or token_stop <= token_start or token_stop > len(starts) or token_stop > len(stops):
+        return False
+    start = int(starts[token_start])
+    stop = int(stops[token_stop - 1])
+    for mark in row.get("audit_marks") or []:
+        if not isinstance(mark, dict) or mark.get("status") != "verified":
+            continue
+        try:
+            mark_start = int(mark.get("start"))
+            mark_stop = int(mark.get("stop"))
+        except (TypeError, ValueError):
+            continue
+        if overlaps(start, stop, mark_start, mark_stop):
+            return True
+    return False
+
+
+def filter_audited_hits(lines: list[str], hits: list[tuple[int, int]], *, source_jsonl: Path | None, include_audited: bool) -> list[tuple[int, int]]:
+    if include_audited or source_jsonl is None:
+        return hits
+    rows_by_id = row_by_document_id(load_jsonl(source_jsonl))
+    if not rows_by_id:
+        return hits
+    return [hit for hit in hits if not hit_is_audited(lines, hit, rows_by_id)]
+
+
 def hit_label_for_hit(lines: list[str], hit: tuple[int, int]) -> str:
     metadata = metadata_for_hit(lines, hit)
     document_id = metadata.get("document_id") or metadata.get("doc_id") or ""
@@ -216,6 +291,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--case-sensitive", action="store_true", help="Use case-sensitive matching.")
     parser.add_argument("--no-pager", action="store_true", help="Print all hit blocks separated by -- instead of paging.")
     parser.add_argument("--no-color", action="store_true", help="Disable ANSI color highlighting.")
+    parser.add_argument("--source-jsonl", type=Path, help="JSONL split used to suppress hits overlapping verified audit_marks.")
+    parser.add_argument("--include-audited", action="store_true", help="Show hits overlapping verified audit_marks.")
     return parser.parse_args(argv)
 
 
@@ -227,6 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         query_tokens.append(args.token2)
     lines = load_lines(args.file)
     hits = find_hits(lines, args.token, args.token2, only_o=args.only_O, ignore_case=ignore_case)
+    hits = filter_audited_hits(lines, hits, source_jsonl=args.source_jsonl, include_audited=args.include_audited)
     labels = [hit_label_for_hit(lines, hit) for hit in hits]
     blocks = [
         build_block(

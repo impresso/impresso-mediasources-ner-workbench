@@ -70,8 +70,9 @@ help-anno:
 	@echo "                                             Paste TSV token lines, enter a label, and create accepted manual span patches"
 	@echo "  make search-tsv TSV_SEARCH=\"Radio London\""
 	@echo "                                             Page through token/tag TSV hits in all splits unless TSV_PATCH_SPLIT is set"
+	@echo "                                             Set TSV_SEARCH_INCLUDE_AUDITED=true to show verified audited hits"
 	@echo "  make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER=\"$$USER\""
-	@echo "                                             Page through TSV hits in all splits and create accepted patches"
+	@echo "                                             Page through TSV hits and verify entity or O decisions"
 	@echo "  make integrate-tsv-span-patches               Apply and promote accepted TSV-derived patches in all splits unless TSV_PATCH_SPLIT is set"
 	@echo ""
 	@echo "Evaluation disagreement annotation:"
@@ -401,7 +402,7 @@ ifeq ($(strip $(TSV_PATCH_SPLIT)),)
 else
 	@echo "Searching TOKEN/NERTAG TSV for $(TSV_SEARCH) in $(TSV_SEARCH_TSV)."
 	@test -n "$(TSV_SEARCH)" || { echo "TSV_SEARCH is required, e.g. TSV_SEARCH=tan or TSV_SEARCH=\"Radio London\""; exit 1; }
-	$(PYTHON) -m lib.tsv_hit_pager "$(TSV_SEARCH_TSV)" $(TSV_SEARCH) --context "$(TSV_SEARCH_CONTEXT)" $(if $(filter true,$(TSV_SEARCH_ONLY_O)),--only-O,) $(if $(filter true,$(TSV_SEARCH_NO_PAGER)),--no-pager,)
+	$(PYTHON) -m lib.tsv_hit_pager "$(TSV_SEARCH_TSV)" $(TSV_SEARCH) --context "$(TSV_SEARCH_CONTEXT)" --source-jsonl "$(TSV_PATCH_SOURCE_JSONL)" $(if $(filter true,$(TSV_SEARCH_ONLY_O)),--only-O,) $(if $(filter true,$(TSV_SEARCH_NO_PAGER)),--no-pager,) $(if $(filter true,$(TSV_SEARCH_INCLUDE_AUDITED)),--include-audited,)
 endif
 
 review-tsv-search: materialize-dataset-tsv
@@ -412,7 +413,7 @@ else
 	@test -n "$(TSV_SEARCH)" || { echo "TSV_SEARCH is required, e.g. TSV_SEARCH=tan or TSV_SEARCH=\"Radio London\""; exit 1; }
 	@test -n "$(TSV_PATCH_LABEL)" || { echo "TSV_PATCH_LABEL is required, e.g. TSV_PATCH_LABEL=org.ent.pressagency.tanjug"; exit 1; }
 	@test -n "$(REVIEWER)" || { echo "REVIEWER is required, e.g. REVIEWER=\"$$USER\""; exit 1; }
-	$(PYTHON) -m lib.review_tsv_search --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --tsv "$(TSV_SEARCH_TSV)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --label "$(TSV_PATCH_LABEL)" --reviewer "$(REVIEWER)" --search "$(word 1,$(TSV_SEARCH))" $(if $(word 2,$(TSV_SEARCH)),--search2 "$(word 2,$(TSV_SEARCH))",) --context "$(TSV_SEARCH_CONTEXT)" $(if $(filter true,$(TSV_SEARCH_ONLY_O)),--only-O,) --summary-json "$(TSV_PATCH_SUMMARY_JSON)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
+	$(PYTHON) -m lib.review_tsv_search --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --tsv "$(TSV_SEARCH_TSV)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --label "$(TSV_PATCH_LABEL)" --reviewer "$(REVIEWER)" --search "$(word 1,$(TSV_SEARCH))" $(if $(word 2,$(TSV_SEARCH)),--search2 "$(word 2,$(TSV_SEARCH))",) --context "$(TSV_SEARCH_CONTEXT)" $(if $(filter true,$(TSV_SEARCH_ONLY_O)),--only-O,) $(if $(filter true,$(TSV_SEARCH_INCLUDE_AUDITED)),--include-audited,) --summary-json "$(TSV_PATCH_SUMMARY_JSON)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Apply accepted TSV search span patches."
 	@echo "  make apply-tsv-span-patches TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT) TSV_PATCH_LABEL=$(TSV_PATCH_LABEL)"

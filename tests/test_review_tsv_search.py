@@ -172,3 +172,56 @@ def test_review_tsv_search_accepts_pasted_span_larger_than_hit(tmp_path: Path, m
     assert candidate["predicted_entities"][0]["surface"] == "Voice of America"
     assert candidate["predicted_entities"][0]["token_start"] == 1
     assert candidate["predicted_entities"][0]["token_stop"] == 4
+
+
+def test_review_tsv_search_marks_highlighted_hit_as_true_o(tmp_path: Path, monkeypatch) -> None:
+    input_jsonl = tmp_path / "train.jsonl"
+    tsv = tmp_path / "train.tsv"
+    candidates = tmp_path / "candidates.jsonl"
+    decisions = tmp_path / "decisions.jsonl"
+    write_jsonl(
+        input_jsonl,
+        [
+            {
+                "id": "doc-1",
+                "document_id": "doc-1",
+                "text": "Die BBC",
+                "tokens": ["Die", "BBC"],
+                "token_start_offsets": [0, 4],
+                "token_end_offsets": [3, 7],
+                "token_labels": ["O", "O"],
+                "entities": [],
+            }
+        ],
+    )
+    tsv.write_text(
+        "# doc_id = doc-1\n"
+        "# document_id = doc-1\n"
+        "# split = train\n"
+        "TOKEN\tNERTAG\n"
+        "Die\tO\n"
+        "BBC\tO\n",
+        encoding="utf-8",
+    )
+    answers = iter(["v"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    result = review_hits(
+        input_jsonl=input_jsonl,
+        tsv_path=tsv,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="manual-tsv-train",
+        label="org.ent.radiostation.bbc",
+        reviewer="tester",
+        token="BBC",
+    )
+
+    assert result["accepted"] == 1
+    candidate = json.loads(candidates.read_text(encoding="utf-8").splitlines()[0])
+    decision = json.loads(decisions.read_text(encoding="utf-8").splitlines()[0])
+    assert candidate["audit_mode"] == "manual-tsv-remove"
+    assert candidate["target_label"] == "O"
+    assert candidate["predicted_entities"][0]["label"] == "O"
+    assert decision["correct_label"] == "O"
+    assert decision["audit_status"] == "verified"

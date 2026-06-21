@@ -9,7 +9,7 @@ from typing import Any
 
 from lib import review_ui
 from lib.create_span_patches_from_tsv import Match, build_accepted_patches, load_jsonl, row_id, strip_ansi
-from lib.tsv_hit_pager import build_block, document_bounds, find_hits, hit_label_for_hit, hit_title, load_lines, parse_token_line
+from lib.tsv_hit_pager import build_block, document_bounds, filter_audited_hits, find_hits, hit_label_for_hit, hit_title, load_lines, parse_token_line
 
 
 @dataclass(frozen=True)
@@ -170,9 +170,11 @@ def review_hits(
     ignore_case: bool = True,
     label_metadata_paths: list[Path] | None = None,
     summary_json: Path | None = None,
+    include_audited: bool = False,
 ) -> dict[str, Any]:
     lines = load_lines(tsv_path)
     hits = find_hits(lines, token, token2, only_o=only_o, ignore_case=ignore_case)
+    hits = filter_audited_hits(lines, hits, source_jsonl=input_jsonl, include_audited=include_audited)
     rows = load_jsonl(input_jsonl)
     rows_by_id = row_by_document_id(rows)
     label_metadata = review_ui.load_label_metadata(label_metadata_paths or [])
@@ -187,7 +189,7 @@ def review_hits(
         if row is None:
             raise ValueError(f"source document not found for TSV hit: {current.document_id}")
         print_hit(lines, hit, index=index + 1, total=len(hits), context=context, query_tokens=query_tokens)
-        command = input("[Enter/n] next, [p] previous, [a] annotate, [s] skip, [q] quit: ").strip().lower()
+        command = input("[Enter/n] next, [a] verify entity, [v] verify O, [p] previous, [s] skip, [q] quit: ").strip().lower()
         if command in {"q", "quit"}:
             break
         if command in {"p", "prev", "previous"}:
@@ -196,7 +198,7 @@ def review_hits(
         if command in {"s", "skip"}:
             skipped += 1
             index += 1
-        elif command in {"a", "annotate"}:
+        elif command in {"a", "annotate", "entity"}:
             bounds = visible_token_bounds(lines, hit, context=context)
             while True:
                 try:
@@ -214,6 +216,23 @@ def review_hits(
                 audit_id=audit_id,
                 label=raw_label,
                 pasted_tsv=pasted_tsv_for_match(row, token_start, token_stop),
+                reviewer=reviewer,
+                label_metadata=label_metadata,
+                selected_matches=[match],
+                include_existing=True,
+            )
+            accepted += int(summary["new_decisions"])
+            print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
+            index += 1
+        elif command in {"v", "verify", "verify-o", "verify_o", "o", "0", "true-o", "true_o"}:
+            match = Match(row=row, token_start=current.token_start, token_stop=current.token_stop)
+            summary = build_accepted_patches(
+                input_jsonl=input_jsonl,
+                candidates_path=candidates_path,
+                decisions_path=decisions_path,
+                audit_id=audit_id,
+                label="O",
+                pasted_tsv=pasted_tsv_for_match(row, current.token_start, current.token_stop),
                 reviewer=reviewer,
                 label_metadata=label_metadata,
                 selected_matches=[match],
@@ -259,6 +278,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--case-sensitive", action="store_true")
     parser.add_argument("--label-metadata", action="append", type=Path, default=[])
     parser.add_argument("--summary-json", type=Path)
+    parser.add_argument("--include-audited", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -279,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
         ignore_case=not args.case_sensitive,
         label_metadata_paths=args.label_metadata,
         summary_json=args.summary_json,
+        include_audited=args.include_audited,
     )
     return 0
 

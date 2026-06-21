@@ -1,4 +1,6 @@
-from lib.tsv_hit_pager import RED, RESET, build_block, document_id_for_hit, find_hits, highlight_token_line, hit_label_for_hit, hit_title, is_token_line, parse_token_line
+import json
+
+from lib.tsv_hit_pager import RED, RESET, build_block, document_id_for_hit, filter_audited_hits, find_hits, highlight_token_line, hit_label_for_hit, hit_title, is_token_line, parse_token_line
 
 
 def test_tsv_hit_pager_identifies_token_lines() -> None:
@@ -92,3 +94,26 @@ def test_tsv_hit_pager_extracts_document_id_for_hit_title() -> None:
 
 def test_tsv_hit_pager_can_disable_highlight_color() -> None:
     assert highlight_token_line("BBC\tO\n", ["bbc"], color=False) == "BBC\tO\n"
+
+
+def test_tsv_hit_pager_filters_verified_audit_marks(tmp_path) -> None:
+    source = tmp_path / "train.jsonl"
+    source.write_text(
+        json.dumps(
+            {
+                "id": "doc-1",
+                "document_id": "doc-1",
+                "tokens": ["Die", "BBC"],
+                "token_start_offsets": [0, 4],
+                "token_end_offsets": [3, 7],
+                "audit_marks": [{"audit_id": "manual-tsv-train", "decision": "accept", "label": "O", "start": 4, "status": "verified", "stop": 7}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines = ["# doc_id = doc-1\n", "# document_id = doc-1\n", "TOKEN\tNERTAG\n", "Die\tO\n", "BBC\tO\n"]
+    hits = find_hits(lines, "BBC")
+
+    assert filter_audited_hits(lines, hits, source_jsonl=source, include_audited=False) == []
+    assert filter_audited_hits(lines, hits, source_jsonl=source, include_audited=True) == hits

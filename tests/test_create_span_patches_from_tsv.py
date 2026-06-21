@@ -276,3 +276,65 @@ def test_build_o_patches_from_tsv_removes_overlapping_entity(tmp_path: Path) -> 
     ]
     assert change["label"] == "O"
     assert change["removed_labels"] == "org.ent.pressagency.havas"
+
+
+def test_build_o_patches_from_tsv_audits_already_empty_span(tmp_path: Path) -> None:
+    input_jsonl = tmp_path / "train.jsonl"
+    candidates = tmp_path / "candidates.jsonl"
+    decisions = tmp_path / "decisions.jsonl"
+    output = tmp_path / "patched.jsonl"
+    write_jsonl(
+        input_jsonl,
+        [
+            {
+                "id": "doc-1",
+                "document_id": "doc-1",
+                "text": "Radio Test",
+                "tokens": ["Radio", "Test"],
+                "token_start_offsets": [0, 6],
+                "token_end_offsets": [5, 10],
+                "token_labels": ["O", "O"],
+                "entities": [],
+            }
+        ],
+    )
+
+    summary = build_accepted_patches(
+        input_jsonl=input_jsonl,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="manual-tsv-train",
+        label="O",
+        pasted_tsv="Radio\tO\nTest\tO\n",
+        reviewer="tester",
+        include_existing=True,
+    )
+
+    assert summary["label"] == "O"
+    result = apply_span_patches(
+        input_jsonl=input_jsonl,
+        output_jsonl=output,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="manual-tsv-train",
+        changes_jsonl=tmp_path / "changes.jsonl",
+        changes_tsv=tmp_path / "changes.tsv",
+        summary_json=tmp_path / "summary.json",
+    )
+
+    row = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert result["applied"] == 0
+    assert result["audit_marks_written"] == 1
+    assert row["entities"] == []
+    assert row["token_labels"] == ["O", "O"]
+    assert row["audit_marks"] == [
+        {
+            "audit_id": "manual-tsv-train",
+            "decision": "accept",
+            "label": "O",
+            "start": 0,
+            "status": "verified",
+            "stop": 10,
+        }
+    ]
+    assert (tmp_path / "changes.jsonl").read_text(encoding="utf-8") == ""

@@ -412,13 +412,20 @@ Restrict hits to tokens currently tagged `O` when you are looking specifically f
 make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan TSV_SEARCH_ONLY_O=true
 ```
 
+By default, TSV search and TSV review hide hits that overlap verified `audit_marks` in the configured JSONL split. This includes hits that were already accepted as entities and hits marked as true non-entities. To inspect them anyway:
+
+```bash
+make search-tsv TSV_SEARCH=tan TSV_SEARCH_INCLUDE_AUDITED=true
+make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER" TSV_SEARCH_INCLUDE_AUDITED=true
+```
+
 When the search hits themselves are the review queue, use the integrated TSV search reviewer. It pages through the same hits, shows the document ID and split in the header, and creates an accepted span-patch decision from TSV token lines selected by the annotator. The highlighted hit is the default span, and `TSV_PATCH_LABEL` is the default label:
 
 ```bash
 make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
 ```
 
-In the reviewer, choose `a` to annotate the displayed hit. Press Enter to accept the highlighted hit as the span, or paste the TSV line or lines that should become the entity. Finish a multi-line paste with an empty line, then press Enter again to accept the default label. Matching is restricted to the currently shown context block, so repeated short forms elsewhere in the same document are not selected accidentally. Use `n`, `p`, `s`, and `q` to move through the queue.
+In the reviewer, choose `a` to verify the displayed hit as an entity. Press Enter to accept the highlighted hit as the span, or paste the TSV line or lines that should become the entity. Finish a multi-line paste with an empty line, then press Enter again to accept the default label. Choose `v` to verify the highlighted hit as `O`; this writes a verified non-entity audit mark so the same hit is not shown again by default. Matching is restricted to the currently shown context block, so repeated short forms elsewhere in the same document are not selected accidentally. Use Enter/`n`, `p`, `s`, and `q` to move through the queue without writing a decision.
 
 For a non-interactive shell view, either use the pager's no-pager mode or plain grep:
 
