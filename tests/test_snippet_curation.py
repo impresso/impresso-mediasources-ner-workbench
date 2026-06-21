@@ -24,6 +24,7 @@ from lib.sample_newsagencies import (
     context_window,
     expand_candidate_with_full_content,
     extract_candidate,
+    load_undercovered_bucket_missing,
     load_sample_pairs,
     load_sample_issues,
     load_seed_queries,
@@ -450,6 +451,7 @@ def test_sample_newsagencies_loads_undercovered_labels_from_stats(tmp_path: Path
 
     assert load_undercovered_labels(coverage) == {"org.ent.pressagency.ata"}
     assert load_undercovered_buckets(coverage) == {("org.ent.pressagency.ata", "fr")}
+    assert load_undercovered_bucket_missing(coverage) == {("org.ent.pressagency.ata", "fr"): 20}
 
 
 def test_sample_newsagencies_filters_undercovered_language_buckets() -> None:
@@ -765,6 +767,31 @@ def test_radiostation_sampling_can_select_full_collected_pool_for_review() -> No
     assert summary["counts_by_label_selected"] == {"org.ent.radiostation.radio-bucharest": target_pool_size}
 
 
+def test_sampling_uses_coverage_aware_language_bucket_targets() -> None:
+    pools = {
+        ("org.ent.pressagency.domei", "Domei", "lb"): [
+            {
+                "id": f"luxwort-1942-01-{index:02d}-a-i0001#match-0",
+                "candidate_label": "org.ent.pressagency.domei",
+                "source": {"document_id": f"luxwort-1942-01-{index:02d}-a-i0001"},
+            }
+            for index in range(1, 6)
+        ]
+    }
+
+    selected, summary = balanced_select(
+        pools,
+        target_per_bucket=5,
+        target_per_bucket_by_key={("org.ent.pressagency.domei", "Domei", "lb"): 2},
+        rng=random.Random(42),
+        max_per_label=20,
+    )
+
+    assert len(selected) == 2
+    assert summary["target_per_label_query_language"]["org.ent.pressagency.domei || Domei || lb"] == 2
+    assert summary["counts_by_label_query_language"]["org.ent.pressagency.domei || Domei || lb"] == 2
+
+
 def test_sample_expands_match_to_full_content_context() -> None:
     row = {
         "id": "EXP-1953-01-08-a-i0004",
@@ -1032,6 +1059,49 @@ def test_export_snippet_training_data_extends_label_map_with_radio_metadata(tmp_
 
     assert rows[0]["token_labels"] == ["B-org.ent.radiostation.bbc", "O", "O"]
     assert rows[0]["entities"][0]["label"] == "org.ent.radiostation.bbc"
+
+
+def test_export_snippet_training_data_includes_rejected_snippets_as_negative_rows(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(json.dumps({"label2id": {"O": 0}, "id2label": {"0": "O"}}), encoding="utf-8")
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "snippet-negative",
+                "text": "Radio Londres is not a source mention here.",
+                "language": "en",
+                "curation": {"status": "rejected", "label": "org.ent.radiostation.bbc"},
+                "accepted_spans": [],
+                "source": {"document_id": "snippet-negative"},
+            },
+            {
+                "id": "snippet-removed",
+                "text": "Bad OCR fragment.",
+                "language": "en",
+                "curation": {"status": "removed", "label": "org.ent.radiostation.bbc"},
+                "accepted_spans": [],
+                "source": {"document_id": "snippet-removed"},
+            },
+            {
+                "id": "snippet-skipped",
+                "text": "Unresolved example.",
+                "language": "en",
+                "curation": {"status": "skipped", "label": "org.ent.radiostation.bbc"},
+                "accepted_spans": [],
+                "source": {"document_id": "snippet-skipped"},
+            },
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert [row["document_id"] for row in rows] == ["snippet-negative"]
+    assert rows[0]["entities"] == []
+    assert set(rows[0]["token_labels"]) == {"O"}
+    assert rows[0]["quality_flags"] == ["reviewed_negative_snippet"]
+    assert rows[0]["legacy"]["review_status"] == "rejected"
 
 
 def test_export_snippet_training_data_splits_by_source_issue(tmp_path: Path) -> None:

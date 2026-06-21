@@ -128,8 +128,16 @@ def test_curation_state_counts_snippet_pipeline(tmp_path: Path) -> None:
     assert news["split"]["total_entities"] == 2
     assert news["exported"]["total_rows"] == 2
     assert news["exported"]["total_entities"] == 2
+    assert news["workflow"]["pending_review"] == 1
+    assert news["workflow"]["curated"] == 1
+    assert news["workflow"]["accepted_for_dataset"] == 1
+    assert news["workflow"]["trainable_for_dataset"] == 1
+    assert news["workflow"]["split_rows"] == 2
+    assert news["workflow"]["next_action"] == "review snippets"
     assert radio["candidates"]["rows"] == 1
     assert radio["scored"]["statuses"] == {"needs_review": 1}
+    assert radio["workflow"]["pending_review"] == 1
+    assert radio["workflow"]["next_action"] == "review snippets"
 
 
 def test_curation_state_reads_staging_dataset_summary(tmp_path: Path) -> None:

@@ -578,6 +578,7 @@ def balanced_select(
     pools: dict[tuple[str, str, str], list[dict[str, Any]]],
     *,
     target_per_bucket: int,
+    target_per_bucket_by_key: dict[tuple[str, str, str], int] | None = None,
     rng: random.Random,
     max_per_label: int,
     existing_sample_pairs: set[tuple[str, str]] | None = None,
@@ -596,7 +597,8 @@ def balanced_select(
     while made_progress:
         made_progress = False
         for bucket in bucket_order:
-            if counts[bucket] >= target_per_bucket:
+            bucket_target = target_per_bucket_by_key.get(bucket, target_per_bucket) if target_per_bucket_by_key else target_per_bucket
+            if counts[bucket] >= bucket_target:
                 continue
             label = bucket[0]
             if max_per_label > 0 and counts_by_label[label] >= max_per_label:
@@ -622,16 +624,20 @@ def balanced_select(
     summary = {
         "total_selected": len(selected),
         "target_per_query_language": target_per_bucket,
+        "target_per_label_query_language": {
+            f"{label} || {query} || {lang}": (target_per_bucket_by_key.get((label, query, lang), target_per_bucket) if target_per_bucket_by_key else target_per_bucket)
+            for label, query, lang in bucket_order
+        },
         "counts_by_label_query_language": {f"{label} || {query} || {lang}": counts[(label, query, lang)] for label, query, lang in bucket_order},
         "pool_sizes_by_label_query_language": {f"{label} || {query} || {lang}": len(pools[(label, query, lang)]) for label, query, lang in bucket_order},
         "unfilled_label_query_languages": {
             f"{label} || {query} || {lang}": {
                 "selected": counts[(label, query, lang)],
-                "target": target_per_bucket,
+                "target": (target_per_bucket_by_key.get((label, query, lang), target_per_bucket) if target_per_bucket_by_key else target_per_bucket),
                 "pool_size": len(pools[(label, query, lang)]),
             }
             for label, query, lang in bucket_order
-            if counts[(label, query, lang)] < target_per_bucket
+            if counts[(label, query, lang)] < (target_per_bucket_by_key.get((label, query, lang), target_per_bucket) if target_per_bucket_by_key else target_per_bucket)
         },
         "max_per_label": max_per_label,
         "counts_by_label_selected": dict(sorted(counts_by_label.items())),
@@ -656,6 +662,10 @@ def load_undercovered_labels(path: Path, *, family: str = "pressagency", min_mis
 
 
 def load_undercovered_buckets(path: Path, *, family: str = "pressagency", min_missing: int = 1) -> set[tuple[str, str]]:
+    return set(load_undercovered_bucket_missing(path, family=family, min_missing=min_missing))
+
+
+def load_undercovered_bucket_missing(path: Path, *, family: str = "pressagency", min_missing: int = 1) -> dict[tuple[str, str], int]:
     if not path.is_file():
         raise SystemExit(
             f"Coverage JSON does not exist: {path}\n"
@@ -665,7 +675,7 @@ def load_undercovered_buckets(path: Path, *, family: str = "pressagency", min_mi
     rows = payload.get("rows") if isinstance(payload, dict) else None
     if not isinstance(rows, list):
         raise SystemExit(f"Coverage JSON has no rows array: {path}")
-    buckets: set[tuple[str, str]] = set()
+    buckets: dict[tuple[str, str], int] = {}
     for row in rows:
         if not isinstance(row, dict) or row.get("family") != family:
             continue
@@ -676,14 +686,28 @@ def load_undercovered_buckets(path: Path, *, family: str = "pressagency", min_mi
         if isinstance(languages, dict) and languages:
             for language, item in languages.items():
                 if isinstance(item, dict) and int(item.get("missing_to_target") or 0) >= min_missing:
-                    buckets.add((label, str(language)))
+                    buckets[(label, str(language))] = int(item.get("missing_to_target") or 0)
         elif int(row.get("missing_to_target") or 0) >= min_missing:
-            buckets.add((label, "*"))
+            buckets[(label, "*")] = int(row.get("missing_to_target") or 0)
     return buckets
 
 
 def bucket_is_undercovered(label: str, language: str, undercovered_buckets: set[tuple[str, str]]) -> bool:
     return (label, language) in undercovered_buckets or (label, "*") in undercovered_buckets
+
+
+def missing_for_bucket(label: str, language: str, undercovered_missing: dict[tuple[str, str], int]) -> int | None:
+    if (label, language) in undercovered_missing:
+        return undercovered_missing[(label, language)]
+    if (label, "*") in undercovered_missing:
+        return undercovered_missing[(label, "*")]
+    return None
+
+
+def filter_buckets_for_labels(buckets: set[tuple[str, str]], labels: set[str] | None) -> set[tuple[str, str]]:
+    if labels is None:
+        return buckets
+    return {bucket for bucket in buckets if bucket[0] in labels}
 
 
 def iter_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -825,12 +849,15 @@ def main(argv: list[str] | None = None) -> int:
     languages = [language.strip() for language in args.languages if language.strip()]
     labels = parse_labels(args.labels)
     undercovered_buckets: set[tuple[str, str]] = set()
+    undercovered_missing: dict[tuple[str, str], int] = {}
     if args.only_under_target:
         if not args.coverage_json:
             raise SystemExit("--only-under-target requires --coverage-json")
-        undercovered_buckets = load_undercovered_buckets(args.coverage_json, min_missing=args.min_missing)
+        undercovered_missing = load_undercovered_bucket_missing(args.coverage_json, min_missing=args.min_missing)
+        undercovered_buckets = set(undercovered_missing)
         undercovered = {label for label, _language in undercovered_buckets}
         labels = undercovered if labels is None else labels & undercovered
+    reported_undercovered_buckets = filter_buckets_for_labels(undercovered_buckets, labels)
     rng = random.Random(args.random_seed) if args.random_seed is not None else random.Random()
     alias_rng = (random.Random(args.random_seed) if args.random_seed is not None else random.Random()) if args.shuffle_aliases else None
     queries = load_seed_queries(
@@ -845,7 +872,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Languages:", languages)
     if args.only_under_target:
         print("Under-target labels:", len(labels or []))
-        print("Under-target label-language buckets:", len(undercovered_buckets))
+        print("Under-target label-language buckets:", len(reported_undercovered_buckets))
     print("Output:", args.out)
     print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
     existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
@@ -864,8 +891,8 @@ def main(argv: list[str] | None = None) -> int:
     client = connect_fn()
     throttle = RateLimitThrottle(cooldown_seconds=args.rate_limit_cooldown, steady_pause_seconds=args.rate_limit_pause)
     require_matches = not args.allow_snippet_only
-    target_pool_size = args.target_per_query_lang * args.pool_factor
     pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    bucket_targets: dict[tuple[str, str, str], int] = {}
     interrupted = False
     interrupted_at = ""
     try:
@@ -875,6 +902,10 @@ def main(argv: list[str] | None = None) -> int:
                 if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
                     continue
                 bucket = (query["label"], query["query"], language)
+                missing = missing_for_bucket(query["label"], language, undercovered_missing) if args.only_under_target else None
+                bucket_target = min(args.target_per_query_lang, missing) if missing is not None else args.target_per_query_lang
+                bucket_targets[bucket] = bucket_target
+                target_pool_size = bucket_target * args.pool_factor
                 interrupted_at = f"{query['label']} || {query['query']} || {language}"
                 pool, client = collect_pool_for_bucket(
                     client=client,
@@ -908,6 +939,7 @@ def main(argv: list[str] | None = None) -> int:
     selected, summary = balanced_select(
         pools,
         target_per_bucket=args.target_per_query_lang,
+        target_per_bucket_by_key=bucket_targets,
         rng=rng,
         max_per_label=args.max_per_label,
         existing_sample_pairs=existing_sample_pairs,
@@ -927,12 +959,13 @@ def main(argv: list[str] | None = None) -> int:
         "labels": sorted(parse_labels(args.labels) or []),
         "coverage_json": str(args.coverage_json) if args.coverage_json else "",
         "only_under_target": args.only_under_target,
-        "undercovered_label_languages": [f"{label} || {language}" for label, language in sorted(undercovered_buckets)],
+        "undercovered_label_languages": [f"{label} || {language}" for label, language in sorted(reported_undercovered_buckets)],
         "min_missing": args.min_missing,
         "max_queries_per_label": args.max_queries_per_label,
         "year_start": args.year_start,
         "year_end": args.year_end,
         "target_per_query_lang": args.target_per_query_lang,
+        "target_per_query_lang_coverage_aware": args.only_under_target,
         "pool_factor": args.pool_factor,
         "page_size": args.page_size,
         "max_pages": args.max_pages,

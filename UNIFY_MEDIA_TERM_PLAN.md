@@ -322,7 +322,7 @@ Remove the previous family-specific snippet targets instead of keeping aliases. 
 Update help:
 
 - top-level help should say "media-source curation"
-- `help-annotation` should have one "Media-source snippet annotation" section
+- `help-anno` should have one "Media-source snippet annotation" section
 - add examples with `MEDIA_FAMILY=pressagency` and `MEDIA_FAMILY=radiostation`
 - state that old `newsagency` and `radio` snippet targets have been removed
 
@@ -382,7 +382,7 @@ Recommendation: use **Option B first**. Rename paths only after the generic comm
 - `Makefile`
   - add generic media snippet targets
   - remove existing `newsagency` and `radio` snippet targets
-  - simplify `help-annotation`
+  - simplify `help-anno`
   - update `.PHONY`
   - make `integrate-snippets` call generic family targets
 - `configs/common.mk`

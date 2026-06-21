@@ -13,42 +13,42 @@ endif
 
 export HF_HOME
 
-.PHONY: help help-annotation help-dataset help-model help-pretraining help-finetuning smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map materialize-dataset-tsv annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
 	@echo ""
 	@echo "Main help groups:"
-	@echo "  make help-annotation               Annotation sampling, review, audit, and promotion"
-	@echo "  make help-dataset                  Dataset validation, state, export, and publishing"
-	@echo "  make help-model                    Model evaluation, curation eval, and Hub push"
-	@echo "  make help-pretraining              MLM source download, data build, pretraining, and push"
-	@echo "  make help-finetuning               Token-classifier training and evaluation"
+	@echo "  make help-anno               Annotation sampling, review, audit, and promotion"
+	@echo "  make help-data               Dataset validation, state, export, and publishing"
+	@echo "  make help-model              Model evaluation, curation eval, and Hub push"
+	@echo "  make help-pretrain           MLM source download, data build, pretraining, and push"
+	@echo "  make help-finetune           Token-classifier training and evaluation"
 	@echo ""
 	@echo "Common utilities:"
-	@echo "  make smoke                         Run lightweight contract checks"
-	@echo "  make clean-dry-run                 Preview ignored/generated local data cleanup"
-	@echo "  make clean                         Remove ignored/generated local data; keep data/releases"
+	@echo "  make smoke                   Run lightweight contract checks"
+	@echo "  make clean-dry-run           Preview ignored/generated local data cleanup"
+	@echo "  make clean                   Remove ignored/generated local data; keep data/releases"
 	@echo ""
 	@echo "Defaults:"
 	@echo "  CFG=$(CFG)"
 	@echo "  PYTHON=$(PYTHON)"
 	@echo "  ARGS=$(ARGS)"
 
-help-annotation:
+help-anno:
 	@echo "Annotation and curation targets"
 	@echo ""
 	@echo "Use this group for curator work: inspect state, sample or audit evidence, suggest spans, review decisions, split/apply reviewed material, and promote it into dataset splits."
 	@echo ""
 	@echo "State and diagnostics:"
-	@echo "  make curation-dashboard                      Run all read-only state/stats targets in sequence"
-	@echo "  make annotation-stats                        Summarize annotation coverage by label/language"
-	@echo "  make mention-profiles                        Generate empirical entity mention-surface profiles"
+	@echo "  make curation-dashboard       Run all read-only state/stats targets in sequence"
+	@echo "  make annotation-stats         Summarize annotation coverage by label/language"
+	@echo "  make mention-profiles         Generate empirical entity mention-surface profiles"
 	@echo "  make entity-surface-frequencies ENTITY_LABEL=org.ent.pressagency.havas"
-	@echo "                                             Print case-insensitive surface frequencies by language"
-	@echo "  make curation-state                          Summarize all curation and dataset state"
-	@echo "  make snippet-state                           Summarize snippet sampling/suggestion/review/split state"
-	@echo "  make eval-disagreement-state                 Summarize evaluation disagreement curation state"
+	@echo "                                Print case-insensitive surface frequencies by language"
+	@echo "  make curation-state           Summarize all curation and dataset state"
+	@echo "  make snippet-state            Summarize snippet sampling/suggestion/review/split state"
+	@echo "  make eval-disagreement-state  Summarize evaluation disagreement curation state"
 	@echo ""
 	@echo "Audit-driven span patches:"
 	@echo "  make audit-empty-training-docs                Score empty-gold training docs for suspicious missed spans"
@@ -107,7 +107,7 @@ help-annotation:
 	@echo "  AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
 	@echo "  CURATION_STATE_JSON=$(CURATION_STATE_JSON)"
 
-help-dataset:
+help-data:
 	@echo "Dataset targets"
 	@echo ""
 	@echo "Use this group for dataset integrity, state snapshots, exports, and publishing. Promotion targets integrate reviewed local curation artifacts into the configured prerelease/source splits."
@@ -149,7 +149,7 @@ help-model:
 	@echo "Publishing:"
 	@echo "  make push-model CFG=...                    Push model payload to Hugging Face"
 
-help-pretraining:
+help-pretrain:
 	@echo "Pretraining targets"
 	@echo ""
 	@echo "Use this group for continued MLM pretraining before token-classifier fine-tuning."
@@ -159,7 +159,7 @@ help-pretraining:
 	@echo "  make pretrain-mlm                          Continue MLM pretraining for multilingual Impresso BERT"
 	@echo "  make push-mlm-model                        Push continued MLM model payload to Hugging Face"
 
-help-finetuning:
+help-finetune:
 	@echo "Fine-tuning targets"
 	@echo ""
 	@echo "Use this group for training and evaluating the token-classification NER model with the configured v2 dataset splits."
@@ -243,7 +243,7 @@ curation-state-json:
 
 snippet-state:
 	@echo "Summarizing sampled, suggested, reviewed, and split snippet curation state."
-	$(PYTHON) -m lib.curation_state --section snippets --newsagency-snippets "$(NEWSAGENCY_SNIPPETS)" --newsagency-snippet-summary "$(NEWSAGENCY_SNIPPET_SUMMARY)" --newsagency-scored-snippets "$(NEWSAGENCY_SCORED_SNIPPETS)" --newsagency-reviewed-snippets "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --newsagency-snippet-decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --newsagency-snippet-train-jsonl "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --newsagency-snippet-validation-jsonl "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --newsagency-snippet-test-jsonl "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --radiostation-snippets "$(RADIOSTATION_SNIPPETS)" --radiostation-snippet-summary "$(RADIOSTATION_SNIPPET_SUMMARY)" --radiostation-scored-snippets "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostation-reviewed-snippets "$(RADIOSTATION_REVIEWED_SNIPPETS)" --radiostation-snippet-decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --radiostation-snippet-train-jsonl "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --radiostation-snippet-validation-jsonl "$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --radiostation-snippet-test-jsonl "$(RADIOSTATION_SNIPPET_TEST_JSONL)" $(ARGS)
+	$(PYTHON) -m lib.curation_state --section snippets --dataset-source-dir "$(DATASET_SOURCE_DIR)" --newsagency-snippets "$(NEWSAGENCY_SNIPPETS)" --newsagency-snippet-summary "$(NEWSAGENCY_SNIPPET_SUMMARY)" --newsagency-scored-snippets "$(NEWSAGENCY_SCORED_SNIPPETS)" --newsagency-reviewed-snippets "$(NEWSAGENCY_REVIEWED_SNIPPETS)" --newsagency-snippet-decisions "$(NEWSAGENCY_SNIPPET_DECISIONS)" --newsagency-snippet-train-jsonl "$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --newsagency-snippet-validation-jsonl "$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --newsagency-snippet-test-jsonl "$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --radiostation-snippets "$(RADIOSTATION_SNIPPETS)" --radiostation-snippet-summary "$(RADIOSTATION_SNIPPET_SUMMARY)" --radiostation-scored-snippets "$(RADIOSTATION_SCORED_SNIPPETS)" --radiostation-reviewed-snippets "$(RADIOSTATION_REVIEWED_SNIPPETS)" --radiostation-snippet-decisions "$(RADIOSTATION_SNIPPET_DECISIONS)" --radiostation-snippet-train-jsonl "$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --radiostation-snippet-validation-jsonl "$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --radiostation-snippet-test-jsonl "$(RADIOSTATION_SNIPPET_TEST_JSONL)" $(ARGS)
 
 dataset-state:
 	@echo "Summarizing configured dataset source, staging, and publication state."
@@ -306,14 +306,10 @@ promote-missing-spans:
 	@test -f "$(MISSING_SPAN_OUTPUT_JSONL)" || { echo "Missing patched output: $(MISSING_SPAN_OUTPUT_JSONL). Run make apply-missing-spans first."; exit 1; }
 	@echo "Promoting $(MISSING_SPAN_OUTPUT_JSONL) -> $(MISSING_SPAN_PROMOTE_JSONL)"
 	cp "$(MISSING_SPAN_OUTPUT_JSONL)" "$(MISSING_SPAN_PROMOTE_JSONL)"
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after promotion."
-	@echo "  make validate-dataset-splits"
+	$(MAKE) validate-dataset-splits
 
 integrate-missing-spans: apply-missing-spans promote-missing-spans
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after integration."
-	@echo "  make validate-dataset-splits"
+	@echo "Missing-span integration complete."
 
 audit-existing-spans:
 	@echo "Building a boundary/label/removal audit queue for existing spans of $(SPAN_BOUNDARY_TARGET_LABEL)."
@@ -355,14 +351,10 @@ promote-existing-spans:
 	@test -f "$(SPAN_BOUNDARY_OUTPUT_JSONL)" || { echo "Missing patched output: $(SPAN_BOUNDARY_OUTPUT_JSONL). Run make apply-existing-spans first."; exit 1; }
 	@echo "Promoting $(SPAN_BOUNDARY_OUTPUT_JSONL) -> $(SPAN_BOUNDARY_PROMOTE_JSONL)"
 	cp "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after promotion."
-	@echo "  make validate-dataset-splits"
+	$(MAKE) validate-dataset-splits
 
 integrate-existing-spans: apply-existing-spans promote-existing-spans
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after integration."
-	@echo "  make validate-dataset-splits"
+	@echo "Existing-span integration complete."
 
 review-span-patches:
 	@echo "Reviewing audit-suggested span patches and writing append-only decisions."
@@ -394,14 +386,10 @@ promote-span-patches:
 	@test -n "$(SPAN_PATCH_PROMOTE_JSONL)" || { echo "SPAN_PATCH_PROMOTE_JSONL is empty"; exit 1; }
 	@echo "Promoting $(SPAN_PATCH_OUTPUT_JSONL) -> $(SPAN_PATCH_PROMOTE_JSONL)"
 	cp "$(SPAN_PATCH_OUTPUT_JSONL)" "$(SPAN_PATCH_PROMOTE_JSONL)"
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after promotion."
-	@echo "  make validate-dataset-splits"
+	$(MAKE) validate-dataset-splits
 
 integrate-span-patches: apply-span-patches promote-span-patches
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after integration."
-	@echo "  make validate-dataset-splits"
+	@echo "Span-patch integration complete."
 
 create-tsv-span-patches:
 	@echo "Creating accepted manual span patches from pasted TOKEN/NERTAG TSV lines."
@@ -433,14 +421,13 @@ promote-tsv-span-patches:
 	@test -f "$(TSV_PATCH_OUTPUT_JSONL)" || { echo "Missing patched output: $(TSV_PATCH_OUTPUT_JSONL). Run make apply-tsv-span-patches first."; exit 1; }
 	@echo "Promoting $(TSV_PATCH_OUTPUT_JSONL) -> $(TSV_PATCH_PROMOTE_JSONL)"
 	cp "$(TSV_PATCH_OUTPUT_JSONL)" "$(TSV_PATCH_PROMOTE_JSONL)"
+	$(MAKE) validate-dataset-splits
 	@echo "Next step:"
 	@echo "  # Regenerate TSV views for inspection."
 	@echo "  make materialize-dataset-tsv"
 
 integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches materialize-dataset-tsv
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after TSV inspection."
-	@echo "  make validate-dataset-splits"
+	@echo "TSV-derived span-patch integration complete."
 
 sample-freely-media-snippets:
 	@echo "Sampling $(MEDIA_FAMILY) snippets freely, without restricting to below-target coverage buckets."
@@ -625,9 +612,7 @@ preview-promote-snippets:
 promote-snippets:
 	@echo "Promoting split snippet rows into the configured dataset splits."
 	$(PYTHON) -m lib.promote_snippet_splits --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after snippet promotion."
-	@echo "  make validate-dataset-splits"
+	$(MAKE) validate-dataset-splits
 
 integrate-snippets:
 	@echo "Integrating reviewed snippets: split press-agency and radio-station decisions, preview promotion, then promote."
@@ -635,9 +620,7 @@ integrate-snippets:
 	$(MAKE) split-media-snippets MEDIA_FAMILY=radiostation
 	$(MAKE) preview-promote-snippets
 	$(MAKE) promote-snippets
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after snippet integration."
-	@echo "  make validate-dataset-splits"
+	@echo "Snippet integration complete."
 
 review-curation:
 	@echo "Reviewing pending gold-vs-prediction disagreement items in the terminal."
@@ -656,9 +639,7 @@ validate-curation:
 apply-curation:
 	@echo "Applying reviewed curation decisions to train/validation/test JSONL annotations."
 	$(PYTHON) -m lib.apply_curation_decisions --input-dir "$(CURATION_INPUT_DIR)" --output-dir "$(CURATION_APPLIED_DIR)" --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --splits "train validation test" --require-complete $(ARGS)
-	@echo "Next step:"
-	@echo "  # Validate train/validation/test after applying curation."
-	@echo "  make validate-dataset-splits"
+	$(MAKE) validate-dataset-splits
 
 push-model:
 	@echo "Pushing the fine-tuned model payload to Hugging Face."

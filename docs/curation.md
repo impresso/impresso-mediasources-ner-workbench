@@ -100,7 +100,7 @@ Start by choosing the path that matches the kind of dataset change you want to m
 
 For new dataset growth, use the snippet paths for horizontal extension and the span-patch paths for vertical extension. Use the evaluation disagreement path only when you are deliberately correcting gold-vs-model disagreements in the configured train/validation/test folds.
 
-Run `make help-annotation` when you only need the curation-related targets and common overrides. Run `make curation-dashboard` before a new session for a full read-only overview.
+Run `make help-anno` when you only need the curation-related targets and common overrides. Run `make curation-dashboard` before a new session for a full read-only overview.
 
 ## Quick Recipes
 
@@ -696,6 +696,6 @@ This writes `data/curated/snippets/radiostations/train.jsonl`, `data/curated/sni
 
 Use `integrate-snippets` when the reviewed radio rows are ready to be split, previewed, and promoted into the configured prerelease/source split.
 
-Radio-station snippets use the same span-review model as press-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-media-snippet-spans MEDIA_FAMILY=radiostation`; those decisions remain audit evidence in `data/curated/snippets/radiostations/reviewed.jsonl`, but they do not produce positive token-classification rows.
+Radio-station snippets use the same span-review model as press-agency snippets. Rows with no acceptable radio-station span should be rejected or skipped in `review-media-snippet-spans MEDIA_FAMILY=radiostation`. Rejected rows are intentional negative examples: they are exported as all-`O` token-classification rows so the model learns not to produce false positives. Skipped rows remain unresolved and are not exported.
 
 Before sharing a dataset extension, copy or generate the full release snapshot under `data/releases/<dataset-version>/`. Ignored local review files under `data/curated/` are not preserved by `make clean`.

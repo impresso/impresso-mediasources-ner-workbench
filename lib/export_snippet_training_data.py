@@ -12,6 +12,7 @@ from .snippet_data import candidate_tokens, load_jsonl, strip_html, tokenize_wit
 
 
 ACCEPTED_STATUSES = {"auto_accepted", "accepted"}
+NEGATIVE_STATUSES = {"rejected"}
 LABEL_ALIASES = {
     "org.ent.pressagency.reuter": "org.ent.pressagency.reuters",
 }
@@ -388,16 +389,17 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
     prepared = []
     for row in load_jsonl(input_path):
         curation = row.get("curation", {})
-        if curation.get("status") not in ACCEPTED_STATUSES:
+        status = str(curation.get("status") or "")
+        if status not in ACCEPTED_STATUSES | NEGATIVE_STATUSES:
             continue
         spans = selected_spans(row)
-        if not spans:
+        if not spans and status in ACCEPTED_STATUSES:
             continue
         spans = canonicalize_span_labels(str(row.get("id") or row.get("document_id") or ""), spans)
         text, tokens, starts, stops = candidate_tokens(row)
         text, tokens, starts, stops, spans = patch_window_for_accepted_spans(row, spans, text=text, tokens=tokens, starts=starts, stops=stops)
         spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
-        if not spans:
+        if not spans and status in ACCEPTED_STATUSES:
             continue
         prepared.append((row, spans, text, tokens, starts, stops))
     id_counts = Counter(str(row["id"]) for row, *_ in prepared)
@@ -430,7 +432,7 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
                 "token_end_offsets": stops,
                 "token_labels": labels,
                 "entities": labels_to_entities(labels, starts, stops, text),
-                "quality_flags": [],
+                "quality_flags": ["reviewed_negative_snippet"] if not spans else [],
                 "split_group": split_group,
                 "legacy": {
                     "source_format": "sampled-snippet-jsonl",
@@ -438,6 +440,7 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
                     "source_document_id": source_document_id,
                     "source_issue_id": split_group,
                     "query": row.get("query", ""),
+                    "review_status": str((row.get("curation") or {}).get("status") or ""),
                 },
             }
         )
