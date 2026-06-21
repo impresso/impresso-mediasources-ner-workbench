@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -11,6 +12,7 @@ from lib.span_patch_review import decision_record, load_span_patches, write_json
 
 
 DEFAULT_LABEL_METADATA = [Path("resources/newsagency_seeds.json"), Path("resources/radiostation_seeds.json")]
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 @dataclass(frozen=True)
@@ -45,11 +47,15 @@ def write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def strip_ansi(value: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", value)
+
+
 def parse_tsv_paste(raw: str) -> TokenSequence:
     tokens: list[str] = []
     metadata: dict[str, str] = {}
     for raw_line in raw.splitlines():
-        line = raw_line.strip("\n")
+        line = strip_ansi(raw_line.strip("\n"))
         if not line.strip():
             continue
         if line.startswith("#"):

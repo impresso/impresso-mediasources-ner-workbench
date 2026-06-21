@@ -1,0 +1,197 @@
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+from pathlib import Path
+from typing import Iterable
+
+
+RED = "\033[31;1m"
+RESET = "\033[0m"
+
+
+def is_token_line(line: str) -> bool:
+    if not line.strip():
+        return False
+    if line.startswith("#"):
+        return False
+    if line.strip() == "--":
+        return False
+    parts = line.rstrip("\n").split("\t")
+    if len(parts) < 2:
+        return False
+    if parts[0] == "TOKEN" and parts[1] == "NERTAG":
+        return False
+    return True
+
+
+def parse_token_line(line: str) -> tuple[str, str] | None:
+    if not is_token_line(line):
+        return None
+    parts = line.rstrip("\n").split("\t")
+    return parts[0], parts[1]
+
+
+def token_matches(token: str, query: str, *, ignore_case: bool = True) -> bool:
+    return token.casefold() == query.casefold() if ignore_case else token == query
+
+
+def highlight_token_line(
+    line: str,
+    query_tokens: Iterable[str],
+    *,
+    ignore_case: bool = True,
+    color: bool = True,
+) -> str:
+    parsed = parse_token_line(line)
+    if parsed is None:
+        return line
+    token, _tag = parsed
+    rest = line.rstrip("\n").split("\t")[1:]
+    for query in query_tokens:
+        if token_matches(token, query, ignore_case=ignore_case):
+            if color:
+                token = f"{RED}{token}{RESET}"
+            break
+    return "\t".join([token, *rest]) + "\n"
+
+
+def find_hits(
+    lines: list[str],
+    query1: str,
+    query2: str | None = None,
+    *,
+    only_o: bool = False,
+    ignore_case: bool = True,
+) -> list[tuple[int, int]]:
+    hits: list[tuple[int, int]] = []
+    for index, line in enumerate(lines):
+        parsed = parse_token_line(line)
+        if parsed is None:
+            continue
+        token, tag = parsed
+        if query2 is None:
+            if not token_matches(token, query1, ignore_case=ignore_case):
+                continue
+            if only_o and tag != "O":
+                continue
+            hits.append((index, index + 1))
+            continue
+
+        if index + 1 >= len(lines):
+            continue
+        parsed_next = parse_token_line(lines[index + 1])
+        if parsed_next is None:
+            continue
+        token_next, tag_next = parsed_next
+        if not token_matches(token, query1, ignore_case=ignore_case):
+            continue
+        if not token_matches(token_next, query2, ignore_case=ignore_case):
+            continue
+        if only_o and not (tag == "O" and tag_next == "O"):
+            continue
+        hits.append((index, index + 2))
+    return hits
+
+
+def build_block(
+    lines: list[str],
+    hit: tuple[int, int],
+    *,
+    context: int,
+    query_tokens: list[str],
+    ignore_case: bool = True,
+    color: bool = True,
+) -> str:
+    start, end = hit
+    block_start = max(0, start - context)
+    block_end = min(len(lines), end + context)
+    out: list[str] = []
+    for index in range(block_start, block_end):
+        if start <= index < end:
+            out.append(highlight_token_line(lines[index], query_tokens, ignore_case=ignore_case, color=color))
+        else:
+            out.append(lines[index])
+    return "".join(out)
+
+
+def clear_screen() -> None:
+    os.system("clear" if os.name != "nt" else "cls")
+
+
+def page_hits(blocks: list[str]) -> None:
+    if not blocks:
+        print("No matches.")
+        return
+    index = 0
+    total = len(blocks)
+    while True:
+        clear_screen()
+        width = shutil.get_terminal_size((80, 24)).columns
+        print(f"Hit {index + 1}/{total}")
+        print("-" * width)
+        print(blocks[index], end="")
+        print("-" * width)
+        command = input("[Enter/n] next, [p] previous, [q] quit: ").strip().lower()
+        if command in {"q", "quit"}:
+            break
+        if command in {"p", "prev", "previous"}:
+            index = max(0, index - 1)
+            continue
+        if index + 1 >= total:
+            break
+        index += 1
+
+
+def load_lines(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines(keepends=True)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Search TSV token/tag files and show one colored hit block per screen.")
+    parser.add_argument("file", type=Path, help="TSV file to search.")
+    parser.add_argument("token", help="Token to search for.")
+    parser.add_argument("token2", nargs="?", help="Optional adjacent second token.")
+    parser.add_argument("-C", "--context", type=int, default=6, help="Context lines before and after the hit. Default: 6.")
+    parser.add_argument("--only-O", action="store_true", help='Only match token lines whose tag is exactly "O".')
+    parser.add_argument("--case-sensitive", action="store_true", help="Use case-sensitive matching.")
+    parser.add_argument("--no-pager", action="store_true", help="Print all hit blocks separated by -- instead of paging.")
+    parser.add_argument("--no-color", action="store_true", help="Disable ANSI color highlighting.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    ignore_case = not args.case_sensitive
+    query_tokens = [args.token]
+    if args.token2 is not None:
+        query_tokens.append(args.token2)
+    lines = load_lines(args.file)
+    hits = find_hits(lines, args.token, args.token2, only_o=args.only_O, ignore_case=ignore_case)
+    blocks = [
+        build_block(
+            lines,
+            hit,
+            context=args.context,
+            query_tokens=query_tokens,
+            ignore_case=ignore_case,
+            color=not args.no_color,
+        )
+        for hit in hits
+    ]
+    if args.no_pager:
+        if not blocks:
+            print("No matches.")
+            return 1
+        for index, block in enumerate(blocks):
+            if index:
+                print("--")
+            print(block, end="")
+        return 0
+    page_hits(blocks)
+    return 0 if blocks else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

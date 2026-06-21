@@ -83,13 +83,20 @@ def verified_decision(decision: dict[str, Any]) -> bool:
 def audit_mark(decision: dict[str, Any]) -> dict[str, Any]:
     source = decision.get("source") if isinstance(decision.get("source"), dict) else {}
     span = decision.get("span") if isinstance(decision.get("span"), dict) else {}
+    source_label = source.get("label") or decision.get("correct_label", "")
+    source_start = int(source.get("start"))
+    source_stop = int(source.get("stop"))
+    if source_label == "O" and isinstance(span, dict) and decision.get("choice") in {"accept", "modify", "correct"}:
+        source_label = span.get("label") or source_label
+        source_start = int(span.get("start", source_start))
+        source_stop = int(span.get("stop", source_stop))
     mark = {
         "audit_id": decision.get("audit_id", ""),
         "decision": decision.get("choice", ""),
-        "label": source.get("label") or decision.get("correct_label", ""),
-        "start": int(source.get("start")),
+        "label": source_label,
+        "start": source_start,
         "status": "verified",
-        "stop": int(source.get("stop")),
+        "stop": source_stop,
     }
     if decision.get("choice") in {"modify", "correct"}:
         mark["applied_label"] = span.get("label") or decision.get("correct_label", "")
@@ -110,6 +117,14 @@ def add_audit_mark(row: dict[str, Any], mark: dict[str, Any]) -> dict[str, Any]:
         marks.append(mark)
     out["audit_marks"] = sorted(marks, key=lambda item: (str(item.get("audit_id", "")), int(item.get("start", 0)), int(item.get("stop", 0)), str(item.get("label", ""))))
     return out
+
+
+def audit_mark_keys(row: dict[str, Any]) -> set[tuple[Any, Any, Any, Any, Any]]:
+    return {
+        (item.get("audit_id"), item.get("label"), item.get("start"), item.get("stop"), item.get("decision"))
+        for item in row.get("audit_marks", [])
+        if isinstance(item, dict)
+    }
 
 
 def patch_span(row: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
@@ -292,6 +307,7 @@ def apply_span_patches(
     decisions = latest_decisions(decisions_path)
     changes: list[dict[str, Any]] = []
     changed_ids: set[str] = set()
+    audit_marks_written = 0
 
     for review_id, decision in sorted(decisions.items()):
         if review_id not in patches or not verified_decision(decision):
@@ -300,7 +316,10 @@ def apply_span_patches(
         if doc_id not in rows_by_id:
             raise ValueError(f"{review_id}: source document not found: {doc_id}")
         patch = patches[review_id]
+        before_audit_marks = audit_mark_keys(rows_by_id[doc_id])
         rows_by_id[doc_id] = add_audit_mark(rows_by_id[doc_id], audit_mark(decision))
+        if audit_mark_keys(rows_by_id[doc_id]) != before_audit_marks:
+            audit_marks_written += 1
         if existing_boundary_patch(patch) and decision.get("choice") == "accept":
             continue
         if existing_boundary_patch(patch) and decision.get("choice") == "reject":
@@ -367,6 +386,7 @@ def apply_span_patches(
         "output_jsonl": str(output_jsonl),
         "candidate_patches": len(patches),
         "decisions": len(decisions),
+        "audit_marks_written": audit_marks_written,
         "applied": len(changes),
         "documents_changed": len(changed_ids),
         "changes_jsonl": str(changes_jsonl),

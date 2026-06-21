@@ -62,7 +62,7 @@ def test_existing_span_accept_only_adds_audit_mark(tmp_path: Path) -> None:
     patch = load_span_patches(candidates_path, audit_id="existing-havas", target_label=LABEL)[0]
     write_review_jsonl(decisions_path, [decision_record(patch, choice="accept", reviewer="tester")])
 
-    apply_span_patches(
+    result = apply_span_patches(
         input_jsonl=source,
         output_jsonl=tmp_path / "patched.jsonl",
         candidates_path=candidates_path,
@@ -78,6 +78,7 @@ def test_existing_span_accept_only_adds_audit_mark(tmp_path: Path) -> None:
     rows = [json.loads(line) for line in (tmp_path / "patched.jsonl").read_text(encoding="utf-8").splitlines()]
     assert rows[0]["entities"] == source_row()["entities"]
     assert rows[0]["audit_marks"][0]["decision"] == "accept"
+    assert result["audit_marks_written"] == 1
     assert json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))["applied"] == 0
 
 

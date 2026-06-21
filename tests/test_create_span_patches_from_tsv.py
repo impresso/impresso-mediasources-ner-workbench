@@ -38,6 +38,18 @@ def test_parse_tsv_paste_accepts_whitespace_separated_columns() -> None:
     assert sequence.tokens == ("Deutsche", "Welle")
 
 
+def test_parse_tsv_paste_ignores_terminal_color_codes() -> None:
+    sequence = parse_tsv_paste(
+        "\x1b[2m# document_id = doc-1\x1b[0m\n"
+        "TOKEN\tNERTAG\n"
+        "\x1b[31;1mPalach\x1b[0m\tO\n"
+        "\x1b[31;1mPress\x1b[0m\tO\n"
+    )
+
+    assert sequence.metadata["document_id"] == "doc-1"
+    assert sequence.tokens == ("Palach", "Press")
+
+
 def test_find_token_matches_accepts_multiple_hits() -> None:
     sequence = parse_tsv_paste("Havas\tO\n")
     rows = [{"id": "doc-1", "tokens": ["Havas", "et", "Havas"]}]
@@ -156,7 +168,7 @@ def test_build_accepted_patches_from_tsv_can_be_applied(tmp_path: Path) -> None:
 
     assert summary["matches"] == 2
     assert summary["new_decisions"] == 2
-    apply_span_patches(
+    result = apply_span_patches(
         input_jsonl=input_jsonl,
         output_jsonl=output,
         candidates_path=candidates,
@@ -169,8 +181,28 @@ def test_build_accepted_patches_from_tsv_can_be_applied(tmp_path: Path) -> None:
     )
 
     row = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert result["audit_marks_written"] == 2
+    assert result["applied"] == 2
     assert row["token_labels"] == ["B-org.ent.pressagency.havas", "O", "B-org.ent.pressagency.havas"]
     assert [entity["surface"] for entity in row["entities"]] == ["Havas", "Havas"]
+    assert row["audit_marks"] == [
+        {
+            "audit_id": "manual-tsv-train",
+            "decision": "accept",
+            "label": "org.ent.pressagency.havas",
+            "start": 0,
+            "status": "verified",
+            "stop": 5,
+        },
+        {
+            "audit_id": "manual-tsv-train",
+            "decision": "accept",
+            "label": "org.ent.pressagency.havas",
+            "start": 9,
+            "status": "verified",
+            "stop": 14,
+        },
+    ]
 
 
 def test_build_o_patches_from_tsv_removes_overlapping_entity(tmp_path: Path) -> None:
@@ -215,7 +247,7 @@ def test_build_o_patches_from_tsv_removes_overlapping_entity(tmp_path: Path) -> 
     )
 
     assert summary["label"] == "O"
-    apply_span_patches(
+    result = apply_span_patches(
         input_jsonl=input_jsonl,
         output_jsonl=output,
         candidates_path=candidates,
@@ -228,7 +260,19 @@ def test_build_o_patches_from_tsv_removes_overlapping_entity(tmp_path: Path) -> 
 
     row = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
     change = json.loads((tmp_path / "changes.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert result["audit_marks_written"] == 1
+    assert result["applied"] == 1
     assert row["token_labels"] == ["O", "O"]
     assert row["entities"] == []
+    assert row["audit_marks"] == [
+        {
+            "audit_id": "manual-tsv-train",
+            "decision": "accept",
+            "label": "O",
+            "start": 0,
+            "status": "verified",
+            "stop": 12,
+        }
+    ]
     assert change["label"] == "O"
     assert change["removed_labels"] == "org.ent.pressagency.havas"

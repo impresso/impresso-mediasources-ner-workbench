@@ -10,6 +10,31 @@ All workflows are model-assisted where possible: candidate spans are proposed by
 
 Here, **HIPE-derived data** means the converted French/German news-agency annotations imported from earlier HIPE/CoNLL-style source files. This data is still part of the active training and evaluation base, but it is only one source of curation evidence. The current workbench also supports curation and sampling for English, plus side-language coverage for Luxembourgish and Italian.
 
+## Table Of Contents
+
+- [Command Assumptions](#command-assumptions)
+- [Dataset Extension Concepts](#dataset-extension-concepts)
+- [From Evidence To Updated Dataset Splits](#from-evidence-to-updated-dataset-splits)
+- [Which Curation Path Should I Use?](#which-curation-path-should-i-use)
+- [Quick Recipes](#quick-recipes)
+  - [0. Inspect current state](#0-inspect-current-state)
+  - [A. Audit existing annotations for one label](#a-audit-existing-annotations-for-one-label)
+  - [B. Add missed annotations to existing documents](#b-add-missed-annotations-to-existing-documents)
+  - [C. Add new news-agency snippets](#c-add-new-news-agency-snippets)
+  - [D. Add new radio-station snippets](#d-add-new-radio-station-snippets)
+  - [E. Correct HIPE-derived train/validation/test disagreements](#e-correct-hipe-derived-trainvalidationtest-disagreements)
+  - [F. Patch directly from TSV inspection](#f-patch-directly-from-tsv-inspection)
+- [Path A: Audit Existing Annotations](#path-a-audit-existing-annotations)
+- [Path B: Add Missed Annotations To Existing Documents](#path-b-add-missed-annotations-to-existing-documents)
+- [Direct TSV Search And Patch](#direct-tsv-search-and-patch)
+- [Path C/D: Add New Sampled Snippets](#path-cd-add-new-sampled-snippets)
+- [Path E: Evaluation Disagreement Curation](#path-e-evaluation-disagreement-curation)
+- [Snippet Details And Sampling Options](#snippet-details-and-sampling-options)
+  - [News-Agency Snippets](#news-agency-snippets)
+  - [Language-Aware Coverage Targets](#language-aware-coverage-targets)
+  - [Entity Mention Profiles](#entity-mention-profiles)
+  - [Radio-Station Snippets](#radio-station-snippets)
+
 ## Command Assumptions
 
 The command examples below assume you run them from the repository root with the virtual environment activated:
@@ -221,6 +246,19 @@ make apply-curation
 
 This path writes a non-destructive curated copy under `data/curated/legacy-import-curated/`. It is separate from snippet promotion and span-patch promotion.
 
+### F. Patch directly from TSV inspection
+
+Use this when a direct token search is faster than a model-assisted audit queue, for example to inspect one-word or short-form hits such as `tan`, `DNB`, `Havas`, or `Reuter`. This is still an audit workflow: `create-tsv-span-patches` writes span-patch audit candidates and verified decisions, and applying the result persists reviewer-neutral `audit_marks` in the JSONL rows.
+
+```bash
+make materialize-dataset-tsv
+make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan
+make create-tsv-span-patches TSV_PATCH_SPLIT=train TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
+make integrate-tsv-span-patches TSV_PATCH_SPLIT=train
+```
+
+Paste the TSV token lines that belong to the entity occurrence into `create-tsv-span-patches`, finish with a single `.` line, and confirm the matching document/span.
+
 ## Path A: Audit Existing Annotations
 
 Use an existing-span boundary audit when you want to select one agency or station label and systematically verify every already annotated occurrence. This is useful for checking whether boundaries consistently include words such as `agence`, or whether a label was applied too broadly.
@@ -340,6 +378,66 @@ make integrate-span-patches
 ```
 
 Those defaults point to the active v2.0.0 prerelease empty-training-doc audit. For custom broad span-patch audits, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
+
+## Direct TSV Search And Patch
+
+The TSV materialization is a low-friction inspection path for targeted searches over the current dataset splits. It operates on the current tokenization and NER tags, so it is useful when you want to find suspicious surface forms directly instead of relying on a model or seed pattern.
+
+Materialize TSV views:
+
+```bash
+make materialize-dataset-tsv
+```
+
+Inspect a single split with the interactive TSV hit pager. It shows one context block at a time, highlights the matching token or adjacent token pair, and supports Enter/`n` for next, `p` for previous, and `q` to quit:
+
+```bash
+make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan
+make search-tsv TSV_PATCH_SPLIT=validation TSV_SEARCH=tan
+make search-tsv TSV_PATCH_SPLIT=test TSV_SEARCH=tan
+```
+
+Search for two adjacent tokens by quoting the `TSV_SEARCH` value:
+
+```bash
+make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH="Radio London"
+```
+
+Restrict hits to tokens currently tagged `O` when you are looking specifically for missed annotations:
+
+```bash
+make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan TSV_SEARCH_ONLY_O=true
+```
+
+For a non-interactive shell view, either use the pager's no-pager mode or plain grep:
+
+```bash
+make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan TSV_SEARCH_NO_PAGER=true
+grep -i -w -P -C 7 tan data/prereleases/dataset-v2.0.0/tsv/train.tsv
+```
+
+When a hit is a true missing entity, copy the TSV token lines that belong to that occurrence and create a TSV-derived patch:
+
+```bash
+make create-tsv-span-patches TSV_PATCH_SPLIT=train TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER="$USER"
+```
+
+The command asks you to paste TSV token lines and finish with a single `.` line. It resolves the pasted token sequence back to the configured JSONL split, asks you to select the matching document/span if there are several matches, and writes an accepted span-patch decision under `data/curated/span-patches/`.
+
+Then apply and promote:
+
+```bash
+make apply-tsv-span-patches TSV_PATCH_SPLIT=train
+make promote-tsv-span-patches TSV_PATCH_SPLIT=train
+```
+
+or use the combined path:
+
+```bash
+make integrate-tsv-span-patches TSV_PATCH_SPLIT=train
+```
+
+The TSV hit pager is intentionally read-only. When a hit should be patched, copy the relevant TSV token lines from the displayed block and continue with `create-tsv-span-patches`. A later integrated TSV reviewer could remove this copy/paste step by combining `search-tsv` navigation with the normal manual span/label flow.
 
 ## Path C/D: Add New Sampled Snippets
 
