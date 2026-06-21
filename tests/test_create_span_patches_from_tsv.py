@@ -278,6 +278,75 @@ def test_build_o_patches_from_tsv_removes_overlapping_entity(tmp_path: Path) -> 
     assert change["removed_labels"] == "org.ent.pressagency.havas"
 
 
+def test_apply_tsv_entity_patch_replaces_overlapping_boundary(tmp_path: Path) -> None:
+    input_jsonl = tmp_path / "train.jsonl"
+    candidates = tmp_path / "candidates.jsonl"
+    decisions = tmp_path / "decisions.jsonl"
+    output = tmp_path / "patched.jsonl"
+    write_jsonl(
+        input_jsonl,
+        [
+            {
+                "id": "doc-1",
+                "document_id": "doc-1",
+                "text": "LAgence Stefani annonce",
+                "tokens": ["LAgence", "Stefani", "annonce"],
+                "token_start_offsets": [0, 8, 16],
+                "token_end_offsets": [7, 15, 23],
+                "token_labels": ["O", "B-org.ent.pressagency.stefani", "O"],
+                "entities": [
+                    {
+                        "entity_family": "pressagency",
+                        "label": "org.ent.pressagency.stefani",
+                        "start": 8,
+                        "stop": 15,
+                        "surface": "Stefani",
+                        "token_start": 1,
+                        "token_stop": 2,
+                    }
+                ],
+            }
+        ],
+    )
+
+    build_accepted_patches(
+        input_jsonl=input_jsonl,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="manual-tsv-train",
+        label="org.ent.pressagency.stefani",
+        pasted_tsv="LAgence\tO\nStefani\tB-org.ent.pressagency.stefani\n",
+        reviewer="tester",
+        include_existing=True,
+    )
+    result = apply_span_patches(
+        input_jsonl=input_jsonl,
+        output_jsonl=output,
+        candidates_path=candidates,
+        decisions_path=decisions,
+        audit_id="manual-tsv-train",
+        changes_jsonl=tmp_path / "changes.jsonl",
+        changes_tsv=tmp_path / "changes.tsv",
+        summary_json=tmp_path / "summary.json",
+        replace_overlaps=True,
+    )
+
+    row = json.loads(output.read_text(encoding="utf-8").splitlines()[0])
+    assert result["applied"] == 1
+    assert row["token_labels"] == ["B-org.ent.pressagency.stefani", "I-org.ent.pressagency.stefani", "O"]
+    assert row["entities"] == [
+        {
+            "entity_family": "pressagency",
+            "label": "org.ent.pressagency.stefani",
+            "start": 0,
+            "stop": 15,
+            "surface": "LAgence Stefani",
+            "token_start": 0,
+            "token_stop": 2,
+        }
+    ]
+
+
 def test_build_o_patches_from_tsv_audits_already_empty_span(tmp_path: Path) -> None:
     input_jsonl = tmp_path / "train.jsonl"
     candidates = tmp_path / "candidates.jsonl"

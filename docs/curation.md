@@ -434,6 +434,21 @@ make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan TSV_SEARCH_NO_PAGER=true
 grep -i -w -P -C 7 tan data/prereleases/dataset-v2.0.0/tsv/train.tsv
 ```
 
+Because TSV files are derived views, compare them against another Git ref by regenerating the old TSVs in a temporary worktree:
+
+```bash
+scripts/git-bc-derived-tsv HEAD train
+scripts/git-bc-derived-tsv HEAD validation
+scripts/git-bc-derived-tsv HEAD test
+```
+
+The helper materializes TSVs in the temporary worktree, compares them with the current working-tree TSVs through Beyond Compare, and removes the temporary worktree afterward. The first argument can be any commit, branch, or tag, for example:
+
+```bash
+scripts/git-bc-derived-tsv main train
+scripts/git-bc-derived-tsv v1.0.0 train
+```
+
 When a hit is a true missing entity and you prefer the older paste-based path, copy the TSV token lines that belong to that occurrence and create a TSV-derived patch. Paste-based TSV patching operates on one split, so `TSV_PATCH_SPLIT` is required:
 
 ```bash
