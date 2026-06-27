@@ -21,6 +21,7 @@ Annotators work on sampled search results and short paragraph-sized contexts, no
 - [Positive And Negative Decisions](#positive-and-negative-decisions)
   - [Annotate](#annotate)
   - [Do Not Annotate](#do-not-annotate)
+  - [Commercial And Administrative Uses In Advertisements](#commercial-and-administrative-uses-in-advertisements)
 - [Boundaries](#boundaries)
 - [OCR And Identifiability](#ocr-and-identifiability)
 - [Labels And Exclusions](#labels-and-exclusions)
@@ -50,6 +51,7 @@ Typical negative contexts:
 
 - a generic phrase such as `une agence`, `ag.`, or `Agentur` without a resolved real organization
 - an author signature or correspondent attribution
+- a press-agency name used only as an advertising, reply-address, box-number, classified, or commercial intermediary
 - a homographic non-media organization, club, or team such as `BBC (Damen)` in a basketball fixture list
 - a stock-market or securities-price listing where a media-company name such as `Reuters` appears only as a traded company/security among other quoted stocks
 
@@ -169,6 +171,26 @@ Also annotate institutional, business, and programme contexts:
 Do not annotate the string when the context clearly refers to a different, derived, or homographic non-media organization rather than the canonical agency/broadcaster. For example, a sports fixture `BBC (Damen) — Nilvange (Damen)` is negative because `BBC` denotes a basketball/club/team context, not the broadcaster. The same principle applies to football clubs, local associations, teams, or other organizations that share an acronym or name with a media source.
 
 Do not annotate stock-market quotation tables, securities listings, or share-price reports when the string names a listed company/security rather than a media-source mention. For example, in a list such as `Prudential ... Rank Org ... Reed ... Reuters 15.2 ... Shell Transp ... Unilever ...`, `Reuters` is a stock/security entry and should remain `O`, even though the underlying company is historically connected to the news agency. This exclusion applies to comparable quoted-company contexts for any media-source organization.
+
+### Commercial And Administrative Uses In Advertisements
+
+Do not annotate a press-agency name when it appears solely in a customer-facing commercial or administrative role unrelated to news production. This includes:
+
+- a reply or box-number intermediary in a classified advertisement;
+- an advertising-placement or correspondence address;
+- contact instructions in employment, property, travel, or other advertisements;
+- formulas such as `apply to`, `reply to`, `under No.`, or `send correspondence to` followed by an agency office.
+
+The organization's historical identity as a press agency is not sufficient in these cases. The local context must present it as a news source, news distributor, journalistic organization, or media institution. Keep the name `O` when it merely tells readers where to apply, reply, or send correspondence.
+
+This exclusion does not change the rule for genuine institutional or business reporting. A news article about Havas opening an office, employing staff, changing ownership, or merging with another organization remains positive because Havas is being discussed as an institution. The exclusion applies when the name serves only as part of an advertisement's transactional contact instructions.
+
+Examples:
+
+- `Apply Agence Havas Monte-Carlo No 1174.` -> do not annotate; commercial advertisement contact.
+- `Reply in confidence under No L. 39, Agence Havas, Brussels.` -> do not annotate; reply/box-number intermediary.
+- `Selon l'Agence Havas, les négociations ont repris.` -> annotate `Agence Havas`; news-source attribution.
+- `Une dépêche de l'Agence Havas annonce ...` -> annotate `Agence Havas`; news-distribution context.
 
 ### Agence Radio vs Radio Stations
 
@@ -369,6 +391,7 @@ Important changes:
 - The new dataset includes both news agencies and radio stations in one model.
 - Source attribution is no longer required for a positive label.
 - Mentions of news agencies as article topics, institutional actors, business entities, offices, staff, infrastructure, or source attributions are positive when the organization is specific and canonical.
+- Press-agency names used only as advertising contacts, reply-address intermediaries, or box-number handlers are negative/O; this does not exclude genuine institutional or business reporting about the agency.
 - Radio stations and broadcasters are first-class labels when the mention is tied to broadcasting, media production, media-source use, programme schedules, news/source attribution, or institutional broadcaster activity.
 - Radio-station acronyms used for unrelated clubs, teams, or associations are negative/O.
 - Annotation is paragraph-centered, not full-document-centered.
@@ -403,6 +426,8 @@ The practical consequence is that annotators should spend less time deciding whe
 | `BBC Scottish Orchestra ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
 | `BBC (Damen) — Nilvange (Damen)`             | do not annotate                                      | none              | all `O`; basketball/team context, not broadcaster function   |
 | `Reed 7.125 7 Reuters 15.2 15.4 Shell Transp 6.61` | do not annotate                              | none              | all `O`; stock/security quotation table, not media-source mention |
+| `Apply Agence Havas Monte-Carlo No 1174.`    | do not annotate                                      | none              | all `O`; commercial advertisement contact, not news-source use |
+| `Reply under No L. 39, Agence Havas, Brussels.` | do not annotate                                   | none              | all `O`; reply/box-number intermediary in an advertisement   |
 | `la radio diffuse le concert ...`            | do not annotate                                      | none              | generic medium, not Agence Radio                            |
 | `Radio Paris annonce ...`                    | annotate                                             | `Radio Paris`     | `org.ent.radiostation.radio_paris`                           |
 | `la station BBC annonce ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
