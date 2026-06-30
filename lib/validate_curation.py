@@ -70,7 +70,7 @@ def validate_decisions(
             errors.append(f"{prefix}: correct_label is required for choice={choice}")
         if choice == "manual" and not row.get("accepted_spans"):
             errors.append(f"{prefix}: accepted_spans is required for choice=manual")
-        if choice in {"both", "neither"} and not row.get("notes"):
+        if choice == "both" and not row.get("notes"):
             errors.append(f"{prefix}: notes are required for choice={choice}")
         if not row.get("reviewer"):
             errors.append(f"{prefix}: missing reviewer")

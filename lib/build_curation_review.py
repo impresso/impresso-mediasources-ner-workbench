@@ -142,6 +142,37 @@ def overlap(left: Entity, right: Entity) -> bool:
     return left[0] < right[1] and right[0] < left[1]
 
 
+def overlap_components(gold_entities: set[Entity], pred_entities: set[Entity]) -> list[tuple[list[Entity], list[Entity]]]:
+    remaining_gold = set(gold_entities)
+    remaining_pred = set(pred_entities)
+    components: list[tuple[list[Entity], list[Entity]]] = []
+    while remaining_gold or remaining_pred:
+        if remaining_gold:
+            component_gold = {min(remaining_gold)}
+            component_pred: set[Entity] = set()
+        else:
+            component_gold = set()
+            component_pred = {min(remaining_pred)}
+        changed = True
+        while changed:
+            changed = False
+            for pred in list(remaining_pred - component_pred):
+                if any(overlap(gold, pred) for gold in component_gold):
+                    component_pred.add(pred)
+                    changed = True
+            for gold in list(remaining_gold - component_gold):
+                if any(overlap(gold, pred) for pred in component_pred):
+                    component_gold.add(gold)
+                    changed = True
+        remaining_gold -= component_gold
+        remaining_pred -= component_pred
+        components.append((sorted(component_gold), sorted(component_pred)))
+    return sorted(
+        components,
+        key=lambda component: min([entity[0] for entity in [*component[0], *component[1]]]),
+    )
+
+
 def build_disagreements(
     split: str,
     source_rows: list[dict[str, Any]],
@@ -162,40 +193,39 @@ def build_disagreements(
         gold_entities = labels_to_entities(pred_row["gold_labels"])
         pred_entities = labels_to_entities(pred_row["pred_labels"])
         correct = gold_entities & pred_entities
-        remaining_gold = sorted(gold_entities - correct)
-        remaining_pred = sorted(pred_entities - correct)
-        matched_pred: set[Entity] = set()
-
-        for gold in remaining_gold:
-            overlapping = [pred for pred in remaining_pred if pred not in matched_pred and overlap(gold, pred)]
-            if overlapping:
-                pred = overlapping[0]
-                matched_pred.add(pred)
-                issue_type = "label_mismatch" if gold[:2] == pred[:2] and gold[2] != pred[2] else "span_or_label_mismatch"
-            else:
-                pred = None
+        remaining_gold = gold_entities - correct
+        remaining_pred = pred_entities - correct
+        for gold_spans, prediction_spans in overlap_components(remaining_gold, remaining_pred):
+            if gold_spans and prediction_spans:
+                issue_type = (
+                    "label_mismatch"
+                    if len(gold_spans) == len(prediction_spans) == 1
+                    and gold_spans[0][:2] == prediction_spans[0][:2]
+                    and gold_spans[0][2] != prediction_spans[0][2]
+                    else "span_or_label_mismatch"
+                )
+            elif gold_spans:
                 issue_type = "missing_prediction"
-            out.append(review_item(split, issue_type, source, gold, pred, context_radius, decisions))
-
-        for pred in remaining_pred:
-            if pred in matched_pred:
-                continue
-            out.append(review_item(split, "extra_prediction", source, None, pred, context_radius, decisions))
+            else:
+                issue_type = "extra_prediction"
+            out.append(review_item_group(split, issue_type, source, gold_spans, prediction_spans, context_radius, decisions))
     return out
 
 
-def review_item(
+def review_item_group(
     split: str,
     issue_type: str,
     source: dict[str, Any],
-    gold: Entity | None,
-    pred: Entity | None,
+    gold_spans: list[Entity],
+    prediction_spans: list[Entity],
     context_radius: int,
     decisions: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    entities = [entity for entity in (gold, pred) if entity is not None]
-    review_id = stable_review_id(split, issue_type, source["id"], gold, pred)
+    entities = [*gold_spans, *prediction_spans]
+    review_id = stable_group_review_id(split, issue_type, source["id"], gold_spans, prediction_spans)
     decision = decisions.get(review_id, {})
+    gold_records = [entity_record(entity, source) for entity in gold_spans]
+    prediction_records = [entity_record(entity, source) for entity in prediction_spans]
     return {
         "review_id": review_id,
         "split": split,
@@ -207,8 +237,10 @@ def review_item(
             "source_file": source.get("source_file", ""),
         },
         "issue_type": issue_type,
-        "gold": entity_record(gold, source),
-        "prediction": entity_record(pred, source),
+        "gold": gold_records[0] if len(gold_records) == 1 else None,
+        "prediction": prediction_records[0] if len(prediction_records) == 1 else None,
+        "gold_spans": gold_records,
+        "prediction_spans": prediction_records,
         "context": context(source, entities, context_radius),
         "decision": {
             "status": decision.get("status", "todo"),
@@ -221,6 +253,26 @@ def review_item(
     }
 
 
+def review_item(
+    split: str,
+    issue_type: str,
+    source: dict[str, Any],
+    gold: Entity | None,
+    pred: Entity | None,
+    context_radius: int,
+    decisions: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    return review_item_group(
+        split,
+        issue_type,
+        source,
+        [gold] if gold is not None else [],
+        [pred] if pred is not None else [],
+        context_radius,
+        decisions,
+    )
+
+
 def stable_review_id(split: str, issue_type: str, doc_id: str, gold: Entity | None, pred: Entity | None) -> str:
     payload = {
         "split": split,
@@ -228,6 +280,32 @@ def stable_review_id(split: str, issue_type: str, doc_id: str, gold: Entity | No
         "issue_type": issue_type,
         "gold": entity_key(gold),
         "prediction": entity_key(pred),
+    }
+    digest = hashlib.sha1(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:16]
+    return f"{split}:{doc_id}:{digest}"
+
+
+def stable_group_review_id(
+    split: str,
+    issue_type: str,
+    doc_id: str,
+    gold_spans: list[Entity],
+    prediction_spans: list[Entity],
+) -> str:
+    if len(gold_spans) <= 1 and len(prediction_spans) <= 1:
+        return stable_review_id(
+            split,
+            issue_type,
+            doc_id,
+            gold_spans[0] if gold_spans else None,
+            prediction_spans[0] if prediction_spans else None,
+        )
+    payload = {
+        "split": split,
+        "doc_id": doc_id,
+        "issue_type": issue_type,
+        "gold_spans": [entity_key(entity) for entity in gold_spans],
+        "prediction_spans": [entity_key(entity) for entity in prediction_spans],
     }
     digest = hashlib.sha1(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:16]
     return f"{split}:{doc_id}:{digest}"

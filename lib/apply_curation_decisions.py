@@ -66,6 +66,20 @@ def span_from_entity(entity: dict[str, Any] | None) -> Span | None:
     return Span(int(entity["token_start"]), int(entity["token_stop"]), str(entity["label"]))
 
 
+def side_spans(item: dict[str, Any], side: str) -> list[Span]:
+    plural = item.get(f"{side}_spans")
+    if isinstance(plural, list):
+        spans = []
+        for entity in plural:
+            if isinstance(entity, dict):
+                span = span_from_entity(entity)
+                if span is not None:
+                    spans.append(span)
+        return spans
+    span = span_from_entity(item.get(side))
+    return [span] if span is not None else []
+
+
 def parse_correction(notes: str) -> Span | None:
     match = CORRECTION_RE.search(notes or "")
     if not match:
@@ -118,8 +132,9 @@ def add_span(spans: list[Span], span: Span) -> list[Span]:
 
 
 def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, Any]) -> tuple[list[Span], dict[str, Any]]:
-    gold = span_from_entity(item.get("gold"))
-    prediction = span_from_entity(item.get("prediction"))
+    gold_spans = side_spans(item, "gold")
+    prediction_spans = side_spans(item, "prediction")
+    displayed_spans = [*gold_spans, *prediction_spans]
     manual_spans = spans_from_decision(decision)
     correction = manual_spans[0] if len(manual_spans) == 1 else parse_correction(str(decision.get("notes", "")))
     choice = decision.get("choice")
@@ -128,25 +143,32 @@ def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, 
 
     if choice == "gold":
         if correction:
-            spans = remove_overlapping(spans, [gold, prediction, correction])
+            spans = remove_overlapping(spans, [*displayed_spans, correction])
             spans = add_span(spans, correction)
             action = "replaced_with_correction"
-        elif gold is None:
-            spans = remove_overlapping(spans, [prediction])
+        elif not gold_spans:
+            spans = remove_overlapping(spans, prediction_spans)
             action = "accepted_empty_gold"
         else:
+            spans = remove_overlapping(spans, displayed_spans)
+            for gold in gold_spans:
+                spans = add_span(spans, gold)
             action = "kept_gold"
     elif choice == "prediction":
-        target = correction or prediction
-        if target is None:
-            spans = remove_overlapping(spans, [gold])
+        if correction:
+            targets = [correction]
+        else:
+            targets = prediction_spans
+        if not targets:
+            spans = remove_overlapping(spans, gold_spans)
             action = "accepted_empty_prediction"
         else:
-            spans = remove_overlapping(spans, [gold, prediction, target])
-            spans = add_span(spans, target)
+            spans = remove_overlapping(spans, [*displayed_spans, *targets])
+            for target in targets:
+                spans = add_span(spans, target)
             action = "accepted_prediction" if correction is None else "accepted_prediction_correction"
     elif choice == "neither":
-        spans = remove_overlapping(spans, [gold, prediction])
+        spans = remove_overlapping(spans, displayed_spans)
         if correction:
             spans = remove_overlapping(spans, [correction])
             spans = add_span(spans, correction)
@@ -154,17 +176,17 @@ def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, 
         else:
             action = "removed_displayed_spans"
     elif choice == "both":
-        targets = [span for span in [gold, prediction, correction] if span is not None]
+        targets = [*displayed_spans, *([correction] if correction else [])]
         if not targets:
             raise ValueError(f"{item['review_id']}: choice=both but no spans are available")
-        spans = remove_overlapping(spans, [prediction, correction])
+        spans = remove_overlapping(spans, [*prediction_spans, correction])
         for target in targets:
             spans = add_span(spans, target)
         action = "kept_both"
     elif choice == "manual":
         if not manual_spans:
             raise ValueError(f"{item['review_id']}: choice=manual but accepted_spans is empty")
-        spans = remove_overlapping(spans, [gold, prediction, *manual_spans])
+        spans = remove_overlapping(spans, [*displayed_spans, *manual_spans])
         for manual_span in manual_spans:
             spans = add_span(spans, manual_span)
         action = "manual_correction"
@@ -181,8 +203,10 @@ def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, 
         "choice": choice,
         "action": action,
         "focus": {
-            "gold": gold.__dict__ if gold else None,
-            "prediction": prediction.__dict__ if prediction else None,
+            "gold": gold_spans[0].__dict__ if len(gold_spans) == 1 else None,
+            "prediction": prediction_spans[0].__dict__ if len(prediction_spans) == 1 else None,
+            "gold_spans": [span.__dict__ for span in gold_spans],
+            "prediction_spans": [span.__dict__ for span in prediction_spans],
             "correction": correction.__dict__ if correction else None,
             "manual_spans": [span.__dict__ for span in manual_spans],
         },
@@ -386,6 +410,9 @@ def focus_window(audit: dict[str, Any], token_count: int, *, radius: int) -> tup
     for key in ("gold", "prediction", "correction"):
         value = audit.get("focus", {}).get(key)
         if value:
+            spans.append((int(value["token_start"]), int(value["token_stop"])))
+    for key in ("gold_spans", "prediction_spans", "manual_spans"):
+        for value in audit.get("focus", {}).get(key, []):
             spans.append((int(value["token_start"]), int(value["token_stop"])))
     for key in ("before", "after"):
         for value in audit.get(key, []):

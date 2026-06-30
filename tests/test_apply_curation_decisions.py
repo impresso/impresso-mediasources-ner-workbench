@@ -253,6 +253,62 @@ def test_apply_neither_without_correction_removes_gold(tmp_path: Path) -> None:
     assert revised["entities"] == []
 
 
+def test_apply_grouped_gold_choice_removes_all_overlapping_predictions(tmp_path: Path) -> None:
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    source = row(
+        "doc1",
+        ["Agence", "Wolff", "annonce"],
+        ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff", "O"],
+    )
+    write_jsonl(input_dir / "validation.jsonl", [source])
+    write_jsonl(
+        tmp_path / "disagreements.jsonl",
+        [
+            {
+                "review_id": "validation:doc1:grouped",
+                "split": "validation",
+                "document": {"id": "doc1"},
+                "gold": source["entities"][0],
+                "prediction": None,
+                "gold_spans": [source["entities"][0]],
+                "prediction_spans": [
+                    {"token_start": 0, "token_stop": 1, "label": "org.ent.pressagency.reuters"},
+                    {"token_start": 1, "token_stop": 2, "label": "org.ent.pressagency.wolff"},
+                ],
+            }
+        ],
+    )
+    write_jsonl(
+        tmp_path / "decisions.jsonl",
+        [
+            {
+                "review_id": "validation:doc1:grouped",
+                "status": "done",
+                "choice": "gold",
+                "correct_label": "org.ent.pressagency.wolff",
+                "reviewer": "tester",
+                "reviewed_at": "2026-06-30T12:00:00+02:00",
+            }
+        ],
+    )
+
+    apply_curation(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        disagreements_path=tmp_path / "disagreements.jsonl",
+        decisions_path=tmp_path / "decisions.jsonl",
+        splits=["validation"],
+        require_complete=True,
+    )
+
+    revised = json.loads((output_dir / "validation.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert revised["token_labels"] == ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff", "O"]
+    assert [(entity["token_start"], entity["token_stop"], entity["label"]) for entity in revised["entities"]] == [
+        (0, 2, "org.ent.pressagency.wolff")
+    ]
+
+
 def test_apply_empty_prediction_removes_gold(tmp_path: Path) -> None:
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"

@@ -58,6 +58,45 @@ def test_build_disagreements_groups_overlap_and_extra_prediction() -> None:
     assert summarize(rows)["by_status"] == {"todo": 2}
 
 
+def test_build_disagreements_groups_all_predictions_overlapping_one_gold_span() -> None:
+    source_rows = [
+        {
+            "id": "doc1",
+            "language": "fr",
+            "tokens": ["Agence", "Wolff", "annonce"],
+            "token_start_offsets": [0, 7, 13],
+            "token_end_offsets": [6, 12, 20],
+            "text": "Agence Wolff annonce",
+        }
+    ]
+    prediction_rows = [
+        {
+            "id": "doc1",
+            "gold_labels": ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff", "O"],
+            "pred_labels": ["B-org.ent.pressagency.reuters", "I-org.ent.pressagency.wolff", "O"],
+        }
+    ]
+
+    rows = build_disagreements(
+        "validation",
+        source_rows,
+        prediction_rows,
+        languages={"fr"},
+        context_radius=1,
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["issue_type"] == "span_or_label_mismatch"
+    assert [(span["token_start"], span["token_stop"], span["label"]) for span in rows[0]["gold_spans"]] == [
+        (0, 2, "org.ent.pressagency.wolff")
+    ]
+    assert [(span["token_start"], span["token_stop"], span["label"]) for span in rows[0]["prediction_spans"]] == [
+        (0, 1, "org.ent.pressagency.reuters"),
+        (1, 2, "org.ent.pressagency.wolff"),
+    ]
+    assert rows[0]["prediction"] is None
+
+
 def test_build_disagreements_filters_languages() -> None:
     source_rows = [{"id": "doc1", "language": "lb", "tokens": ["Havas"]}]
     prediction_rows = [{"id": "doc1", "gold_labels": ["B-org.ent.pressagency.havas"], "pred_labels": ["O"]}]
@@ -67,6 +106,22 @@ def test_build_disagreements_filters_languages() -> None:
         source_rows,
         prediction_rows,
         languages={"de", "fr"},
+        context_radius=1,
+    )
+
+    assert rows == []
+
+
+def test_build_disagreements_omits_exact_gold_prediction_agreement() -> None:
+    source_rows = [{"id": "doc1", "language": "fr", "tokens": ["Agence", "Wolff"]}]
+    labels = ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff"]
+    prediction_rows = [{"id": "doc1", "gold_labels": labels, "pred_labels": labels}]
+
+    rows = build_disagreements(
+        "validation",
+        source_rows,
+        prediction_rows,
+        languages={"fr"},
         context_radius=1,
     )
 
