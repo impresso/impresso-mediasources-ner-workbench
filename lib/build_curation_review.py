@@ -51,7 +51,7 @@ def strip_bio(label: str) -> str:
     return label
 
 
-def labels_to_entities(labels: list[str]) -> set[Entity]:
+def labels_to_entities(labels: list[str], *, merge_adjacent_same_label: bool = False) -> set[Entity]:
     entities: set[Entity] = set()
     start: int | None = None
     active = ""
@@ -69,7 +69,7 @@ def labels_to_entities(labels: list[str]) -> set[Entity]:
             continue
         prefix = label[:1] if label.startswith(("B-", "I-")) else "B"
         base = strip_bio(label)
-        if prefix == "B" or start is None or active != base:
+        if start is None or active != base or (prefix == "B" and not merge_adjacent_same_label):
             close(index)
             start = index
             active = base
@@ -191,7 +191,7 @@ def build_disagreements(
         if language not in languages:
             continue
         gold_entities = labels_to_entities(pred_row["gold_labels"])
-        pred_entities = labels_to_entities(pred_row["pred_labels"])
+        pred_entities = labels_to_entities(pred_row["pred_labels"], merge_adjacent_same_label=True)
         correct = gold_entities & pred_entities
         remaining_gold = gold_entities - correct
         remaining_pred = pred_entities - correct

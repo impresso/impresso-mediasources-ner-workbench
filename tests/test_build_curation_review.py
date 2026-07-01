@@ -128,6 +128,37 @@ def test_build_disagreements_omits_exact_gold_prediction_agreement() -> None:
     assert rows == []
 
 
+def test_build_disagreements_merges_adjacent_predictions_with_same_label() -> None:
+    source_rows = [
+        {
+            "id": "doc1",
+            "language": "en",
+            "tokens": ["Vatican", "Radio"],
+            "token_start_offsets": [0, 8],
+            "token_end_offsets": [7, 13],
+            "text": "Vatican Radio",
+        }
+    ]
+    label = "org.ent.radiostation.vatican-radio"
+    prediction_rows = [
+        {
+            "id": "doc1",
+            "gold_labels": [f"B-{label}", f"I-{label}"],
+            "pred_labels": [f"B-{label}", f"B-{label}"],
+        }
+    ]
+
+    rows = build_disagreements(
+        "test",
+        source_rows,
+        prediction_rows,
+        languages={"en"},
+        context_radius=1,
+    )
+
+    assert rows == []
+
+
 def test_build_disagreements_applies_saved_decisions() -> None:
     source_rows = [{"id": "doc1", "language": "de", "tokens": ["Havas"]}]
     prediction_rows = [{"id": "doc1", "gold_labels": ["B-org.ent.pressagency.havas"], "pred_labels": ["O"]}]
