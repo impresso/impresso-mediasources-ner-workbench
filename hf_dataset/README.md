@@ -26,10 +26,13 @@ data/validation.jsonl
 data/test.jsonl
 label_map.json
 dataset_summary.json
+DATASET_STATISTICS.md
 audit/curation_summary.json
 audit/curation_changes.jsonl
 audit/curation_changes_tags.tsv
 ```
+
+`DATASET_STATISTICS.md` is a generated, human-readable release report with split sizes, token and mention totals, language and entity-family distributions, date and newspaper coverage, per-label frequencies, and the train/validation/test document-overlap check.
 
 Each JSONL row represents one document/article. The published `data/*.jsonl` files intentionally use a compact training schema rather than the full converted HIPE payload, so they are easy to load with `datasets` and inspect in the Hub viewer:
 

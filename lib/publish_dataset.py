@@ -10,6 +10,7 @@ from typing import Any, Iterable
 from huggingface_hub import CommitOperationAdd, HfApi
 
 from .env import load_dotenv_if_available
+from .dataset_statistics import write_report
 
 
 SPLITS = ("train", "validation", "test")
@@ -142,6 +143,11 @@ def prepare_dataset_repo(
         unknown = sorted(set(summary["entity_labels"]) - allowed_labels)
         if unknown:
             raise ValueError(f"dataset contains labels not present in canonical metadata: {unknown}")
+    write_json(output_dir / "dataset_summary.json", summary)
+    rows_by_split = {split: load_jsonl(output_dir / "data" / f"{split}.jsonl") for split in SPLITS}
+    release = input_dir.name.removeprefix("dataset-") or "release"
+    write_report(rows_by_split=rows_by_split, output=output_dir / "DATASET_STATISTICS.md", release=release)
+    summary["files"].append("DATASET_STATISTICS.md")
     write_json(output_dir / "dataset_summary.json", summary)
     return summary
 

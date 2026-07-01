@@ -99,10 +99,12 @@ def test_prepare_dataset_repo_writes_hub_layout(tmp_path: Path) -> None:
     assert (output_dir / "README.md").is_file()
     assert (output_dir / "data" / "train.jsonl").is_file()
     assert (output_dir / "label_map.json").is_file()
+    assert (output_dir / "DATASET_STATISTICS.md").is_file()
     assert (output_dir / "audit" / "curation_summary.json").is_file()
     assert summary["splits"] == {"train": 2, "validation": 2, "test": 2}
     assert summary["entity_labels"] == {"org.ent.pressagency.havas": 6}
     assert summary["legacy_trace_fields"] == ["source_format", "source_file"]
+    assert "DATASET_STATISTICS.md" in summary["files"]
 
     public_train = json.loads((output_dir / "data" / "train.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert public_train["document_id"] == "a-doc-train"
