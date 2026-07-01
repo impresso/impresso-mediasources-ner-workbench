@@ -69,6 +69,14 @@ def format_entity(entity: dict[str, Any] | None) -> str:
     return f"{entity['surface']} [{entity['label']}] tokens={entity['token_start']}:{entity['token_stop']}"
 
 
+def format_document_metadata(document: dict[str, Any]) -> str:
+    document_id = str(document.get("id") or "")
+    content_item_id = document_id.split("#", 1)[0]
+    url = f"https://impresso-project.ch/app/content-item/{content_item_id}" if content_item_id else ""
+    date = str(document.get("date") or "").split("T", 1)[0]
+    return " ".join(value for value in [url, str(document.get("newspaper") or ""), date] if value)
+
+
 def side_entities(item: dict[str, Any], side: str) -> list[dict[str, Any]]:
     plural = item.get(f"{side}_spans")
     if isinstance(plural, list):
@@ -361,9 +369,11 @@ def review_loop(items: list[dict[str, Any]], decisions_path: Path, reviewer: str
         print(f"{index}/{len(items)} {item['review_id']}")
         print(f"{item['split']} {item['language']} {item['issue_type']}")
         doc = item["document"]
-        print(f"{doc['id']} {doc.get('newspaper', '')} {doc.get('date', '')}")
+        print(format_document_metadata(doc))
         print("-" * 88)
         print(format_highlighted_context(item))
+        print("=" * 88)
+        print()
         print("legend: green [G] gold only, cyan [P] prediction only, magenta [X] conflicting overlap; type N for numbered tokens")
         print("-" * 88)
         print(f"gold:       {format_side(item, 'gold')}")

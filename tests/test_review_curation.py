@@ -6,6 +6,7 @@ from lib.review_curation import (
     CLEAR_SCREEN,
     clear_screen,
     format_choice_meaning,
+    format_document_metadata,
     format_highlighted_context,
     format_side,
     format_token_indicator,
@@ -24,6 +25,18 @@ def test_pending_items_skips_done_decisions() -> None:
     decisions = {"a": {"review_id": "a", "status": "done"}}
 
     assert pending_items(disagreements, decisions) == [{"review_id": "b"}]
+
+
+def test_format_document_metadata_uses_impresso_content_item_url() -> None:
+    document = {
+        "id": "JDG-1970-08-24-a-i0011#match-0",
+        "newspaper": "JDG",
+        "date": "1970-08-24T00:00:00+00:00",
+    }
+
+    assert format_document_metadata(document) == (
+        "https://impresso-project.ch/app/content-item/JDG-1970-08-24-a-i0011 JDG 1970-08-24"
+    )
 
 
 def test_pending_items_keeps_todo_decisions() -> None:
