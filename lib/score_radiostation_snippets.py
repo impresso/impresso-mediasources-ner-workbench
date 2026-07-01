@@ -265,7 +265,9 @@ def find_contextual_source_formula_spans(tokens: list[str], seed: dict[str, Any]
         for span in find_alias_spans(tokens, [alias], label):
             start = int(span["token_start"])
             stop = int(span["token_stop"])
-            if start > 0 and stop < len(tokens) and tokens[start - 1] == "(" and tokens[stop] == ")":
+            closes_formula = stop < len(tokens) and tokens[stop] == ")"
+            closes_after_period = stop + 1 < len(tokens) and tokens[stop] == "." and tokens[stop + 1] == ")"
+            if start > 0 and tokens[start - 1] == "(" and (closes_formula or closes_after_period):
                 contextual = dict(span)
                 contextual["matcher"] = "contextual_dispatch_source_formula"
                 spans.append(contextual)

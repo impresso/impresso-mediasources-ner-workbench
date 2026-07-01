@@ -527,31 +527,58 @@
     "canonical_id": "wolff",
     "label": "org.ent.pressagency.wolff",
     "display_name": "Wolffs Telegraphisches Bureau",
-    "aliases": ["Wolff", "Wolffsburo", "Wolffsbureau", "Wolffagentur"],
+    "aliases": [
+      "Wolff",
+      "Wolffsburo",
+      "Wolffsbureau",
+      "Wolffagentur",
+      "Wolffs Telegraphisches Bureau",
+      "Continental-Telegraphen-Compagnie"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Wolffs_Telegraphisches_Bureau",
     "wikidata_url": "https://www.wikidata.org/wiki/Q552226",
     "trainable": true,
     "status": "metadata_enriched",
-    "description": "Wolffs Telegraphisches Bureau, the first German news agency, founded in 1849 and active until 1934. It is also associated with Continental Telegraphen-Compagnie; French text may use Bureau télégraphique Wolff or Agence Continentale.",
+    "description": "Wolffs Telegraphisches Bureau, the first German news agency, founded in 1849 and active until its merger into DNB in 1933/1934. From 1865 it operated under the bank- and state-backed corporate frame of the Continental-Telegraphen-Compagnie. The public agency and dispatch-source names Wolff and W.T.B. remained common, while Continental Telegraph Company, The Continental, Agence Continentale, and related forms may denote the same Wolff/Continental agency complex.",
     "active_period": {
       "start": "1849",
       "end": "1934",
       "note": "Historical German agency; absorbed/replaced in the DNB era."
     },
     "aliases_by_language": {
-      "en": ["Wolffs Telegraphisches Bureau", "Wolff"],
+      "en": [
+        "Wolffs Telegraphisches Bureau",
+        "Wolff",
+        "Continental Telegraph Company",
+        "The Continental"
+      ],
       "de": [
         "Wolff",
         "Wolffs Telegraphisches Bureau",
         "W.T.B.",
-        "Wolffsches Telegraphenbureau"
+        "Wolffsches Telegraphenbureau",
+        "Continental-Telegraphen-Compagnie"
       ],
       "fr": [
         "Bureau télégraphique Wolff",
         "Agence Wolff",
-        "Agence Continentale"
+        "Agence Continentale",
+        "Compagnie télégraphique continentale"
       ]
     },
+    "contextual_aliases": [
+      {
+        "alias": "Conti",
+        "use": "dispatch_source_formula",
+        "note": "Use for parenthesized or formulaic newspaper source attributions such as Berlin, 25. Febr. (Conti.) when date and context support the Wolff/Continental agency complex. Treat this as a contextual source or service abbreviation, not as a general alias in running text."
+      },
+      {
+        "alias": "Conti-Nachrichtendienst",
+        "use": "service_name",
+        "note": "Semi-official news service of the Wolff/Continental agency complex. Normalize explicit service-name mentions to org.ent.pressagency.wolff."
+      }
+    ],
+    "annotation_note": "Normalize Continental company names and explicit Conti-Nachrichtendienst mentions to org.ent.pressagency.wolff because this inventory treats the Wolff/Continental agency complex as one canonical entity. Normalize bare Conti only in a clear dispatch-source formula such as (Conti.); leave unrelated or ambiguous running-text uses unannotated.",
     "metadata_sources": [
       {
         "type": "wikidata",

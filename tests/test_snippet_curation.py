@@ -2202,6 +2202,13 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                     "contextual_aliases": [{"alias": "UTA", "use": "dispatch_source_formula"}],
                 },
                 {
+                    "canonical_id": "wolff",
+                    "label": "org.ent.pressagency.wolff",
+                    "display_name": "Wolffs Telegraphisches Bureau",
+                    "aliases": ["Wolff"],
+                    "contextual_aliases": [{"alias": "Conti", "use": "dispatch_source_formula"}],
+                },
+                {
                     "canonical_id": "ctk",
                     "label": "org.ent.pressagency.ctk",
                     "display_name": "Czech News Agency",
@@ -2264,6 +2271,14 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
                 "snippet": "Berlin, 7. Januar. (UTA) Reichspräsident v. Hindenburg sprach im Radio.",
             },
             {
+                "id": "radio-context-with-conti",
+                "label": "org.ent.radiostation",
+                "station": "radio_prague",
+                "query": "Radio Prag",
+                "language": "de",
+                "snippet": "Berlin, 25. Febr. (Conti.) Die Meldung wurde später im Radio verlesen; Conti blieb zu Hause.",
+            },
+            {
                 "id": "radio-prague-with-ctk",
                 "label": "org.ent.radiostation",
                 "station": "radio_prague",
@@ -2311,12 +2326,14 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
     london_scored = next(row for row in scored_rows if row["id"] == "radio-london-with-sda")
     tanjug_scored = next(row for row in scored_rows if row["id"] == "radio-vatican-with-tanjug")
     uta_scored = next(row for row in scored_rows if row["id"] == "deutsche-welle-with-uta")
+    conti_scored = next(row for row in scored_rows if row["id"] == "radio-context-with-conti")
     ctk_scored = next(row for row in scored_rows if row["id"] == "radio-prague-with-ctk")
     ata_scored = next(row for row in scored_rows if row["id"] == "radio-tirana-with-ata")
     russian_imperial_scored = next(row for row in scored_rows if row["id"] == "radio-context-with-russian-imperial-agency")
     london_spans = london_scored["model"]["predicted_spans"]
     tanjug_spans = tanjug_scored["model"]["predicted_spans"]
     uta_spans = uta_scored["model"]["predicted_spans"]
+    conti_spans = conti_scored["model"]["predicted_spans"]
     ctk_spans = ctk_scored["model"]["predicted_spans"]
     ata_spans = ata_scored["model"]["predicted_spans"]
     russian_imperial_spans = russian_imperial_scored["model"]["predicted_spans"]
@@ -2332,6 +2349,10 @@ def test_radiostation_scoring_matches_pressagency_aliases_in_snippet(tmp_path: P
         and span["matcher"] == "contextual_dispatch_source_formula"
         for span in uta_spans
     )
+    conti_matches = [span for span in conti_spans if span["label"] == "org.ent.pressagency.wolff"]
+    assert len(conti_matches) == 1
+    assert conti_matches[0]["surface"] == "Conti"
+    assert conti_matches[0]["matcher"] == "contextual_dispatch_source_formula"
     assert any(
         span["surface"] == "Radio Prag" and span["label"] == "org.ent.radiostation.radio-prague"
         for span in ctk_spans
