@@ -112,6 +112,14 @@ Use `org.ent.pressagency.st-petersburg-telegraph-agency` for the Russian imperia
 
 Use `org.ent.pressagency.tass` only for mentions that name TASS/Tass, ITAR-TASS, Russian News Agency TASS, or the Soviet Telegraph Agency of the Soviet Union. Earlier Russian imperial/Petersburg agency mentions and ROSTA are predecessor organizations and require their own canonical metadata rather than silent TASS normalization.
 
+Use `org.ent.pressagency.apa` for the Austrian Press Agency, including `APA`, lowercase `apa` in clear Austrian source formulas, `Austria Presse-Agentur`, and comparable renderings. Do not normalize Austrian `apa` to Associated Press (`org.ent.pressagency.ap`) merely because the surface is short or lowercase.
+
+Use `org.ent.pressagency.ddp-dapd` for `DDP`, `ddp`, `DAPD`, `Deutscher Depeschendienst`, and clear source or institutional mentions of the German agency. In compounds such as `ddp-Gespräch`, annotate the full compound token when the embedded agency is clearly identifiable.
+
+Use `org.ent.pressagency.palach-press` only for the agency `Palach Press`. Do not annotate references to the person Jan Palach, including `Jan Palach`, `Jan Palachs`, or text about his suicide, funeral, grave, memorial, or political symbolism.
+
+Short aliases such as `PTA` or `SPTA` for `org.ent.pressagency.st-petersburg-telegraph-agency` require clear press-agency or source-formula context. Do not annotate arbitrary `PTA` hits in sports tables, point scores, prices, advertisements, or OCR fragments such as `CA PTA IN` for `CAPTAIN`.
+
 ### Radio Stations
 
 Use `org.ent.radiostation.<canonical_id>` for real radio stations or broadcasters when the mention is tied to the organization's media, broadcasting, programme, news, or institutional broadcaster function.
@@ -145,6 +153,14 @@ Use `org.ent.radiostation.vatican-radio` for `Vatican Radio`, `Radio Vatican`, `
 Use `org.ent.radiostation.deutsche-welle` for the modern Deutsche Welle broadcaster and for historical 1920s/1930s programme-list references to Deutsche Welle GmbH/Deutschlandsender. In forms such as `Deutsche Welle-Königswusterhausen`, include the attached hyphenated station-location suffix because it is part of the visible station listing.
 
 For radio-station names and acronyms, do not annotate every string match. If the same acronym/name is used for a sports club, local association, team, or other non-media organization, keep it negative/O.
+
+When a radio-station mention is coordinated with another broadcaster by a slash or conjunction, annotate only the part that names the canonical broadcaster. For example, in `Deutsche Welle/Deutschlandfunk`, annotate `Deutsche Welle` only unless `Deutschlandfunk` is also backed by canonical metadata.
+
+Use `org.ent.radiostation.radio-liberty` for `Radio Liberty`, `Radio Liberation`, and `Radio Libération` when the context refers to the broadcaster or its broadcasts.
+
+Use `org.ent.radiostation.polskie-radio` for `Polskie Radio` and for historical foreign-language references to Polish radio such as `Radio Varsovie`, `Radio Warschau`, or `Radio Warsaw` when the context presents broadcasts or announcements from Warsaw/Poland as a media source.
+
+Use `org.ent.radiostation.voice-of-america` for `Voice of America`, `Voix de l'Amérique`, `Stimme Amerikas`, and comparable language-specific renderings when the phrase refers to the broadcaster, a broadcast, or a programme/source attribution.
 
 ## Positive And Negative Decisions
 
@@ -225,6 +241,13 @@ Do not annotate author/correspondent signatures:
 - initials or reporter names
 - old `pers.ind.articleauthor` cases from the thesis data
 
+Do not annotate hard-negative alias matches when the local context identifies a non-media meaning:
+
+- `Jan Palach`, `Jan Palachs`, or memorial/funeral/grave contexts are person references, not `Palach Press`.
+- `PTA` in sports scores, points tables, prices, or OCR-split `CAPTAIN` is not the St. Petersburg Telegraph Agency.
+- short acronyms in football, basketball, clubs, local associations, advertisements, price lists, or job listings are negative unless the media-source organization is clearly identified.
+- OCR fragments such as `dapder`, `DapceviC`, or broken strings that only accidentally resemble an alias should remain `O` unless the agency is identifiable from the surrounding context.
+
 Do not annotate unresolved unknowns as labels. Mark them for review if they might be resolvable; otherwise they become negative/O tokens.
 
 ## Boundaries
@@ -248,6 +271,21 @@ Exclude:
 - article titles or sentence context outside the name
 
 Punctuation belongs inside the span when it is part of the visible agency abbreviation or name. This remains true at the end of a sentence. In `(A. F. P.).`, annotate `A. F. P.`: the period after `P` is part of the abbreviation, while the parentheses and the sentence period after the closing parenthesis stay outside. For undotted names or plain acronyms such as `Havas.` or `AFP.`, the final period is ordinary sentence punctuation and stays outside.
+
+Co-occurring source formulas:
+
+- If a source formula contains several specific canonical agencies, annotate all valid agency mentions in the formula.
+- Exclude separators such as `/`, commas, parentheses, brackets, and dashes unless they are part of the abbreviation itself.
+- When a full agency name and an acronym occur together, annotate both as separate spans if both are visible and tokenizable.
+- Use the same canonical label for both mentions when they refer to the same organization.
+
+Examples:
+
+| Text | Annotate | Labels |
+| ---- | -------- | ------ |
+| `(sda / apa / dpa)` | `sda`, `apa`, `dpa` | `org.ent.pressagency.ats-sda`, `org.ent.pressagency.apa`, `org.ent.pressagency.dpa` |
+| `Austria Presse-Agentur (APA)` | `Austria Presse-Agentur`, `APA` | `org.ent.pressagency.apa` |
+| `Deutscher Depeschendienst (ddp)` | `Deutscher Depeschendienst`, `ddp` | `org.ent.pressagency.ddp-dapd` |
 
 News-agency names with `Agence`:
 
@@ -300,7 +338,7 @@ Examples:
 
 | Text                             | Annotate          | Label or decision                                 | Note                          |
 | -------------------------------- | ----------------- | ------------------------------------------------- | ----------------------------- |
-| `Radio Paris annonce ...`        | `Radio Paris`     | `org.ent.radiostation.radio_paris`                | `Radio` is part of the name   |
+| `Radio Paris annonce ...`        | `Radio Paris`     | `org.ent.radiostation.radio-paris`                | `Radio` is part of the name   |
 | `la station BBC annonce ...`     | `BBC`             | `org.ent.radiostation.bbc`                        | `station` is generic          |
 | `le poste de Moscou diffuse ...` | `poste de Moscou` | review or canonical radio-station label if mapped | historical station expression |
 | `Nach einer Sendung der BBC ...` | `BBC`             | `org.ent.radiostation.bbc`                        | source-like use               |
@@ -433,7 +471,7 @@ The practical consequence is that annotators should spend less time deciding whe
 | `Apply Agence Havas Monte-Carlo No 1174.`    | do not annotate                                      | none              | all `O`; commercial advertisement contact, not news-source use |
 | `Reply under No L. 39, Agence Havas, Brussels.` | do not annotate                                   | none              | all `O`; reply/box-number intermediary in an advertisement   |
 | `la radio diffuse le concert ...`            | do not annotate                                      | none              | generic medium, not Agence Radio                            |
-| `Radio Paris annonce ...`                    | annotate                                             | `Radio Paris`     | `org.ent.radiostation.radio_paris`                           |
+| `Radio Paris annonce ...`                    | annotate                                             | `Radio Paris`     | `org.ent.radiostation.radio-paris`                           |
 | `la station BBC annonce ...`                 | annotate                                             | `BBC`             | `org.ent.radiostation.bbc`                                   |
 | `le poste de Moscou diffuse ...`             | review or annotate if canonical mapping is available | `poste de Moscou` | `org.ent.radiostation.<canonical_id>` or review              |
 | `Reutei annonce ...`                         | annotate if identifiable                             | `Reutei`          | `org.ent.pressagency.reuters`; visible OCR span              |
@@ -442,3 +480,14 @@ The practical consequence is that annotators should spend less time deciding whe
 | `(AP) Washington ...`                        | annotate if source context is clear                  | `AP`              | `org.ent.pressagency.ap`                                     |
 | `ag. meldet ...`                             | do not label as agency                               | none              | all `O`, possible review                                     |
 | `sn` as a signature                          | do not annotate                                      | none              | all `O`                                                      |
+| `(sda / apa / dpa)` | annotate | `sda`, `apa`, `dpa` | `org.ent.pressagency.ats-sda`, `org.ent.pressagency.apa`, `org.ent.pressagency.dpa` |
+| `Austria Presse-Agentur (APA) meldete ...` | annotate | `Austria Presse-Agentur`, `APA` | `org.ent.pressagency.apa` |
+| `dem Deutschen Depeschendienst (ddp)` | annotate | `Deutschen Depeschendienst`, `ddp` | `org.ent.pressagency.ddp-dapd` |
+| `Agence Belga meldet ...` | annotate | `Agence Belga` | `org.ent.pressagency.belga` |
+| `Jan Palach, der Student ...` | do not annotate | none | all `O`; person mention, not Palach Press |
+| `RESULTS UP TO DATE. Pta Played. Won. Lost ...` | do not annotate | none | all `O`; sports table, not St. Petersburg Telegraph Agency |
+| `CA PTA IN` | do not annotate | none | all `O`; OCR split of `CAPTAIN` |
+| `Deutsche Welle/Deutschlandfunk` | annotate if canonical context is clear | `Deutsche Welle` | `org.ent.radiostation.deutsche-welle`; exclude slash and neighbouring broadcaster |
+| `Radio Liberation` | annotate if broadcaster context is clear | `Radio Liberation` | `org.ent.radiostation.radio-liberty` |
+| `Radio Warschau meldete ...` | annotate | `Radio Warschau` | `org.ent.radiostation.polskie-radio` |
+| `Voix de l'Amérique annonce ...` | annotate | `Voix de l'Amérique` | `org.ent.radiostation.voice-of-america` |
