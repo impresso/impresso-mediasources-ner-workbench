@@ -129,6 +129,16 @@ Run `make help-anno` when you only need the curation-related targets and common 
 
 ## Quick Recipes
 
+### Dataset housekeeping
+
+After integrating annotation changes, refresh the configured dataset's label map, integrity checks, human-readable TSV views, state snapshot, statistics, tokenizer/window statistics, and current validation/test quality report with one command:
+
+```bash
+make dataset-housekeeping
+```
+
+This target does not publish the dataset. Validation/test quality evaluation can take time because it runs the configured `CURATION_MODEL` over both held-out splits.
+
 ### 0. Inspect current state
 
 Use this before starting or resuming curation. It does not change data.
