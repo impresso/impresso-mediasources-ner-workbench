@@ -281,15 +281,20 @@ def prompt_prediction_spans(
         return spans[:1]
 
     accepted_spans = []
-    print("multiple predicted spans; review them one after another")
+    print("multiple non-overlapping predicted mentions; review them one after another")
     expected_label = target_label(row)
     for span_index, span in enumerate(spans, start=1):
         print("  " + span_line(span, span_index))
-        if expected_label and span.get("label") != expected_label:
-            print(f"  label mismatch: prediction={span.get('label')} candidate={expected_label}")
-            print("  use c to keep this boundary with the candidate label, m for another correction, or r to reject this span")
+        predicted_label = str(span.get("label") or "")
+        if expected_label and predicted_label != expected_label:
+            print(f"  this mention differs from the sampled candidate: predicted={predicted_label} candidate={expected_label}")
+            print(f"  use a to keep {predicted_label}; use c only to relabel this span as {expected_label}")
         while True:
-            raw = input("this span: [a]ccept predicted label [c]andidate label [m]anual correction [r]eject [N]umbered tokens > ").strip()
+            accept_text = f"[a]ccept as {predicted_label}"
+            candidate_text = f" [c]relabel as {expected_label}" if expected_label and predicted_label != expected_label else ""
+            raw = input(
+                f"this span: {accept_text}{candidate_text} [m]anual correction [r]eject [N]umbered tokens > "
+            ).strip()
             if raw == "N":
                 print(numbered_tokens(row))
                 continue
@@ -298,8 +303,8 @@ def prompt_prediction_spans(
                 accepted_spans.append(span)
                 break
             if raw == "c":
-                if not expected_label:
-                    print("No candidate label is available; use manual correction.")
+                if not expected_label or predicted_label == expected_label:
+                    print("Relabeling is not available because this span already has the candidate label.")
                     continue
                 accepted_spans.append({**span, "label": expected_label})
                 break

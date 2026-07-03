@@ -2693,7 +2693,11 @@ def test_prediction_span_review_can_correct_to_candidate_label(monkeypatch, caps
 
     captured = capsys.readouterr()
     assert accepted == [{**spans[0], "label": "org.ent.pressagency.telegraphen-union"}]
-    assert "label mismatch: prediction=org.ent.pressagency.tass candidate=org.ent.pressagency.telegraphen-union" in captured.out
+    assert (
+        "this mention differs from the sampled candidate: "
+        "predicted=org.ent.pressagency.tass candidate=org.ent.pressagency.telegraphen-union"
+        in captured.out
+    )
 
 
 def test_prediction_span_manual_correction_returns_to_next_prediction(monkeypatch) -> None:

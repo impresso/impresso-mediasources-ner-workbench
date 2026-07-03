@@ -259,7 +259,10 @@ def prompt_manual_spans(
     print('manual correction syntax: 12:13 reuters or 12:13 org.ent.pressagency.reuters')
     print('or paste numbered tokens, e.g. 9:B 10:. 11:B 12:. 13:C 14:. bbc')
     print('if no label is supplied, the current candidate label is used')
-    print('manual commands: N = show numbered tokens, q = cancel/finish manual entry')
+    if single_span:
+        print('manual commands: N = show numbered tokens, q = cancel this manual correction')
+    else:
+        print('manual commands: N = show numbered tokens, q = finish manual entry')
     while True:
         raw_span = input("span> ").strip()
         if raw_span == "N":
