@@ -248,6 +248,8 @@ def interpreted_span_line(span: dict[str, Any]) -> str:
 def prompt_manual_spans(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
+    *,
+    single_span: bool = False,
 ) -> list[dict[str, Any]] | None:
     accepted_spans = []
     print("numbered tokens:")
@@ -275,6 +277,8 @@ def prompt_manual_spans(
             continue
         accepted_spans.append(span)
         print(interpreted_span_line(span))
+        if single_span:
+            return accepted_spans
         while True:
             raw = input("finished? [Y/n/v] ").strip().lower()
             if raw in {"", "y", "yes"}:

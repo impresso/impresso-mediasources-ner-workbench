@@ -2630,6 +2630,32 @@ def test_prediction_span_review_can_correct_to_candidate_label(monkeypatch, caps
     assert "label mismatch: prediction=org.ent.pressagency.tass candidate=org.ent.pressagency.telegraphen-union" in captured.out
 
 
+def test_prediction_span_manual_correction_returns_to_next_prediction(monkeypatch) -> None:
+    row = {
+        "text": "ATS / AFP annonce l'agence Tanjug",
+        "tokens": ["ATS", "/", "AFP", "annonce", "l'agence", "Tanjug"],
+        "token_start_offsets": [0, 4, 6, 10, 18, 27],
+        "token_end_offsets": [3, 5, 9, 17, 26, 33],
+        "candidate_label": "org.ent.pressagency.tanjug",
+        "curation": {"label": "org.ent.pressagency.tanjug"},
+    }
+    spans = [
+        {"token_start": 5, "token_stop": 6, "label": "org.ent.pressagency.tanjug", "surface": "Tanjug"},
+        {"token_start": 0, "token_stop": 1, "label": "org.ent.pressagency.ats-sda", "surface": "ATS"},
+        {"token_start": 2, "token_stop": 3, "label": "org.ent.pressagency.afp", "surface": "AFP"},
+    ]
+    answers = iter(["m", "4:6 tanjug", "a", "a"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    accepted = prompt_prediction_spans(row, spans, {})
+
+    assert [(span["token_start"], span["token_stop"], span["label"]) for span in accepted] == [
+        (4, 6, "org.ent.pressagency.tanjug"),
+        (0, 1, "org.ent.pressagency.ats-sda"),
+        (2, 3, "org.ent.pressagency.afp"),
+    ]
+
+
 def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeypatch, capsys) -> None:
     decisions_path = tmp_path / "decisions.jsonl"
     label_metadata_path = tmp_path / "newsagency_seeds.json"

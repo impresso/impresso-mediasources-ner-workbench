@@ -260,8 +260,10 @@ def interpreted_span_line(span: dict[str, Any]) -> str:
 def prompt_manual_spans(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
+    *,
+    single_span: bool = False,
 ) -> list[dict[str, Any]] | None:
-    return review_ui.prompt_manual_spans(row, label_metadata)
+    return review_ui.prompt_manual_spans(row, label_metadata, single_span=single_span)
 
 
 def prompt_prediction_spans(
@@ -296,7 +298,7 @@ def prompt_prediction_spans(
                 accepted_spans.append({**span, "label": expected_label})
                 break
             if raw == "m":
-                manual_spans = prompt_manual_spans(row, label_metadata)
+                manual_spans = prompt_manual_spans(row, label_metadata, single_span=True)
                 if manual_spans is None:
                     continue
                 accepted_spans.extend(manual_spans)
