@@ -199,6 +199,26 @@ def suppress_contained_same_label_spans(spans: list[dict[str, Any]]) -> list[dic
     return out
 
 
+def suppress_overlapping_spans(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked = sorted(
+        enumerate(spans),
+        key=lambda item: (
+            -(int(item[1]["token_stop"]) - int(item[1]["token_start"])),
+            -float(item[1].get("confidence") or 0.0),
+            -float(item[1].get("margin") or 0.0),
+            item[0],
+        ),
+    )
+    kept: list[tuple[int, dict[str, Any]]] = []
+    for original_index, span in ranked:
+        start = int(span["token_start"])
+        stop = int(span["token_stop"])
+        if any(start < int(other["token_stop"]) and int(other["token_start"]) < stop for _, other in kept):
+            continue
+        kept.append((original_index, span))
+    return [span for _, span in sorted(kept)]
+
+
 def is_high_confidence_span(span: dict[str, Any], *, min_confidence: float, min_margin: float) -> bool:
     return float(span.get("confidence", 0.0)) >= min_confidence and float(span.get("margin", 0.0)) >= min_margin
 
@@ -385,7 +405,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
                 text,
             )
             model_spans = suppress_model_spans_covered_by_aliases(model_spans, alias_spans)
-        spans = suppress_contained_same_label_spans(alias_spans + model_spans)
+        spans = suppress_overlapping_spans(alias_spans + model_spans)
         status, reasons = curation_status(
             row,
             spans,

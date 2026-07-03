@@ -16,7 +16,7 @@ from .score_newsagency_snippets import (
     normalize_dotted_acronym_spans,
     resolve_model_ref,
     score_tokens,
-    suppress_contained_same_label_spans,
+    suppress_overlapping_spans,
 )
 
 
@@ -357,7 +357,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
                 text,
             )
             model_spans = suppress_model_spans_covered_by_aliases(model_spans, alias_spans)
-        spans = suppress_contained_same_label_spans(dedupe_spans(alias_spans + model_spans))
+        spans = suppress_overlapping_spans(dedupe_spans(alias_spans + model_spans))
         out = dict(row)
         out["id"] = candidate_id(row, index)
         out["candidate_label"] = label or None

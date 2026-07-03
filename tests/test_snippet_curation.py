@@ -8,6 +8,7 @@ from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
 from lib.export_snippet_training_data import apply_split_assignments, export_rows, write_split_outputs
 from lib.review_newsagency_snippets import (
+    confirm_annotation_finished,
     coverage_priority,
     parse_manual_span,
     prompt_manual_spans,
@@ -48,6 +49,7 @@ from lib.score_newsagency_snippets import (
     normalize_dotted_acronym_spans,
     score_rows as score_newsagency_rows,
     suppress_contained_same_label_spans,
+    suppress_overlapping_spans,
 )
 from lib.snippet_data import row_text, tokenize_with_offsets, write_jsonl
 
@@ -377,6 +379,29 @@ def test_suppress_contained_same_label_spans_keeps_full_acronym_span() -> None:
     ]
 
     assert suppress_contained_same_label_spans(spans) == [spans[0]]
+
+
+def test_suppress_overlapping_spans_keeps_longest_regardless_of_label() -> None:
+    spans = [
+        {
+            "token_start": 25,
+            "token_stop": 28,
+            "label": "org.ent.pressagency.apa",
+            "surface": "Austria Presse Agentur",
+            "confidence": 1.0,
+            "margin": 1.0,
+        },
+        {
+            "token_start": 27,
+            "token_stop": 28,
+            "label": "org.ent.pressagency.tass",
+            "surface": "Agentur",
+            "confidence": 0.912,
+            "margin": 0.837,
+        },
+    ]
+
+    assert suppress_overlapping_spans(spans) == [spans[0]]
 
 
 def test_sample_newsagencies_loads_label_alias_queries(tmp_path: Path) -> None:
@@ -2697,6 +2722,35 @@ def test_prediction_span_manual_correction_returns_to_next_prediction(monkeypatc
     ]
 
 
+def test_accept_confirmation_can_add_missed_manual_annotation(monkeypatch) -> None:
+    row = {
+        "text": "APA et ADN",
+        "tokens": ["APA", "et", "ADN"],
+        "token_start_offsets": [0, 4, 7],
+        "token_end_offsets": [3, 6, 10],
+        "candidate_label": "org.ent.pressagency.apa",
+    }
+    accepted = [
+        {
+            "token_start": 0,
+            "token_stop": 1,
+            "label": "org.ent.pressagency.apa",
+            "surface": "APA",
+            "confidence": 1.0,
+            "margin": 1.0,
+        }
+    ]
+    answers = iter(["m", "2:3 org.ent.pressagency.dnb", "y", ""])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    completed = confirm_annotation_finished(row, accepted, {})
+
+    assert [(span["token_start"], span["token_stop"], span["label"]) for span in completed] == [
+        (0, 1, "org.ent.pressagency.apa"),
+        (2, 3, "org.ent.pressagency.dnb"),
+    ]
+
+
 def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeypatch, capsys) -> None:
     decisions_path = tmp_path / "decisions.jsonl"
     label_metadata_path = tmp_path / "newsagency_seeds.json"
@@ -2738,13 +2792,17 @@ def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeyp
 
     captured = capsys.readouterr()
     assert reviewed == 1
+    assert (
+        "newsagency-snippet:snippet-1 https://impresso-project.ch/app/content-item/JDG-1946-01-01-a-i0001"
+        in captured.out
+    )
     assert f"input file: {input_path}" in captured.out
     assert f"metadata file: {label_metadata_path}" in captured.out
     assert "source file: data/annotated_data/fr/newsagency-data-train-fr.tsv" in captured.out
     assert "name: Agence Havas" in captured.out
     assert "annotation note: Use source-formula contexts." in captured.out
     assert "H.: Only in clear Havas source formulas." in captured.out
-    assert "impresso article: https://impresso-project.ch/app/article/JDG-1946-01-01-a-i0001" in captured.out
+    assert "impresso article: https://impresso-project.ch/app/content-item/JDG-1946-01-01-a-i0001" in captured.out
     assert "numbered tokens:" in captured.out
     assert "0:Selon 1:Havas 2:." in captured.out
     decision = json.loads(decisions_path.read_text(encoding="utf-8"))
@@ -2784,7 +2842,7 @@ def test_newsagency_review_accepts_multiple_prediction_spans(tmp_path: Path, mon
             ]
         },
     }
-    answers = iter(["n", "two agencies", "a", "a", "a"])
+    answers = iter(["n", "two agencies", "a", "a", "a", ""])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     reviewed = review_loop([row], decisions_path, "tester", limit=0)
@@ -2870,7 +2928,7 @@ def test_snippet_review_auto_accepted_rows_require_explicit_status(tmp_path: Pat
 
     assert review_loop([row], decisions_path, "tester", limit=0) == 0
 
-    answers = iter(["a"])
+    answers = iter(["a", ""])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
     reviewed = review_loop([row], decisions_path, "tester", limit=0, review_statuses={"auto_accepted"})
 
@@ -2903,7 +2961,7 @@ def test_snippet_review_notes_are_explicit(tmp_path: Path, monkeypatch, capsys) 
             ]
         },
     }
-    answers = iter(["n", "source formula", "a"])
+    answers = iter(["n", "source formula", "a", ""])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     reviewed = review_loop([row], decisions_path, "tester", limit=0)

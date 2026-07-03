@@ -102,10 +102,14 @@ def prediction_spans(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def span_line(span: dict[str, Any], index: int) -> str:
+    confidence = span.get("confidence")
+    margin = span.get("margin")
+    confidence_text = f"{float(confidence):.3f}" if confidence is not None else "-"
+    margin_text = f"{float(margin):.3f}" if margin is not None else "-"
     return (
         f"{index}: {span.get('token_start')}:{span.get('token_stop')} "
         f"{span.get('surface', '')} [{span.get('label', '')}] "
-        f"conf={float(span.get('confidence', 0.0)):.3f} margin={float(span.get('margin', 0.0)):.3f}"
+        f"conf={confidence_text} margin={margin_text}"
     )
 
 
@@ -167,7 +171,7 @@ def print_label_info(
     if source_path:
         print(f"  source file: {source_path}")
     if article_id:
-        print(f"  impresso article: https://impresso-project.ch/app/article/{article_id}")
+        print(f"  impresso article: https://impresso-project.ch/app/content-item/{article_id}")
     for current_label in labels:
         row_info = label_metadata.get(current_label)
         print(f"  label: {current_label}")
@@ -203,7 +207,9 @@ def print_label_info(
 
 def print_review_item(row: dict[str, Any], index: int, total: int, *, review_prefix: str = "newsagency-snippet") -> None:
     print("\n" + "=" * 88)
-    print(f"{index}/{total} {review_id(row, prefix=review_prefix)}")
+    article_id = impresso_article_id(row)
+    article_url = f" https://impresso-project.ch/app/content-item/{article_id}" if article_id else ""
+    print(f"{index}/{total} {review_id(row, prefix=review_prefix)}{article_url}")
     print(f"query: {row.get('query', '')}")
     print(f"candidate label: {row.get('candidate_label') or row.get('curation', {}).get('label') or ''}")
     print(f"reasons: {', '.join(row.get('curation', {}).get('reasons', []))}")
@@ -309,6 +315,29 @@ def prompt_prediction_spans(
     return accepted_spans
 
 
+def confirm_annotation_finished(
+    row: dict[str, Any],
+    accepted_spans: list[dict[str, Any]],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    while True:
+        print("accepted annotations:")
+        if accepted_spans:
+            for span_index, span in enumerate(accepted_spans, start=1):
+                print("  " + span_line(span, span_index))
+        else:
+            print("  <none>")
+        raw = input("annotation finished? [Y/m] ").strip().lower()
+        if raw in {"", "y", "yes"}:
+            return accepted_spans
+        if raw == "m":
+            manual_spans = prompt_manual_spans(row, label_metadata)
+            if manual_spans:
+                accepted_spans.extend(manual_spans)
+            continue
+        print("Invalid choice; use y to save or m to add manual annotation spans.")
+
+
 def review_loop(
     rows: list[dict[str, Any]],
     decisions_path: Path,
@@ -380,6 +409,7 @@ def review_loop(
                 matching = [span for span in spans if span.get("label") == target]
                 spans_to_review = spans if len(spans) > 1 else matching or spans
                 accepted_spans = prompt_prediction_spans(row, spans_to_review, label_metadata)
+                accepted_spans = confirm_annotation_finished(row, accepted_spans, label_metadata)
             elif raw == "A":
                 accepted_spans = spans[:]
             elif raw == "m":
