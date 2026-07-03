@@ -118,7 +118,7 @@ Start by choosing the path that matches the kind of dataset change you want to m
 | You want to inspect coverage, state, and mention surfaces before deciding. | Diagnostics and state inspection   | `curation-dashboard` or individual state/statistics targets  |
 | You want to audit already accepted annotations for boundary or label errors. | Existing-annotation audit          | `audit-existing-spans` -> `review-existing-spans` -> `integrate-existing-spans` |
 | You want to add missed annotations to existing documents for one entity. | Target-specific missing-span audit | `audit-missing-spans` -> `review-missing-spans` -> `integrate-missing-spans` |
-| You want to inspect empty-gold training documents for broad false negatives. | Empty-document span-patch audit    | `audit-empty-training-docs` -> `review-span-patches` -> `integrate-span-patches` |
+| You want to inspect empty-gold train/validation/test documents for broad false negatives. | Empty-document span-patch audit    | `audit-empty-training-docs` -> `review-span-patches EMPTY_DOC_SPLIT=...` -> `integrate-span-patches EMPTY_DOC_SPLIT=...` |
 | You want new examples from Impresso search for press agencies. | Media-source snippet curation      | `annotation-stats` -> `mention-profiles` -> `plan-media-sampling MEDIA_FAMILY=pressagency` -> `sample-media-snippets MEDIA_FAMILY=pressagency` -> `suggest-media-snippet-spans MEDIA_FAMILY=pressagency` -> `review-media-snippet-spans MEDIA_FAMILY=pressagency` -> `integrate-snippets` |
 | You want new examples from Impresso search for radio stations. | Media-source snippet curation      | `annotation-stats` -> `mention-profiles` -> `plan-media-sampling MEDIA_FAMILY=radiostation` -> `sample-media-snippets MEDIA_FAMILY=radiostation` -> `suggest-media-snippet-spans MEDIA_FAMILY=radiostation` -> `review-media-snippet-spans MEDIA_FAMILY=radiostation` -> `integrate-snippets` |
 | You want to clean HIPE-derived gold-vs-prediction disagreement files. | Evaluation disagreement curation   | `suggest-eval-disagreements` -> `review-curation` -> `validate-curation` -> `apply-curation` |
@@ -147,6 +147,14 @@ make snippet-state
 make eval-disagreement-state
 make dataset-state
 ```
+
+Before interpreting validation/test quality or per-entity F1, regenerate statistics and evaluation together:
+
+```bash
+make dataset-quality-analysis
+```
+
+This writes `DATASET_STATISTICS.md` and `DATASET_QUALITY.md` beside the configured dataset splits. It reevaluates validation and test with `CURATION_MODEL`, then verifies that prediction document IDs exactly match the current split files before reporting overall metrics, per-entity quality, and test coverage levels.
 
 ### A. Audit existing annotations for one label
 
@@ -191,13 +199,15 @@ make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSI
 
 Use `ARGS="--no-model"` when you want pattern-only suggestions, or `ARGS="--no-patterns"` when you want model-only suggestions from an existing prediction file.
 
-Use the broader empty-document audit when you want to inspect likely false negatives in empty-gold training rows without selecting a specific entity first:
+Use the broader empty-document audit when you want to inspect likely false negatives in empty-gold train, validation, and test rows without selecting a specific entity first. The audit scores all splits; review and integration remain split-specific:
 
 ```bash
 make audit-empty-training-docs
-make review-span-patches REVIEWER="$USER"
-make integrate-span-patches
+make review-span-patches EMPTY_DOC_SPLIT=train REVIEWER="$USER"
+make integrate-span-patches EMPTY_DOC_SPLIT=train
 ```
+
+The audit uses `CURATION_MODEL` by default, matching the gold-vs-prediction disagreement workflow. Override `EMPTY_DOC_MODEL` only when deliberately checking with another model; evaluation always reads the selected checkpoint's own label map so its classifier head is not resized or reinitialized.
 
 Use `accept` for a correct suggested span, `modify` for a correct entity with wrong boundary or label, `reject` for a verified false positive, and `skip` when the case needs later research.
 
@@ -368,15 +378,15 @@ Decisions are append-only under `data/curated/span-patches/<audit-id>/decisions.
 
 Use `MISSING_SPAN_SPLIT=validation` or `MISSING_SPAN_SPLIT=test` for those configured splits. To include model suggestions, generate predictions for that split first with `suggest-eval-disagreements-train`, `suggest-eval-disagreements-validation`, or `suggest-eval-disagreements-test`. The audit uses pattern suggestions even when no prediction file exists. Use `ARGS="--no-model"` for pattern-only review, or `ARGS="--no-patterns"` for model-only review.
 
-The broader empty-training-doc audit is still useful when you want an unscoped false-negative scan over empty-gold training rows:
+The broader empty-document audit is still useful when you want an unscoped false-negative scan over empty-gold train, validation, and test rows:
 
 ```bash
 make audit-empty-training-docs
-make review-span-patches REVIEWER="$USER"
-make integrate-span-patches
+make review-span-patches EMPTY_DOC_SPLIT=test REVIEWER="$USER"
+make integrate-span-patches EMPTY_DOC_SPLIT=test
 ```
 
-Those defaults point to the active v2.0.0 prerelease empty-training-doc audit. For custom broad span-patch audits, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
+The audit creates separate queues for `train`, `validation`, and `test`. Set `EMPTY_DOC_SPLIT` on every review, apply, status, promote, or integrate command so the selected queue and source split stay aligned.
 
 ## Direct TSV Search And Patch
 

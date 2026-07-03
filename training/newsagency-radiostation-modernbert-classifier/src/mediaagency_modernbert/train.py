@@ -20,6 +20,7 @@ IGNORE_INDEX = -100
 class Runtime:
     torch: Any
     Adafactor: Any
+    AutoConfig: Any
     AutoModelForTokenClassification: Any
     AutoTokenizer: Any
 
@@ -88,14 +89,20 @@ def import_runtime() -> Runtime:
     load_dotenv_if_available()
     try:
         import torch
-        from transformers import Adafactor, AutoModelForTokenClassification, AutoTokenizer
+        from transformers import Adafactor, AutoConfig, AutoModelForTokenClassification, AutoTokenizer
     except ImportError as exc:
         raise SystemExit(
             "Training requires torch and transformers. Install with: "
             'python -m pip install -e ".[hf]" && '
             "python -m pip install -e training/newsagency-radiostation-modernbert-classifier"
         ) from exc
-    return Runtime(torch=torch, Adafactor=Adafactor, AutoModelForTokenClassification=AutoModelForTokenClassification, AutoTokenizer=AutoTokenizer)
+    return Runtime(
+        torch=torch,
+        Adafactor=Adafactor,
+        AutoConfig=AutoConfig,
+        AutoModelForTokenClassification=AutoModelForTokenClassification,
+        AutoTokenizer=AutoTokenizer,
+    )
 
 
 def set_seed(seed: int, torch: Any) -> None:
@@ -119,6 +126,27 @@ def resolve_model_ref(value: str) -> str:
     if value.startswith("hf://"):
         return value[len("hf://") :]
     return value
+
+
+def label_map_from_model_config(config: Any) -> dict[str, dict[str, Any]]:
+    id2label = {str(idx): str(label) for idx, label in sorted(config.id2label.items(), key=lambda item: int(item[0]))}
+    if not id2label or id2label.get("0") != "O":
+        raise ValueError("checkpoint config must define label 0 as O")
+    if len(set(id2label.values())) != len(id2label):
+        raise ValueError("checkpoint config contains duplicate label names")
+    return {
+        "id2label": id2label,
+        "label2id": {label: int(idx) for idx, label in id2label.items()},
+    }
+
+
+def evaluation_label_map(args: argparse.Namespace, runtime: Runtime) -> dict[str, Any]:
+    if not args.use_checkpoint_label_map:
+        return load_label_map(args.label_map)
+    if not args.checkpoint:
+        raise ValueError("--use-checkpoint-label-map requires --checkpoint")
+    source = resolve_model_ref(args.checkpoint)
+    return label_map_from_model_config(runtime.AutoConfig.from_pretrained(source))
 
 
 def load_model_and_tokenizer(args: argparse.Namespace, label_map: dict[str, Any], runtime: Runtime) -> tuple[Any, Any]:
@@ -520,7 +548,7 @@ def evaluate_rows(
 
 
 def evaluate(args: argparse.Namespace, runtime: Runtime) -> None:
-    label_map = load_label_map(args.label_map)
+    label_map = evaluation_label_map(args, runtime)
     rows = load_jsonl(args.eval_jsonl, label_map=label_map, unknown_label_id=IGNORE_INDEX)
     model, tokenizer = load_model_and_tokenizer(args, label_map, runtime)
     device = device_for(args.device, runtime.torch)
@@ -551,6 +579,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--validation-jsonl")
     parser.add_argument("--eval-jsonl")
     parser.add_argument("--label-map", required=True)
+    parser.add_argument(
+        "--use-checkpoint-label-map",
+        action="store_true",
+        help="Evaluate with the checkpoint config's id2label/label2id instead of --label-map.",
+    )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--split-name", default="validation")
     parser.add_argument("--device", default="auto")

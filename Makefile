@@ -13,7 +13,7 @@ endif
 
 export HF_HOME
 
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -51,7 +51,7 @@ help-anno:
 	@echo "  make eval-disagreement-state  Summarize evaluation disagreement curation state"
 	@echo ""
 	@echo "Audit-driven span patches:"
-	@echo "  make audit-empty-training-docs                Score empty-gold training docs for suspicious missed spans"
+	@echo "  make audit-empty-training-docs                Score empty-gold train/validation/test docs for missed spans"
 	@echo "  make audit-missing-spans MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata"
 	@echo "                                             Suggest missing spans for one label in one split"
 	@echo "  make review-missing-spans                     Review target-specific missing-span suggestions"
@@ -110,6 +110,7 @@ help-anno:
 	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
 	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
 	@echo "  CURATION_MODEL=$(CURATION_MODEL), CURATION_LABEL_MAP=$(CURATION_LABEL_MAP)"
+	@echo "  EMPTY_DOC_MODEL=$(EMPTY_DOC_MODEL) (defaults to CURATION_MODEL)"
 	@echo "  ANNOTATION_MAIN_LANGS='$(ANNOTATION_MAIN_LANGS)', ANNOTATION_SIDE_LANGS='$(ANNOTATION_SIDE_LANGS)'"
 	@echo "  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG), ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)"
 	@echo "  AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
@@ -125,6 +126,7 @@ help-data:
 	@echo "  make validate-dataset-splits               Check train/validation/test split integrity"
 	@echo "  make sync-label-map                        Derive label_map.json from minimal train/validation/test"
 	@echo "  make dataset-statistics                    Generate the release Markdown statistics report"
+	@echo "  make dataset-quality-analysis              Refresh validation/test evaluation and quality report"
 	@echo "  make dataset-subword-stats                 Measure tokenizer expansion and window coverage"
 	@echo "  make materialize-dataset-tsv               Write ignored TOKEN/NERTAG TSV views for diffing"
 	@echo "  make dataset-state                         Summarize staging and configured published dataset state"
@@ -208,6 +210,11 @@ dataset-statistics:
 	$(PYTHON) -m lib.dataset_statistics --train "$(TRAIN_JSONL)" --validation "$(VALIDATION_JSONL)" --test "$(TEST_JSONL)" --output "$(DATASET_STATISTICS_MD)" --release "$(DATASET_REVISION)" $(ARGS)
 	@echo "Report: $(DATASET_STATISTICS_MD)"
 
+dataset-quality-analysis: dataset-statistics curation-eval-validation curation-eval-test
+	@echo "Analyzing current validation/test quality and per-entity test coverage."
+	$(PYTHON) -m lib.dataset_quality_report --validation "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --validation-metrics "$(CURATION_OUTPUT_DIR)/eval/validation_metrics.json" --test "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --test-metrics "$(CURATION_OUTPUT_DIR)/eval/test_metrics.json" --output "$(DATASET_QUALITY_MD)" --release "$(DATASET_REVISION)" --model "$(CURATION_MODEL)" $(ARGS)
+	@echo "Report: $(DATASET_QUALITY_MD)"
+
 dataset-subword-stats:
 	@echo "Collecting tokenizer subword and fixed-window coverage statistics for train/validation/test."
 	$(PYTHON) -m lib.dataset_subword_stats --tokenizer "$(DATASET_SUBWORD_STATS_TOKENIZER)" --split train="$(TRAIN_JSONL)" --split validation="$(VALIDATION_JSONL)" --split test="$(TEST_JSONL)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" $(foreach length,$(DATASET_SUBWORD_STATS_SEQUENCE_LENGTHS),--sequence-length "$(length)") --output-json "$(DATASET_SUBWORD_STATS_JSON)" $(ARGS)
@@ -279,13 +286,19 @@ eval-disagreement-state:
 	$(PYTHON) -m lib.curation_state --section legacy --curation-output-dir "$(CURATION_OUTPUT_DIR)" --curation-input-dir "$(CURATION_INPUT_DIR)" --curation-applied-dir "$(CURATION_APPLIED_DIR)" $(ARGS)
 
 audit-empty-training-docs:
-	@echo "Auditing training documents with no gold entities for suspicious missed media-source mentions."
-	$(PYTHON) -m lib.audit_empty_training_docs prepare --input-jsonl "$(EMPTY_TRAIN_SOURCE_JSONL)" --label-map "$(EMPTY_TRAIN_LABEL_MAP)" --output-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --summary-json "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prepare_summary.json"
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(EMPTY_TRAIN_MODEL)" --eval-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --label-map "$(EMPTY_TRAIN_LABEL_MAP)" --output-dir "$(EMPTY_TRAIN_AUDIT_DIR)/eval" --split-name empty_train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
-	$(PYTHON) -m lib.audit_empty_training_docs summarize --source-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_eval_input.jsonl" --predictions-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/eval/empty_train_predictions.jsonl" --candidates-jsonl "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.jsonl" --candidates-tsv "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.tsv" --summary-json "$(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_summary.json"
+	@echo "Auditing train, validation, and test documents with no gold entities using $(EMPTY_DOC_MODEL)."
+	$(MAKE) audit-empty-docs-split EMPTY_DOC_SPLIT=train
+	$(MAKE) audit-empty-docs-split EMPTY_DOC_SPLIT=validation
+	$(MAKE) audit-empty-docs-split EMPTY_DOC_SPLIT=test
 	@echo "Next step:"
-	@echo "  # Review concrete span patches if candidates should enter the dataset."
-	@echo "  make review-span-patches"
+	@echo "  # Review one split's concrete span patches."
+	@echo "  make review-span-patches EMPTY_DOC_SPLIT=train REVIEWER=\"$$USER\""
+
+audit-empty-docs-split:
+	@echo "Auditing empty-gold $(EMPTY_DOC_SPLIT) documents for suspicious missed media-source mentions."
+	$(PYTHON) -m lib.audit_empty_training_docs prepare --input-jsonl "$(EMPTY_DOC_SOURCE_JSONL)" --label-map "$(EMPTY_DOC_LABEL_MAP)" --output-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval_input.jsonl" --summary-json "$(EMPTY_DOC_AUDIT_DIR)/prepare_summary.json"
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(EMPTY_DOC_MODEL)" --use-checkpoint-label-map --eval-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval_input.jsonl" --label-map "$(EMPTY_DOC_LABEL_MAP)" --output-dir "$(EMPTY_DOC_AUDIT_DIR)/eval" --split-name empty_docs --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	$(PYTHON) -m lib.audit_empty_training_docs summarize --source-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval_input.jsonl" --predictions-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval/empty_docs_predictions.jsonl" --candidates-jsonl "$(EMPTY_DOC_AUDIT_DIR)/prediction_candidates.jsonl" --candidates-tsv "$(EMPTY_DOC_AUDIT_DIR)/prediction_candidates.tsv" --summary-json "$(EMPTY_DOC_AUDIT_DIR)/prediction_summary.json"
 
 audit-missing-spans:
 	@echo "Building a target-specific missing-span audit queue for $(MISSING_SPAN_TARGET_LABEL) in $(MISSING_SPAN_SPLIT)."
@@ -386,14 +399,14 @@ review-span-patches:
 	$(PYTHON) -m lib.span_patch_review --candidates "$(SPAN_PATCH_CANDIDATES)" --decisions "$(SPAN_PATCH_DECISIONS)" --audit-id "$(SPAN_PATCH_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(SPAN_PATCH_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(SPAN_PATCH_SUMMARY_JSON)" --queue-jsonl "$(SPAN_PATCH_QUEUE_JSONL)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Apply accepted or corrected span patches."
-	@echo "  make apply-span-patches"
+	@echo "  make apply-span-patches EMPTY_DOC_SPLIT=$(EMPTY_DOC_SPLIT)"
 
 apply-span-patches:
 	@echo "Applying accepted or corrected span-patch decisions to a patched JSONL split."
 	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(SPAN_PATCH_SOURCE_JSONL)" --output-jsonl "$(SPAN_PATCH_OUTPUT_JSONL)" --candidates "$(SPAN_PATCH_CANDIDATES)" --decisions "$(SPAN_PATCH_DECISIONS)" --audit-id "$(SPAN_PATCH_AUDIT_ID)" --target-label "$(SPAN_PATCH_TARGET_LABEL)" --changes-jsonl "$(SPAN_PATCH_CHANGES_JSONL)" --changes-tsv "$(SPAN_PATCH_CHANGES_TSV)" --summary-json "$(SPAN_PATCH_APPLY_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Check whether the patched split is ready for promotion."
-	@echo "  make span-patch-status"
+	@echo "  make span-patch-status EMPTY_DOC_SPLIT=$(EMPTY_DOC_SPLIT)"
 
 span-patch-status:
 	@echo "Checking whether the span-patch output is ready for promotion."
@@ -414,7 +427,7 @@ promote-span-patches:
 	$(MAKE) validate-dataset-splits
 
 integrate-span-patches: apply-span-patches promote-span-patches
-	@echo "Span-patch integration complete."
+	@echo "Span-patch integration complete for $(EMPTY_DOC_SPLIT)."
 
 search-tsv: materialize-dataset-tsv-quiet
 ifeq ($(strip $(TSV_PATCH_SPLIT)),)

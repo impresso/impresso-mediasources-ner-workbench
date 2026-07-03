@@ -122,17 +122,17 @@ make review-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=
 make integrate-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
 ```
 
-For broad empty-gold training-row scans, use:
+For broad empty-gold scans, the audit command scores train, validation, and test. Review and integrate one split at a time:
 
 ```bash
 make audit-empty-training-docs CFG=configs/model-v2.0.0.mk
-make review-span-patches CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make apply-span-patches CFG=configs/model-v2.0.0.mk
-make span-patch-status CFG=configs/model-v2.0.0.mk
-make promote-span-patches CFG=configs/model-v2.0.0.mk
+make review-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation REVIEWER="$USER"
+make apply-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation
+make span-patch-status CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation
+make promote-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation
 ```
 
-Use `make integrate-span-patches CFG=configs/model-v2.0.0.mk` when you want to apply accepted decisions and immediately promote the patched split into the configured prerelease/source split.
+Use `make integrate-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation` when you want to apply accepted decisions and immediately promote that patched split into the configured prerelease/source split.
 
 For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
 

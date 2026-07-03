@@ -621,16 +621,16 @@ mentionne	O	O
 la	O	O
 nouvelle	O	O
 de	O	O
-l'agence	O	B-org.ent.pressagency.ddp-dapd
-«	O	I-org.ent.pressagency.ddp-dapd
-Deutscher	B-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
+l'agence	B-org.ent.pressagency.ddp-dapd	B-org.ent.pressagency.ddp-dapd
+«	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
+Deutscher	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
 Depeschendienst	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
-»	O	I-org.ent.pressagency.ddp-dapd
-(	O	I-org.ent.pressagency.ddp-dapd
-«	O	I-org.ent.pressagency.ddp-dapd
-DDP	O	I-org.ent.pressagency.ddp-dapd
-»	O	I-org.ent.pressagency.ddp-dapd
-)	O	I-org.ent.pressagency.ddp-dapd
+»	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
+(	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
+«	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
+DDP	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
+»	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
+)	I-org.ent.pressagency.ddp-dapd	I-org.ent.pressagency.ddp-dapd
 ,	O	O
 reprise	O	O
 par	O	O
@@ -1580,7 +1580,7 @@ afp	B-org.ent.pressagency.afp	B-org.ent.pressagency.afp
 # document_id = FZG-1981-05-27-a-i0079#match-0
 # split = validation
 # action = ignored
-# context = Radio- und Fernsehgesellschaft unter der Bezeichnung « Radio Fribourg » spezielle lokale Sendungen aus dem welschen
+# context = Radio- und Fernsehgesellschaft unter der Bezeichnung « Radio Fribourg » spezielle lokale Sendungen aus dem welschen Teil unseres Kantons ausstrahlen. (cd) Nachdem die « Radio-Television Suisse Romande » (RTSR) an den Comptoir-Ausstellungen des Unterwallis kürzlich mit eigenen
 TOKEN	BEFORE_NERTAG	AFTER_NERTAG
 Radio	O	O
 -	O	O
@@ -1599,6 +1599,32 @@ Sendungen	O	O
 aus	O	O
 dem	O	O
 welschen	O	O
+Teil	O	O
+unseres	O	O
+Kantons	O	O
+ausstrahlen	O	O
+.	O	O
+(	O	O
+cd	O	O
+)	O	O
+Nachdem	O	O
+die	O	O
+«	B-org.ent.radiostation.rts	B-org.ent.radiostation.rts
+Radio-Television	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+Suisse	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+Romande	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+»	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+(	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+RTSR	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+)	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+an	O	O
+den	O	O
+Comptoir-Ausstellungen	O	O
+des	O	O
+Unterwallis	O	O
+kürzlich	O	O
+mit	O	O
+eigenen	O	O
 
 # review_id = validation:FZG-1981-05-27-a-i0079#match-0:87fbf206504d013a
 # document_id = FZG-1981-05-27-a-i0079#match-0
@@ -1614,14 +1640,14 @@ cd	O	O
 )	O	O
 Nachdem	O	O
 die	O	O
-«	O	B-org.ent.radiostation.rts
-Radio-Television	O	I-org.ent.radiostation.rts
-Suisse	O	I-org.ent.radiostation.rts
-Romande	O	I-org.ent.radiostation.rts
-»	O	I-org.ent.radiostation.rts
-(	O	I-org.ent.radiostation.rts
-RTSR	O	I-org.ent.radiostation.rts
-)	O	I-org.ent.radiostation.rts
+«	B-org.ent.radiostation.rts	B-org.ent.radiostation.rts
+Radio-Television	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+Suisse	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+Romande	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+»	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+(	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+RTSR	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
+)	I-org.ent.radiostation.rts	I-org.ent.radiostation.rts
 an	O	O
 den	O	O
 Comptoir-Ausstellungen	O	O

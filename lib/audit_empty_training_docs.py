@@ -262,7 +262,7 @@ def summarize_predictions(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Audit training documents that have no annotated entities.")
+    parser = argparse.ArgumentParser(description="Audit dataset documents that have no annotated entities.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare = subparsers.add_parser("prepare", help="Filter empty-gold documents and add token label ids for classifier evaluation.")

@@ -18,16 +18,4 @@ CURATION_LABEL_MAP = $(CURATION_MODEL)/label_map.json
 CURATION_INPUT_DIR = $(DATASET_SOURCE_DIR)
 CURATION_APPLIED_DIR = $(DATASET_SOURCE_DIR)
 
-EMPTY_TRAIN_SOURCE_JSONL = data/prereleases/dataset-v2.0.0/train.jsonl
-EMPTY_TRAIN_LABEL_MAP = data/prereleases/dataset-v2.0.0/label_map.json
-EMPTY_TRAIN_AUDIT_DIR = audit.d/empty-training-docs/dataset-v2.0.0
-SPAN_PATCH_AUDIT_ID = empty-training-docs-v2.0.0
-SPAN_PATCH_CANDIDATES = $(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.jsonl
-SPAN_PATCH_DECISIONS = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/decisions.jsonl
-SPAN_PATCH_QUEUE_JSONL = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/queue.jsonl
-SPAN_PATCH_SUMMARY_JSON = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/summary.json
-SPAN_PATCH_SOURCE_JSONL = $(EMPTY_TRAIN_SOURCE_JSONL)
-SPAN_PATCH_OUTPUT_JSONL = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/patched.jsonl
-SPAN_PATCH_CHANGES_JSONL = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/changes.jsonl
-SPAN_PATCH_CHANGES_TSV = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/changes.tsv
-SPAN_PATCH_APPLY_SUMMARY_JSON = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/apply_summary.json
+EMPTY_DOC_AUDIT_ROOT = audit.d/empty-docs/dataset-v2.0.0
