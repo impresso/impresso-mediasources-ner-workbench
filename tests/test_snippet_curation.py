@@ -6,7 +6,7 @@ from pathlib import Path
 import lib.sample_newsagencies as sample_newsagencies
 from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
-from lib.export_snippet_training_data import apply_holdout_deficit_assignments, apply_split_assignments, export_rows, write_split_outputs
+from lib.export_snippet_training_data import apply_holdout_deficit_assignments, apply_split_assignments, deduplicate_exported_rows, export_rows, write_split_outputs
 from lib.review_newsagency_snippets import (
     confirm_annotation_finished,
     coverage_priority,
@@ -61,6 +61,26 @@ def test_tokenize_with_offsets_keeps_character_spans() -> None:
 
     assert tokens == ["Selon", "l'Agence", "Havas", "."]
     assert [text[start:stop] for start, stop in zip(starts, stops, strict=True)] == tokens
+
+
+def test_export_deduplicates_identical_materialized_snippet_rows() -> None:
+    row = {"id": "doc#snippet-a", "document_id": "doc#snippet-a", "text": "SPK", "token_labels": ["B-spk"]}
+
+    assert deduplicate_exported_rows([row, dict(row)]) == [row]
+
+
+def test_export_rejects_conflicting_materialized_snippet_ids() -> None:
+    rows = [
+        {"document_id": "doc#snippet-a", "text": "SPK"},
+        {"document_id": "doc#snippet-a", "text": "AKP"},
+    ]
+
+    try:
+        deduplicate_exported_rows(rows)
+    except ValueError as exc:
+        assert "duplicate exported snippet ID has conflicting row content" in str(exc)
+    else:
+        raise AssertionError("expected conflicting duplicate ID error")
 
 
 def test_candidate_text_prefers_cleaned_matches_over_generic_snippet() -> None:

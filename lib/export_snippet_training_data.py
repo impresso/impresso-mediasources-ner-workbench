@@ -457,6 +457,22 @@ def unique_row_id(base_id: str, text: str, spans: list[dict[str, Any]], id_count
     return f"{base_id}#snippet-{digest}"
 
 
+def deduplicate_exported_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse repeated materializations while rejecting ID collisions."""
+    unique: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        row_id = str(row.get("document_id") or row.get("id") or "")
+        previous = unique.get(row_id)
+        if previous is None:
+            unique[row_id] = row
+            continue
+        if previous != row:
+            raise ValueError(
+                f"{row_id}: duplicate exported snippet ID has conflicting row content"
+            )
+    return list(unique.values())
+
+
 def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata: list[Path] | None = None) -> list[dict[str, Any]]:
     label_map = load_label_map(label_map_path)
     if extra_label_metadata:
@@ -520,7 +536,7 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
                 },
             }
         )
-    return exported
+    return deduplicate_exported_rows(exported)
 
 
 def write_split_outputs(rows: list[dict[str, Any]], *, output: Path, validation_output: Path | None, test_output: Path | None) -> dict[str, int]:
