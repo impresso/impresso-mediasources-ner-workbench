@@ -161,9 +161,12 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
             surface = token_window_surface(tokens, start, stop)
             surface_compact = compact(surface)
             for alias, alias_compact, alias_token_len in alias_forms:
+                alias_tail = alias.rstrip()[-1:]
+                if has_word_char(tokens[stop - 1]) and not has_word_char(alias_tail) and stop < len(tokens) and tokens[stop] == alias_tail:
+                    continue
                 if not has_word_char(tokens[stop - 1]) and has_word_char(alias.rstrip()[-1:]):
                     continue
-                if not has_word_char(tokens[stop - 1]) and not has_word_char(alias.rstrip()[-1:]) and stop - start != alias_token_len:
+                if not has_word_char(tokens[stop - 1]) and not has_word_char(alias_tail) and tokens[stop - 1] != alias_tail:
                     continue
                 if (
                     not has_word_char(tokens[stop - 1])
@@ -407,6 +410,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--auto-accept-min-confidence", type=float, default=0.99)
     parser.add_argument("--auto-accept-min-margin", type=float, default=0.30)
     parser.add_argument("--auto-accept-multiple-min-confidence", type=float, default=0.99)
+    parser.add_argument("--auto-accept", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args(argv)
 
 

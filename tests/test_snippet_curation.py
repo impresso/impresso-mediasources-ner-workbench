@@ -87,6 +87,28 @@ def test_newsagency_curation_status_auto_accepts_matching_confident_span() -> No
     assert curation_status(row, spans, min_confidence=0.95, min_margin=0.30) == ("auto_accepted", [])
 
 
+def test_newsagency_curation_status_can_disable_auto_accept() -> None:
+    row = {"candidate_label": "org.ent.pressagency.tanjug"}
+    spans = [
+        {
+            "token_start": 1,
+            "token_stop": 3,
+            "label": "org.ent.pressagency.tanjug",
+            "surface": "Tan-Jug.",
+            "confidence": 1.0,
+            "margin": 1.0,
+        }
+    ]
+
+    assert curation_status(
+        row,
+        spans,
+        min_confidence=0.99,
+        min_margin=0.30,
+        auto_accept=False,
+    ) == ("needs_review", ["manual_review_required"])
+
+
 def test_newsagency_scorer_missing_input_explains_next_steps(tmp_path: Path) -> None:
     candidates = tmp_path / "data" / "candidates"
     candidates.mkdir(parents=True)
@@ -308,6 +330,25 @@ def test_alias_matcher_keeps_final_period_for_dotted_ats_alias() -> None:
             "margin": 1.0,
             "matcher": "alias_compact",
             "alias": "A.T.S.",
+        }
+    ]
+
+
+def test_alias_matcher_does_not_absorb_closing_parenthesis() -> None:
+    tokens = ["(", "Tan-Jug", ".", ")"]
+
+    spans = find_alias_spans(tokens, ["Tan Jug."], "org.ent.pressagency.tanjug")
+
+    assert spans == [
+        {
+            "token_start": 1,
+            "token_stop": 3,
+            "label": "org.ent.pressagency.tanjug",
+            "surface": "Tan-Jug .",
+            "confidence": 1.0,
+            "margin": 1.0,
+            "matcher": "alias_compact",
+            "alias": "Tan Jug.",
         }
     ]
 

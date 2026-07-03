@@ -210,6 +210,7 @@ def curation_status(
     min_confidence: float,
     min_margin: float,
     multiple_min_confidence: float = 0.99,
+    auto_accept: bool = True,
 ) -> tuple[str, list[str]]:
     target = candidate_label(row)
     reasons: list[str] = []
@@ -234,6 +235,8 @@ def curation_status(
         reasons.append("generic_surface_only")
     if len(spans) > 1 and not all(is_high_confidence_span(span, min_confidence=multiple_min_confidence, min_margin=min_margin) for span in spans):
         reasons.append("multiple_predicted_spans")
+    if not reasons and not auto_accept:
+        reasons.append("manual_review_required")
     return ("auto_accepted" if not reasons else "needs_review"), reasons
 
 
@@ -389,6 +392,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
             min_confidence=args.auto_accept_min_confidence,
             min_margin=args.auto_accept_min_margin,
             multiple_min_confidence=args.auto_accept_multiple_min_confidence,
+            auto_accept=bool(getattr(args, "auto_accept", True)),
         )
         out = dict(row)
         out["id"] = candidate_id(row, index)
@@ -418,6 +422,13 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     return {"rows": len(rows), **counts, "output": args.output}
 
 
+def probability(value: str) -> float:
+    parsed = float(value)
+    if not 0.0 <= parsed <= 1.0:
+        raise argparse.ArgumentTypeError("must be between 0 and 1")
+    return parsed
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Suggest known media-source spans in sampled press-agency snippets.")
     parser.add_argument("--input", required=True)
@@ -428,9 +439,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--newspapers", default="resources/newspaper_seeds.json")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)
-    parser.add_argument("--auto-accept-min-confidence", type=float, default=0.99)
-    parser.add_argument("--auto-accept-min-margin", type=float, default=0.30)
-    parser.add_argument("--auto-accept-multiple-min-confidence", type=float, default=0.99)
+    parser.add_argument("--auto-accept-min-confidence", type=probability, default=0.99)
+    parser.add_argument("--auto-accept-min-margin", type=probability, default=0.30)
+    parser.add_argument("--auto-accept-multiple-min-confidence", type=probability, default=0.99)
+    parser.add_argument("--auto-accept", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args(argv)
 
 
