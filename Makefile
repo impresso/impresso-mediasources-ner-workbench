@@ -13,10 +13,15 @@ endif
 
 export HF_HOME
 
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run dataset-housekeeping validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: plan-holdout-gaps sample-holdout-gaps
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
+	@echo ""
+	@echo "Housekeeping:"
+	@echo "  make anno-housekeeping  Refresh annotation checks, coverage, profiles, and curation state"
+	@echo "  make data-housekeeping  Refresh dataset checks, TSV views, statistics, and quality reports"
 	@echo ""
 	@echo "Main help groups:"
 	@echo "  make help-anno               Annotation sampling, review, audit, and promotion"
@@ -41,6 +46,8 @@ help-anno:
 	@echo "Use this group for curator work: inspect state, sample or audit evidence, suggest spans, review decisions, split/apply reviewed material, and promote it into dataset splits."
 	@echo ""
 	@echo "State and diagnostics:"
+	@echo "  make anno-housekeeping  Refresh all annotation checks, statistics, profiles, and state reports"
+	@echo ""
 	@echo "  make curation-dashboard       Run all read-only state/stats targets in sequence"
 	@echo "  make annotation-stats         Summarize annotation coverage by label/language"
 	@echo "  make mention-profiles         Generate empirical entity mention-surface profiles"
@@ -87,6 +94,8 @@ help-anno:
 	@echo "Media-source snippet annotation:"
 	@echo "  make plan-media-sampling MEDIA_FAMILY=pressagency"
 	@echo "                                             Plan focused sampling from coverage, pending work, and mention surfaces"
+	@echo "  make sample-holdout-gaps MEDIA_FAMILY=pressagency HOLDOUT_MIN_PER_LABEL=5"
+	@echo "                                             Sample labels below validation/test positive-count targets"
 	@echo "  make sample-media-snippets MEDIA_FAMILY=pressagency"
 	@echo "                                             Focused sample press-agency label/language/surface gaps"
 	@echo "  make sample-media-snippets MEDIA_FAMILY=radiostation ARGS=\"--labels org.ent.radiostation.rtl\""
@@ -122,7 +131,7 @@ help-data:
 	@echo "Use this group for dataset integrity, state snapshots, exports, and publishing. Promotion targets integrate reviewed local curation artifacts into the configured prerelease/source splits."
 	@echo ""
 	@echo "Validation and state:"
-	@echo "  make dataset-housekeeping                  Run all dataset checks and refresh inspection reports"
+	@echo "  make data-housekeeping                     Run all dataset checks and refresh inspection reports"
 	@echo ""
 	@echo "  make validate-labels                       Validate canonical label metadata"
 	@echo "  make validate-dataset-splits               Check train/validation/test split integrity"
@@ -199,7 +208,7 @@ validate-labels:
 	@echo "Validating canonical news-agency and radio-station label metadata."
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json
 
-dataset-housekeeping:
+data-housekeeping:
 	@echo "Running complete housekeeping for the configured dataset and checker model."
 	$(MAKE) sync-label-map
 	$(MAKE) validate-labels
@@ -232,7 +241,7 @@ dataset-statistics:
 
 dataset-quality-analysis: dataset-statistics curation-eval-validation curation-eval-test
 	@echo "Analyzing current validation/test quality and per-entity test coverage."
-	$(PYTHON) -m lib.dataset_quality_report --validation "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --validation-metrics "$(CURATION_OUTPUT_DIR)/eval/validation_metrics.json" --test "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --test-metrics "$(CURATION_OUTPUT_DIR)/eval/test_metrics.json" --output "$(DATASET_QUALITY_MD)" --release "$(DATASET_REVISION)" --model "$(CURATION_MODEL)" $(ARGS)
+	$(PYTHON) -m lib.dataset_quality_report --train "$(TRAIN_JSONL)" --validation "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --validation-metrics "$(CURATION_OUTPUT_DIR)/eval/validation_metrics.json" --test "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --test-metrics "$(CURATION_OUTPUT_DIR)/eval/test_metrics.json" --output "$(DATASET_QUALITY_MD)" --release "$(DATASET_REVISION)" --model "$(CURATION_MODEL)" $(ARGS)
 	@echo "Report: $(DATASET_QUALITY_MD)"
 
 dataset-subword-stats:
@@ -284,6 +293,27 @@ curation-dashboard:
 	$(MAKE) snippet-state
 	$(MAKE) eval-disagreement-state
 	$(MAKE) dataset-state
+
+anno-housekeeping:
+	@echo "Running complete non-interactive housekeeping for annotation and curation state."
+	$(MAKE) validate-labels
+	$(MAKE) annotation-stats
+	$(MAKE) mention-profiles
+	@if [ -f "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" ] && [ -f "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" ]; then \
+		$(PYTHON) -m lib.validate_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --no-require-complete; \
+	else \
+		echo "Disagreement decision validation: skipped (no complete queue/decision file pair)."; \
+	fi
+	$(MAKE) curation-state-json
+	$(MAKE) curation-state
+	@echo "Annotation housekeeping complete."
+	@echo "Reports:"
+	@echo "  $(ANNOTATION_STATS_JSON)"
+	@echo "  $(ANNOTATION_STATS_TSV)"
+	@echo "  $(MENTION_PROFILE_MD)"
+	@echo "  $(MENTION_PROFILE_JSON)"
+	@echo "  $(MENTION_PROFILE_TSV)"
+	@echo "  $(CURATION_STATE_JSON)"
 
 curation-state:
 	@echo "Summarizing all curation, snippet, and dataset state."
@@ -535,6 +565,16 @@ plan-media-sampling:
 	@echo "  # Sample only the planned focused gaps."
 	@echo "  make sample-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY)"
 
+plan-holdout-gaps:
+	@echo "Planning $(MEDIA_FAMILY) holdout gaps below $(HOLDOUT_MIN_PER_LABEL) positive mentions."
+	$(PYTHON) -m lib.plan_holdout_gaps --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --validation "$(VALIDATION_JSONL)" --test "$(TEST_JSONL)" --minimum "$(HOLDOUT_MIN_PER_LABEL)" --sample-factor "$(HOLDOUT_SAMPLE_FACTOR)" --languages $(MEDIA_SAMPLE_LANGS) --max-queries "$(HOLDOUT_MAX_QUERIES_PER_LABEL)" --output "$(HOLDOUT_PLAN_JSON)"
+
+sample-holdout-gaps: plan-holdout-gaps
+	@echo "Sampling $(MEDIA_FAMILY) snippets for validation/test holdout gaps."
+	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --pool-factor "$(MEDIA_SAMPLE_POOL_FACTOR)" --max-per-label "0" --max-queries-per-label "$(HOLDOUT_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --sampling-plan "$(HOLDOUT_PLAN_JSON)" $(ARGS)
+	@echo "Next step:"
+	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) # Suggest spans for holdout-gap samples"
+
 sample-freely-media-snippets:
 	@echo "Sampling $(MEDIA_FAMILY) snippets freely, without restricting to below-target coverage buckets."
 	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --pool-factor "$(MEDIA_SAMPLE_POOL_FACTOR)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" $(ARGS)
@@ -704,7 +744,7 @@ review-auto-media-snippet-spans:
 
 split-media-snippets:
 	@echo "Splitting accepted $(MEDIA_FAMILY) snippet decisions into train/validation/test JSONL."
-	$(PYTHON) -m lib.export_snippet_training_data --input "$(MEDIA_REVIEWED_SNIPPETS)" --output "$(MEDIA_SNIPPET_TRAIN_JSONL)" --validation-output "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --test-output "$(MEDIA_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
+	$(PYTHON) -m lib.export_snippet_training_data --input "$(MEDIA_REVIEWED_SNIPPETS)" --output "$(MEDIA_SNIPPET_TRAIN_JSONL)" --validation-output "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --test-output "$(MEDIA_SNIPPET_TEST_JSONL)" --validation-fraction "$(SNIPPET_VALIDATION_FRACTION)" --test-fraction "$(SNIPPET_TEST_FRACTION)" --split-seed "$(SNIPPET_SPLIT_SEED)" --label-map "$(LABEL_MAP)" --holdout-min-per-label "$(HOLDOUT_MIN_PER_LABEL)" --holdout-source train="$(TRAIN_JSONL)" --holdout-source validation="$(VALIDATION_JSONL)" --holdout-source test="$(TEST_JSONL)" --extra-label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --extra-label-metadata "$(RADIOSTATION_LABEL_METADATA)" --extra-label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Preview integration after snippet splits are up to date."
 	@echo "  make preview-promote-snippets"

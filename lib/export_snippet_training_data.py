@@ -356,6 +356,82 @@ def apply_split_assignments(rows: list[dict[str, Any]], *, test_fraction: float,
     return out
 
 
+def positive_label_counts(rows: list[dict[str, Any]]) -> Counter[str]:
+    return Counter(
+        str(entity.get("label"))
+        for row in rows
+        for entity in (row.get("entities") or [])
+        if str(entity.get("label") or "").startswith("org.ent.")
+    )
+
+
+def apply_holdout_deficit_assignments(
+    rows: list[dict[str, Any]],
+    *,
+    existing_by_split: dict[str, list[dict[str, Any]]],
+    minimum: int,
+    test_fraction: float,
+    validation_fraction: float,
+    seed: int,
+) -> list[dict[str, Any]]:
+    normal = split_group_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=seed)
+    existing_id_split = {
+        str(row.get("document_id") or row.get("id")): split
+        for split, existing_rows in existing_by_split.items()
+        for row in existing_rows
+    }
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        groups.setdefault(str(row["split_group"]), []).append(row)
+
+    assignments: dict[str, str] = {}
+    for group, group_rows in groups.items():
+        existing_splits = {
+            existing_id_split[str(row.get("document_id") or row.get("id"))]
+            for row in group_rows
+            if str(row.get("document_id") or row.get("id")) in existing_id_split
+        }
+        if len(existing_splits) > 1:
+            raise ValueError(f"split group {group} already occurs in multiple dataset splits: {sorted(existing_splits)}")
+        if existing_splits:
+            assignments[group] = next(iter(existing_splits))
+
+    deficits = {
+        split: Counter(
+            {
+                label: max(minimum - count, 0)
+                for label, count in positive_label_counts(existing_by_split.get(split, [])).items()
+            }
+        )
+        for split in ("test", "validation")
+    }
+    all_labels = {str(entity.get("label")) for row in rows for entity in (row.get("entities") or [])}
+    for split in deficits:
+        for label in all_labels:
+            deficits[split].setdefault(label, minimum)
+
+    new_groups = [group for group in groups if group not in assignments]
+    new_groups.sort(key=lambda group: stable_digest(group, seed))
+    for split in ("test", "validation"):
+        while any(value > 0 for value in deficits[split].values()):
+            ranked = []
+            for group in new_groups:
+                if group in assignments:
+                    continue
+                counts = positive_label_counts(groups[group])
+                benefit = sum(min(count, deficits[split][label]) for label, count in counts.items())
+                if benefit:
+                    ranked.append((-benefit, stable_digest(group, seed), group, counts))
+            if not ranked:
+                break
+            _, _, group, counts = min(ranked)
+            assignments[group] = split
+            for label, count in counts.items():
+                deficits[split][label] = max(0, deficits[split][label] - count)
+
+    return [{**row, "split": assignments.get(str(row["split_group"]), normal.get(str(row["split_group"]), "train"))} for row in rows]
+
+
 def unique_row_id(base_id: str, text: str, spans: list[dict[str, Any]], id_counts: Counter[str]) -> str:
     if id_counts[base_id] <= 1:
         return base_id
@@ -473,6 +549,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--split-seed", type=int, default=42)
     parser.add_argument("--label-map", required=True)
     parser.add_argument("--extra-label-metadata", action="append", default=[])
+    parser.add_argument("--holdout-source", action="append", default=[], help="Existing split as SPLIT=PATH.")
+    parser.add_argument("--holdout-min-per-label", type=int, default=0)
     return parser.parse_args(argv)
 
 
@@ -481,7 +559,23 @@ def main(argv: list[str] | None = None) -> int:
     rows = export_rows(Path(args.input), Path(args.label_map), extra_label_metadata=[Path(path) for path in args.extra_label_metadata])
     test_fraction = args.test_fraction if args.test_output else 0.0
     validation_fraction = args.validation_fraction if args.validation_output else 0.0
-    rows = apply_split_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=args.split_seed)
+    existing_by_split: dict[str, list[dict[str, Any]]] = {}
+    for item in args.holdout_source:
+        split, separator, path = item.partition("=")
+        if not separator or split not in {"train", "validation", "test"}:
+            raise ValueError(f"invalid --holdout-source {item!r}; expected train|validation|test=PATH")
+        existing_by_split[split] = load_jsonl(Path(path))
+    if args.holdout_min_per_label > 0:
+        rows = apply_holdout_deficit_assignments(
+            rows,
+            existing_by_split=existing_by_split,
+            minimum=args.holdout_min_per_label,
+            test_fraction=test_fraction,
+            validation_fraction=validation_fraction,
+            seed=args.split_seed,
+        )
+    else:
+        rows = apply_split_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=args.split_seed)
     counts = write_split_outputs(
         rows,
         output=Path(args.output),

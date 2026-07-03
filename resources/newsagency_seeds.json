@@ -51,6 +51,55 @@
     ]
   },
   {
+    "canonical_id": "akp",
+    "label": "org.ent.pressagency.akp",
+    "display_name": "Agence Kampuchea Presse",
+    "aliases": [
+      "Agence Kampuchea Presse",
+      "Agence Kampuchea Press",
+      "AKP",
+      "Sarpordamean Kampuchea",
+      "Sapordamean Kampuchea",
+      "Cambodian News Agency",
+      "Kampuchea News Agency",
+      "agence cambodgienne SPK"
+    ],
+    "search_aliases": ["SPK", "Agence Kampuchea Presse", "Agence Kampuchea Press", "Sarpordamean Kampuchea"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Agence_Kampuchea_Press",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "Cambodia's official state news agency, established in late 1978 under the historical name Sarpordamean Kampuchea (SPK) and renamed Agence Kampuchea Presse / Agence Kampuchea Press (AKP) after the 1993 elections.",
+    "active_period": {
+      "start": "1978",
+      "end": null,
+      "note": "Known as SPK from its establishment in 1978 until its post-1993 renaming as AKP; still active."
+    },
+    "aliases_by_language": {
+      "en": ["Agence Kampuchea Press", "AKP", "Sarpordamean Kampuchea", "Cambodian News Agency", "Kampuchea News Agency"],
+      "de": ["Kambodschanische Nachrichtenagentur SPK", "Nachrichtenagentur SPK", "AKP"],
+      "fr": ["Agence Kampuchea Presse", "agence cambodgienne SPK", "agence de presse cambodgienne SPK", "AKP"]
+    },
+    "contextual_aliases": [
+      {
+        "alias": "SPK",
+        "use": "historical_country_context",
+        "note": "Normalize SPK to AKP when Cambodian, Kampuchean, or Phnom Penh context identifies the state news agency, especially in 1978-1993 reporting. Do not confuse it with the Swiss SPK/SMP agency."
+      }
+    ],
+    "annotation_note": "Use org.ent.pressagency.akp for Cambodian/Kampuchean SPK and modern AKP. In phrases such as l'agence cambodgienne SPK, annotate the full visible agency phrase. Bare SPK requires Cambodian/Kampuchean context; Swiss SPK references belong to org.ent.pressagency.spk-smp.",
+    "metadata_sources": [
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Agence_Kampuchea_Press"
+      },
+      {
+        "type": "official-history",
+        "url": "https://mirror.pia.gov.ph/news/2023/05/12/asean-journalists-tour-cambodian-state-media-facilities"
+      }
+    ]
+  },
+  {
     "canonical_id": "ata",
     "label": "org.ent.pressagency.ata",
     "display_name": "Albanian Telegraphic Agency",

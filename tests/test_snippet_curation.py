@@ -6,7 +6,7 @@ from pathlib import Path
 import lib.sample_newsagencies as sample_newsagencies
 from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
-from lib.export_snippet_training_data import apply_split_assignments, export_rows, write_split_outputs
+from lib.export_snippet_training_data import apply_holdout_deficit_assignments, apply_split_assignments, export_rows, write_split_outputs
 from lib.review_newsagency_snippets import (
     confirm_annotation_finished,
     coverage_priority,
@@ -1250,6 +1250,33 @@ def test_export_snippets_three_way_split_keeps_one_train_group_when_possible() -
     split_rows = apply_split_assignments(rows, test_fraction=0.1, validation_fraction=0.1, seed=42)
 
     assert Counter(row["split"] for row in split_rows) == {"train": 1, "validation": 1, "test": 1}
+
+
+def test_holdout_assignment_fills_label_deficits_and_preserves_existing_rows() -> None:
+    label = "org.ent.pressagency.spk-smp"
+    rows = [
+        {"id": "old", "document_id": "old", "split_group": "old-issue", "entities": [{"label": label}]},
+        {"id": "new-test", "document_id": "new-test", "split_group": "new-test-issue", "entities": [{"label": label}]},
+        {"id": "new-val", "document_id": "new-val", "split_group": "new-val-issue", "entities": [{"label": label}]},
+    ]
+    existing = {
+        "train": [],
+        "validation": [{"id": "old", "document_id": "old", "entities": [{"label": label}]}],
+        "test": [],
+    }
+
+    assigned = apply_holdout_deficit_assignments(
+        rows,
+        existing_by_split=existing,
+        minimum=1,
+        test_fraction=0.1,
+        validation_fraction=0.1,
+        seed=42,
+    )
+
+    split_by_id = {row["id"]: row["split"] for row in assigned}
+    assert split_by_id["old"] == "validation"
+    assert sum(row["split"] == "test" for row in assigned) >= 1
 
 
 def test_annotation_stats_counts_dataset_and_snippet_coverage(tmp_path: Path) -> None:

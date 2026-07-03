@@ -134,10 +134,18 @@ Run `make help-anno` when you only need the curation-related targets and common 
 After integrating annotation changes, refresh the configured dataset's label map, integrity checks, human-readable TSV views, state snapshot, statistics, tokenizer/window statistics, and current validation/test quality report with one command:
 
 ```bash
-make dataset-housekeeping
+make data-housekeeping
 ```
 
 This target does not publish the dataset. Validation/test quality evaluation can take time because it runs the configured `CURATION_MODEL` over both held-out splits.
+
+Refresh annotation coverage, mention profiles, disagreement-decision checks, and all annotation state summaries without starting an interactive review:
+
+```bash
+make anno-housekeeping
+```
+
+This target does not apply or promote annotation decisions. Incomplete review queues are reported in the state summaries but do not make housekeeping fail.
 
 ### 0. Inspect current state
 
@@ -222,6 +230,17 @@ The audit uses `CURATION_MODEL` by default, matching the gold-vs-prediction disa
 Use `accept` for a correct suggested span, `modify` for a correct entity with wrong boundary or label, `reject` for a verified false positive, and `skip` when the case needs later research.
 
 ### C. Add new news-agency snippets
+
+To fill labels with fewer than five positive mentions in either validation or test, run:
+
+```bash
+make sample-holdout-gaps MEDIA_FAMILY=pressagency HOLDOUT_MIN_PER_LABEL=5
+make suggest-media-snippet-spans MEDIA_FAMILY=pressagency
+make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
+make integrate-snippets
+```
+
+`plan-holdout-gaps` writes the exact current deficits and a sampler-compatible query plan under `reports.d/holdout-gaps/`. Sampling requests 1.5 times the deficit by default (`HOLDOUT_SAMPLE_FACTOR=1.5`) to allow for false positives and rejected candidates, while split assignment still fills only the exact `HOLDOUT_MIN_PER_LABEL` criterion. During snippet export, existing split placements are preserved and source-issue groups remain together. If rejected samples leave gaps, rerun the cycle.
 
 Use this horizontal-extension path for more examples of existing agencies, language gaps, or newly added canonical agencies. The main coverage languages are German, French, and English; Luxembourgish and Italian are side languages with lower default targets.
 

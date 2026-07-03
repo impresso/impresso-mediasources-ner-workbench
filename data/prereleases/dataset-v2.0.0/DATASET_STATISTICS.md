@@ -6,10 +6,10 @@ This report is generated from the released train, validation, and test JSONL fil
 
 | Split | Documents | With mentions | Tokens | Mentions | Newspapers | Date range |
 |---|---:|---:|---:|---:|---:|---|
-| train | 1,936 | 1,405 | 858,311 | 2,278 | 69 | 1840-01-04 to 2000-12-04 |
-| validation | 244 | 179 | 105,993 | 264 | 38 | 1841-09-28 to 1999-06-03 |
-| test | 259 | 198 | 96,181 | 330 | 33 | 1840-06-16 to 1999-02-26 |
-| **Total** | **2,439** | **1,782** | **1,060,485** | **2,872** | - | - |
+| train | 1,938 | 1,407 | 858,463 | 2,281 | 69 | 1840-01-04 to 2000-12-04 |
+| validation | 245 | 180 | 106,026 | 265 | 38 | 1841-09-28 to 1999-06-03 |
+| test | 260 | 199 | 96,255 | 331 | 34 | 1840-06-16 to 1999-02-26 |
+| **Total** | **2,443** | **1,786** | **1,060,744** | **2,877** | - | - |
 
 ## Split Integrity
 
@@ -19,7 +19,7 @@ No document IDs occur in more than one split.
 
 | Value | Train | Validation | Test | Total |
 |---|---:|---:|---:|---:|
-| `de` | 662 | 78 | 85 | 825 |
+| `de` | 664 | 79 | 86 | 829 |
 | `en` | 78 | 9 | 6 | 93 |
 | `fr` | 1,185 | 156 | 163 | 1,504 |
 | `it` | 2 | 0 | 1 | 3 |
@@ -29,7 +29,7 @@ No document IDs occur in more than one split.
 
 | Value | Train | Validation | Test | Total |
 |---|---:|---:|---:|---:|
-| `press agency` | 1,867 | 210 | 269 | 2,346 |
+| `press agency` | 1,870 | 211 | 270 | 2,351 |
 | `radio station` | 411 | 54 | 61 | 526 |
 
 ## Mentions by Entity Label
@@ -55,7 +55,7 @@ No document IDs occur in more than one split.
 | `org.ent.pressagency.kipa` | 20 | 1 | 6 | 27 |
 | `org.ent.pressagency.palach-press` | 10 | 1 | 3 | 14 |
 | `org.ent.pressagency.reuters` | 282 | 33 | 41 | 356 |
-| `org.ent.pressagency.spk-smp` | 23 | 0 | 1 | 24 |
+| `org.ent.pressagency.spk-smp` | 26 | 1 | 2 | 29 |
 | `org.ent.pressagency.st-petersburg-telegraph-agency` | 13 | 4 | 2 | 19 |
 | `org.ent.pressagency.stefani` | 23 | 1 | 4 | 28 |
 | `org.ent.pressagency.tanjug` | 23 | 5 | 4 | 32 |

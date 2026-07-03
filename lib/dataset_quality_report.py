@@ -54,6 +54,19 @@ def coverage_level(gold: int) -> str:
     return "insufficient"
 
 
+def training_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    by_label: dict[str, int] = {}
+    mentions = 0
+    for row in rows:
+        for entity in row.get("entities") or []:
+            label = str(entity.get("label") or "")
+            if not label:
+                continue
+            mentions += 1
+            by_label[label] = by_label.get(label, 0) + 1
+    return {"documents": len(rows), "mentions": mentions, "by_label": dict(sorted(by_label.items()))}
+
+
 def render_report(results: dict[str, dict[str, Any]], *, release: str, model: str) -> str:
     lines = [
         f"# Validation and Test Quality: {release}",
@@ -69,6 +82,8 @@ def render_report(results: dict[str, dict[str, Any]], *, release: str, model: st
         "| Split | Documents | Gold mentions | Precision | Recall | F1 |",
         "|---|---:|---:|---:|---:|---:|",
     ]
+    train = results["train"]
+    lines.append(f"| train | {train['documents']:,} | {train['mentions']:,} | - | - | - |")
     for split in SPLITS:
         metrics = results[split]["metrics"]
         lines.append(
@@ -76,16 +91,14 @@ def render_report(results: dict[str, dict[str, Any]], *, release: str, model: st
             f"{metrics['entity_precision']:.3f} | {metrics['entity_recall']:.3f} | {metrics['entity_f1']:.3f} |"
         )
 
-    labels = sorted(
-        {label for split in SPLITS for label in results[split]["metrics"].get("entity_by_label", {})}
-    )
+    labels = sorted({*train["by_label"], *(label for split in SPLITS for label in results[split]["metrics"].get("entity_by_label", {}))})
     lines.extend(
         [
             "",
             "## Quality by Entity",
             "",
-            "| Entity label | Val gold | Val F1 | Test gold | Test precision | Test recall | Test F1 | Test coverage |",
-            "|---|---:|---:|---:|---:|---:|---:|---|",
+            "| Entity label | Train gold | Val gold | Val F1 | Test gold | Test precision | Test recall | Test F1 | Test coverage |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---|",
         ]
     )
     for label in labels:
@@ -93,7 +106,7 @@ def render_report(results: dict[str, dict[str, Any]], *, release: str, model: st
         test = results["test"]["metrics"].get("entity_by_label", {}).get(label, {})
         test_gold = int(test.get("gold", 0))
         lines.append(
-            f"| `{label}` | {int(val.get('gold', 0))} | {float(val.get('f1', 0)):.3f} | "
+            f"| `{label}` | {int(train['by_label'].get(label, 0))} | {int(val.get('gold', 0))} | {float(val.get('f1', 0)):.3f} | "
             f"{test_gold} | {float(test.get('precision', 0)):.3f} | {float(test.get('recall', 0)):.3f} | "
             f"{float(test.get('f1', 0)):.3f} | {coverage_level(test_gold)} |"
         )
@@ -102,6 +115,7 @@ def render_report(results: dict[str, dict[str, Any]], *, release: str, model: st
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate a validated Markdown report of validation/test NER quality.")
+    parser.add_argument("--train", required=True)
     for split in SPLITS:
         parser.add_argument(f"--{split}", required=True)
         parser.add_argument(f"--{split}-predictions", required=True)
@@ -111,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", required=True)
     args = parser.parse_args(argv)
 
-    results = {}
+    results = {"train": training_counts(load_jsonl(Path(args.train)))}
     for split in SPLITS:
         source_rows = load_jsonl(Path(getattr(args, split)))
         prediction_rows = load_jsonl(Path(getattr(args, f"{split}_predictions")))
