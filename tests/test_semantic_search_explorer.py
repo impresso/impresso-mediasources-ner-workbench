@@ -4,8 +4,13 @@ import struct
 import pytest
 
 from lib.semantic_search_explorer import (
+    DEV_API_URL,
+    _content_url,
+    _resolve_api_url,
+    build_parser,
     cosine_similarity,
     decode_embedding,
+    embedding_details,
     refine_text,
     word_chunks,
 )
@@ -20,6 +25,22 @@ def test_decode_embedding_and_cosine_similarity() -> None:
     assert decode_embedding(encode([1.0, 2.0])) == [1.0, 2.0]
     assert cosine_similarity([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
     assert cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
+    assert embedding_details(encode([3.0, 4.0])) == {
+        "model": "model",
+        "dimensions": 2,
+        "norm": 5.0,
+        "preview": [3.0, 4.0],
+        "encoded_characters": len(encode([3.0, 4.0])),
+    }
+
+
+def test_dev_environment_uses_dev_impresso_hosts() -> None:
+    args = build_parser().parse_args(["--environment", "dev"])
+
+    assert _resolve_api_url(args) == DEV_API_URL
+    assert _content_url(args, "JDG-1900-01-01-a-i0001") == (
+        "https://dev.impresso-project.ch/app/content-item/JDG-1900-01-01-a-i0001"
+    )
 
 
 def test_word_chunks_overlap_and_cover_tail() -> None:

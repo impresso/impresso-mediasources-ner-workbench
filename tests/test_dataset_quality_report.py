@@ -23,9 +23,10 @@ def test_validate_evaluation_accepts_current_complete_evaluation() -> None:
 
 
 def test_coverage_levels_are_explicit() -> None:
-    assert coverage_level(19) == "insufficient"
-    assert coverage_level(20) == "limited"
-    assert coverage_level(50) == "adequate"
+    assert coverage_level(9) == "insufficient"
+    assert coverage_level(10) == "limited"
+    assert coverage_level(19) == "limited"
+    assert coverage_level(20) == "adequate"
 
 
 def test_quality_report_includes_training_counts_and_train_only_labels() -> None:

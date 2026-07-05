@@ -8,11 +8,13 @@ from typing import Any
 
 from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
 from .score_newsagency_snippets import (
+    all_generic_alias_spans,
     attach_surfaces,
     device_for,
     import_runtime,
     is_unclosed_dotted_acronym,
     labels_to_spans,
+    load_generic_label_metadata,
     normalize_dotted_acronym_spans,
     resolve_model_ref,
     score_tokens,
@@ -334,6 +336,8 @@ def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, An
 def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     metadata = load_station_metadata(Path(args.radiostations))
     press_metadata = load_pressagency_metadata(Path(getattr(args, "newsagencies", "resources/newsagency_seeds.json")))
+    newspapers_path = Path(getattr(args, "newspapers", "resources/newspaper_seeds.json"))
+    newspaper_metadata = load_generic_label_metadata(newspapers_path, expected_prefix="org.ent.newspaper.")
     alias_index = build_alias_index(metadata)
     model_runtime = load_model_runtime(args)
     rows = []
@@ -344,7 +348,13 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         candidate_alias_spans = find_alias_spans(tokens, aliases, label) if label else []
         all_alias_spans = find_all_seed_alias_spans(tokens, metadata)
         press_alias_spans = find_all_press_alias_spans(tokens, press_metadata)
-        alias_spans = attach_offsets(dedupe_spans(candidate_alias_spans + all_alias_spans + press_alias_spans), starts, stops, text)
+        newspaper_alias_spans = all_generic_alias_spans(tokens, newspaper_metadata)
+        alias_spans = attach_offsets(
+            dedupe_spans(candidate_alias_spans + all_alias_spans + press_alias_spans + newspaper_alias_spans),
+            starts,
+            stops,
+            text,
+        )
         model_spans: list[dict[str, Any]] = []
         if model_runtime is not None:
             torch, tokenizer, model, device, _model_name = model_runtime
@@ -368,7 +378,9 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         out["token_end_offsets"] = stops
         out["model"] = {
             "repo_id": str(getattr(args, "model", "") or "alias-matcher"),
-            "scorers": ["radiostation_alias_matcher", "pressagency_alias_matcher"] + (["token_classifier"] if model_runtime is not None else []),
+            "scorers": ["radiostation_alias_matcher", "pressagency_alias_matcher"]
+            + (["newspaper_alias_matcher"] if newspapers_path.is_file() else [])
+            + (["token_classifier"] if model_runtime is not None else []),
             "predicted_spans": spans,
         }
         reasons = []
@@ -404,6 +416,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--radiostations", default="resources/radiostation_seeds.json")
     parser.add_argument("--newsagencies", default="resources/newsagency_seeds.json")
+    parser.add_argument("--newspapers", default="resources/newspaper_seeds.json")
     parser.add_argument("--model", default="")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)

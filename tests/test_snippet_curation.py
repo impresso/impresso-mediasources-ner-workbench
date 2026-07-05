@@ -18,6 +18,7 @@ from lib.review_newsagency_snippets import (
 )
 from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
 from lib.sample_radiostations import parse_args as parse_radiostation_sample_args
+from lib.score_radiostation_snippets import parse_args as parse_radiostation_score_args
 from lib.sample_newsagencies import (
     RateLimitThrottle,
     balanced_select,
@@ -91,6 +92,27 @@ def test_candidate_text_prefers_cleaned_matches_over_generic_snippet() -> None:
     }
 
     assert row_text(row) == "selon Radio-Moscou : le communiqué"
+
+
+def test_radiostation_scorer_accepts_all_entity_metadata_arguments() -> None:
+    args = parse_radiostation_score_args(
+        [
+            "--input",
+            "input.jsonl",
+            "--output",
+            "output.jsonl",
+            "--radiostations",
+            "radio.json",
+            "--newsagencies",
+            "agencies.json",
+            "--newspapers",
+            "newspapers.json",
+        ]
+    )
+
+    assert args.radiostations == "radio.json"
+    assert args.newsagencies == "agencies.json"
+    assert args.newspapers == "newspapers.json"
 
 
 def test_newsagency_curation_status_auto_accepts_matching_confident_span() -> None:

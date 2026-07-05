@@ -11,17 +11,18 @@ Semantic similarity is not evidence that an entity is mentioned. Every candidate
 Run the interactive explorer against the normal API:
 
 ```sh
-make semantic-search ARGS="--environment normal --language de"
+make semantic-search ARGS='--environment normal --language de --query "Telegraphen Union"'
 ```
 
-For a development API, configure its explicit URL:
+For the development API:
 
 ```sh
-IMPRESSO_DEV_API_URL=https://example.invalid/public-api/v1 \
-  make semantic-search ARGS="--environment dev --language de"
+make semantic-search ARGS='--environment dev --language de --query "Telegraphen Union"'
 ```
 
-Alternatively, pass `--api-url` directly. The Impresso client reads a persisted token when available and otherwise prompts for one. Add `--no-persist-token` to avoid storing the entered token.
+This selects `https://dev.impresso-project.ch/public-api/v1`, including the corresponding dev login prompt. Alternatively, pass `--api-url` directly. The Impresso client reads a persisted token when available and otherwise prompts for one. Add `--no-persist-token` to avoid storing the entered token.
+
+Omit `--query` to enter one query line after connecting. The command handles one query and then exits after optional passage refinement.
 
 The prototype workflow is:
 
@@ -31,6 +32,8 @@ The prototype workflow is:
 4. Retrieve the full article text.
 5. Split it into overlapping word chunks and embed each chunk.
 6. Keep the closest chunk, halve its size, and repeat until the configured minimum or round count is reached.
+
+The CLI prints the embedding model tag, vector dimensions, norm, a short numeric preview, active search filters, response pagination, and the generated Impresso search URL. Article text availability is not used as a semantic-search filter; full text is requested only after selecting a result.
 
 Useful controls are `--limit`, `--initial-chunk-words`, `--min-chunk-words`, `--rounds`, and `--overlap`.
 

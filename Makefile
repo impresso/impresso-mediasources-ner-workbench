@@ -53,7 +53,7 @@ help-anno:
 	@echo "  make mention-profiles         Generate empirical entity mention-surface profiles"
 	@echo "  make entity-surface-frequencies ENTITY_LABEL=org.ent.pressagency.havas"
 	@echo "                                Print case-insensitive surface frequencies by language"
-	@echo "  make semantic-search ARGS=\"--environment normal --language de\""
+	@echo "  make semantic-search ARGS='--environment normal --language de --query \"Telegraphen Union\"'"
 	@echo "                                Explore embedding search and recursively narrow result passages"
 	@echo "  make curation-state           Summarize all curation and dataset state"
 	@echo "  make snippet-state            Summarize snippet sampling/suggestion/review/split state"

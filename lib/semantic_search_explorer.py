@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import base64
 import math
-import os
 import struct
 from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
 
 APP_CONTENT_URL = "https://impresso-project.ch/app/content-item/{document_id}"
+DEV_APP_CONTENT_URL = "https://dev.impresso-project.ch/app/content-item/{document_id}"
+DEV_API_URL = "https://dev.impresso-project.ch/public-api/v1"
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,18 @@ def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
     if not left_norm or not right_norm:
         return 0.0
     return sum(a * b for a, b in zip(left, right)) / (left_norm * right_norm)
+
+
+def embedding_details(value: str) -> dict[str, Any]:
+    vector = decode_embedding(value)
+    model, separator, _ = value.partition(":")
+    return {
+        "model": model if separator else "<unprefixed>",
+        "dimensions": len(vector),
+        "norm": math.sqrt(sum(item * item for item in vector)),
+        "preview": vector[:6],
+        "encoded_characters": len(value),
+    }
 
 
 def word_chunks(words: Sequence[str], size: int, overlap: float) -> list[TextChunk]:
@@ -121,13 +134,13 @@ def _resolve_api_url(args: argparse.Namespace) -> str | None:
     if args.api_url:
         return args.api_url
     if args.environment == "dev":
-        api_url = os.getenv("IMPRESSO_DEV_API_URL")
-        if not api_url:
-            raise ValueError(
-                "--environment dev requires --api-url or IMPRESSO_DEV_API_URL"
-            )
-        return api_url
+        return DEV_API_URL
     return None
+
+
+def _content_url(args: argparse.Namespace, document_id: str) -> str:
+    template = DEV_APP_CONTENT_URL if args.environment == "dev" else APP_CONTENT_URL
+    return template.format(document_id=document_id)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -136,6 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--environment", choices=("normal", "dev"), default="normal")
     parser.add_argument("--api-url", help="Explicit API URL; overrides --environment")
+    parser.add_argument("--query", help="Semantic query; otherwise prompt for one line")
     parser.add_argument("--language", help="Optional two-letter language filter")
     parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--initial-chunk-words", type=int, default=180)
@@ -157,72 +171,90 @@ def interactive(args: argparse.Namespace) -> int:
         public_api_url=_resolve_api_url(args),
         persisted_token=not args.no_persist_token,
     )
-    print("Enter semantic search text. Type q to quit.")
-    while True:
-        query = input("\nsearch> ").strip()
-        if query.lower() in {"q", "quit"}:
-            return 0
-        if not query:
-            continue
-        query_embedding = client.tools.embed_text(text=query, target="text")
-        query_vector = decode_embedding(query_embedding)
-        result = client.search.find(
-            embedding=query_embedding,
-            language=args.language,
-            limit=args.limit,
-            with_text_contents=True,
+    query = (args.query or input("Semantic search text: ")).strip()
+    if not query or query.lower() in {"q", "quit"}:
+        return 0
+    print("Embedding query...", flush=True)
+    query_embedding = client.tools.embed_text(text=query, target="text")
+    query_vector = decode_embedding(query_embedding)
+    details = embedding_details(query_embedding)
+    print(
+        "Embedding: "
+        f"target=text model={details['model']} dimensions={details['dimensions']} "
+        f"norm={details['norm']:.6f} encoded_characters={details['encoded_characters']}"
+    )
+    print("Embedding preview: " + " ".join(f"{value:.6f}" for value in details["preview"]))
+    print(f"Searching for the {args.limit} nearest content items...", flush=True)
+    print(
+        f"Search request: api={client.api_url} language={args.language or '<any>'} "
+        f"limit={args.limit} with_text_contents=false"
+    )
+    result = client.search.find(
+        embedding=query_embedding,
+        language=args.language,
+        limit=args.limit,
+    )
+    rows = list(result.raw.get("data", []))
+    pagination = result.raw.get("pagination") or {}
+    print(
+        f"Search response: rows={len(rows)} total={pagination.get('total', result.total)} "
+        f"offset={pagination.get('offset', result.offset)} limit={pagination.get('limit', result.limit)}"
+    )
+    if result.url:
+        print(f"Search URL: {result.url}")
+    if not rows:
+        print(
+            "No results for this request. The embedding was generated successfully; "
+            "the empty response therefore comes from search availability or the active language filter."
         )
-        rows = list(result.raw.get("data", []))
-        if not rows:
-            print("No results.")
+        return 0
+    print(f"\nTop {len(rows)} results:")
+    for index, row in enumerate(rows, 1):
+        print(f"  {index}. {_summary(row)}")
+        print(f"     {_content_url(args, str(row.get('id')))}")
+    while True:
+        choice = input(
+            f"Narrow result [1-{len(rows)}, a=all, Enter=1, q=quit]> "
+        ).strip().lower()
+        if choice in {"q", "quit"}:
+            return 0
+        try:
+            indexes = list(range(len(rows))) if choice == "a" else [int(choice or "1") - 1]
+            if any(index < 0 or index >= len(rows) for index in indexes):
+                raise ValueError
+        except ValueError:
+            print(f"Choose 1-{len(rows)}, a, or q.")
             continue
-        print(f"\nTop {len(rows)} results:")
-        for index, row in enumerate(rows, 1):
-            print(f"  {index}. {_summary(row)}")
-            print(f"     {APP_CONTENT_URL.format(document_id=row.get('id'))}")
-        while True:
-            choice = input(
-                f"Narrow result [1-{len(rows)}, a=all, Enter=1, s=new search, q=quit]> "
-            ).strip().lower()
-            if choice in {"q", "quit"}:
-                return 0
-            if choice in {"s", "search"}:
-                break
-            try:
-                indexes = list(range(len(rows))) if choice == "a" else [int(choice or "1") - 1]
-                if any(index < 0 or index >= len(rows) for index in indexes):
-                    raise ValueError
-            except ValueError:
-                print(f"Choose 1-{len(rows)}, a, s, or q.")
-                continue
-            for index in indexes:
-                row = rows[index]
-                text = _full_text(row)
-                if not text:
-                    text = _full_text(client.content_items.get(str(row["id"])).raw)
-                if not text:
-                    print(f"\n{index + 1}. Full text is unavailable.")
-                    continue
-                print(f"\n{index + 1}. {_summary(row)}")
-                levels = refine_text(
-                    text,
-                    query_vector,
-                    lambda chunk: client.tools.embed_text(text=chunk, target="text"),
-                    initial_words=args.initial_chunk_words,
-                    min_words=args.min_chunk_words,
-                    rounds=args.rounds,
-                    overlap=args.overlap,
-                )
-                for level, chunk in enumerate(levels, 1):
-                    print(
-                        f"  level {level}: words={chunk.start}:{chunk.end} "
-                        f"similarity={chunk.score:.4f}"
-                    )
-                if levels:
-                    print("-" * 80)
-                    print(levels[-1].text)
-                    print("-" * 80)
-            break
+        break
+    for index in indexes:
+        row = rows[index]
+        print(f"\nRetrieving full text for result {index + 1}...", flush=True)
+        text = _full_text(row)
+        if not text:
+            text = _full_text(client.content_items.get(str(row["id"])).raw)
+        if not text:
+            print(f"{index + 1}. Full text is unavailable.")
+            continue
+        print(f"Refining the closest passage in {len(text.split())} words...", flush=True)
+        levels = refine_text(
+            text,
+            query_vector,
+            lambda chunk: client.tools.embed_text(text=chunk, target="text"),
+            initial_words=args.initial_chunk_words,
+            min_words=args.min_chunk_words,
+            rounds=args.rounds,
+            overlap=args.overlap,
+        )
+        print(f"\n{index + 1}. {_summary(row)}")
+        for level, chunk in enumerate(levels, 1):
+            print(
+                f"  level {level}: words={chunk.start}:{chunk.end} "
+                f"similarity={chunk.score:.4f}"
+            )
+        if levels:
+            print("-" * 80)
+            print(levels[-1].text)
+            print("-" * 80)
     return 0
 
 

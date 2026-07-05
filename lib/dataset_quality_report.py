@@ -47,9 +47,9 @@ def validate_evaluation(
 
 
 def coverage_level(gold: int) -> str:
-    if gold >= 50:
-        return "adequate"
     if gold >= 20:
+        return "adequate"
+    if gold >= 10:
         return "limited"
     return "insufficient"
 
@@ -75,7 +75,7 @@ def render_report(results: dict[str, dict[str, Any]], *, release: str, model: st
         "",
         "This report was generated only after verifying that evaluation predictions cover exactly the current validation and test document IDs.",
         "",
-        "Coverage levels: **adequate** = at least 50 gold mentions; **limited** = 20-49; **insufficient** = fewer than 20.",
+        "Coverage levels: **adequate** = at least 20 gold mentions; **limited** = 10-19; **insufficient** = fewer than 10.",
         "",
         "## Overall Quality",
         "",

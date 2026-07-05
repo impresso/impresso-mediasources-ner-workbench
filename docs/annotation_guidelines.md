@@ -94,8 +94,11 @@ Examples:
 - Wolff
 - Agence Radio
 - Cambodian/Kampuchean SPK / Agence Kampuchea Presse / AKP
+- Centre d'information de presse / Agentur CIP / Agence CIP
 
 Only labels backed by canonical metadata in `resources/newsagency_seeds.json` are trainable labels.
+
+Use `org.ent.pressagency.cip` for the Belgian Catholic religious-news agency Centre d'information de presse (CIP), active from 1944 through 2001. Explicit agency forms such as `Agentur CIP`, `Agence CIP`, `agence de presse CIP`, and `Centre d'information de presse` are positive. Bare `CIP` is positive only when agency, dispatch-source, Belgian/Brussels, or religious-news context resolves the acronym; do not annotate unrelated uses of CIP. In `Wie die Agentur CIP meldet`, annotate `Agentur CIP` and exclude the evidence verb `meldet`.
 
 Use `org.ent.pressagency.akp` for Cambodia's state news agency, including historical `SPK` (Sarpordamean/Sapordamean Kampuchea) and later `Agence Kampuchea Presse` / `AKP`. Bare `SPK` is positive only when Cambodian, Kampuchean, or Phnom Penh context identifies this agency. Do not normalize Cambodian SPK to the Swiss `org.ent.pressagency.spk-smp`; conversely, Swiss SPK/SMP mentions do not belong to AKP. In `l'agence cambodgienne SPK`, annotate the full visible agency phrase; annotate `SPK` alone in a following `Selon SPK` mention.
 

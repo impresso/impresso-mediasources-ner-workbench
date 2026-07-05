@@ -155,6 +155,62 @@
     ]
   },
   {
+    "canonical_id": "cip",
+    "label": "org.ent.pressagency.cip",
+    "display_name": "Centre d'information de presse (CIP)",
+    "aliases": [
+      "Centre d'information de presse",
+      "Centre d’information de presse",
+      "Agence CIP",
+      "agence de presse CIP",
+      "Agentur CIP",
+      "Katholische Presseagentur CIP"
+    ],
+    "search_aliases": [
+      "Agentur CIP",
+      "Agence CIP",
+      "Centre d'information de presse"
+    ],
+    "wikipedia_url": "https://www.cath.ch/newsf/bruxelles-50e-anniversaire-de-l-agence-de-presse-cip-080694",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "metadata_enriched_no_wikimedia_record",
+    "description": "Belgian Catholic religious-news agency based in Brussels. The Centre d'information de presse (CIP) was created in 1944 by Belgian Catholic newspapers with support from church authorities. It supplied daily religious news and a weekly bulletin, worked closely with the Swiss APIC agency, split into autonomous French- and Dutch-language organizations in 1991, and ceased press-agency activity at the end of 2001.",
+    "active_period": {
+      "start": "1944",
+      "end": "2001",
+      "note": "Founded after the liberation of Belgium in 1944; the French-language Brussels agency ceased activity on 31 December 2001. French- and Dutch-language operations had become autonomous in 1991."
+    },
+    "aliases_by_language": {
+      "en": ["Centre d'information de presse", "CIP"],
+      "de": ["Agentur CIP", "Katholische Presseagentur CIP", "CIP"],
+      "fr": ["Centre d'information de presse", "Agence CIP", "agence de presse CIP", "CIP"],
+      "nl": ["persagentschap CIP", "CIP"]
+    },
+    "contextual_aliases": [
+      {
+        "alias": "CIP",
+        "use": "agency_context",
+        "note": "Use bare CIP only when an explicit press-agency or dispatch context identifies the Belgian Catholic agency, for example Wie die Agentur CIP meldet or selon l'agence CIP. Do not globally match arbitrary CIP acronyms."
+      }
+    ],
+    "annotation_note": "Annotate CIP as org.ent.pressagency.cip when the context identifies the Belgian Catholic news agency. Explicit forms such as Agentur CIP, Agence CIP, agence de presse CIP, and Centre d'information de presse are positive. Bare CIP requires agency, religious-news, Brussels/Belgian, or dispatch-source context because the acronym is ambiguous.",
+    "metadata_sources": [
+      {
+        "type": "agency-anniversary-history",
+        "url": "https://www.cath.ch/newsf/bruxelles-50e-anniversaire-de-l-agence-de-presse-cip-080694"
+      },
+      {
+        "type": "agency-closure-history",
+        "url": "https://www.cath.ch/newsf/bruxelles-disparition-de-l-agence-de-presse-catholique-francophone-cip-a-bruxelles/"
+      },
+      {
+        "type": "institutional-repository-history",
+        "url": "https://pure.unamur.be/ws/portalfiles/portal/38576335/LaCite_6.pdf"
+      }
+    ]
+  },
+  {
     "canonical_id": "reuters",
     "label": "org.ent.pressagency.reuters",
     "display_name": "Reuters",
