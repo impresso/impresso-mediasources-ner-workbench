@@ -807,6 +807,48 @@
     ]
   },
   {
+    "canonical_id": "keystone",
+    "label": "org.ent.pressagency.keystone",
+    "display_name": "Keystone photo agency",
+    "aliases": [
+      "Keystone",
+      "Keystone Press",
+      "Keystone-Press",
+      "Keystone Press AG",
+      "Keystone AG",
+      "Bildagentur Keystone",
+      "Keystone Bildagentur",
+      "Keystone Fotoagentur",
+      "Agence photographique Keystone",
+      "Agence photo Keystone"
+    ],
+    "search_aliases": ["Keystone", "Keystone Press", "Keystone-Press"],
+    "wikipedia_url": "https://de.wikipedia.org/wiki/Keystone_(Bildagentur)",
+    "wikidata_url": null,
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "Swiss press-photo agency founded in Zurich in 1953 by Max Schneider as Keystone-Press, Max Schneider. It developed into Switzerland's largest picture agency, later operating as Keystone Press AG and Keystone AG. Keystone merged with the Swiss Telegraphic Agency (SDA/ATS) effective 1 January 2018 to form the multimedia news agency Keystone-SDA/Keystone-ATS.",
+    "active_period": {
+      "start": "1953",
+      "end": "2017",
+      "note": "Independent Swiss Keystone photo-agency lineage from its Zurich founding in 1953 through 31 December 2017; merged with SDA/ATS effective 1 January 2018."
+    },
+    "aliases_by_language": {
+      "de": ["Keystone", "Keystone-Press", "Keystone Press AG", "Keystone AG", "Bildagentur Keystone", "Keystone Bildagentur", "Keystone Fotoagentur"],
+      "fr": ["Keystone", "Keystone Press", "Agence photographique Keystone", "Agence photo Keystone"],
+      "en": ["Keystone", "Keystone Press", "Keystone Press Agency", "Keystone photo agency"],
+      "it": ["Keystone", "agenzia fotografica Keystone"]
+    },
+    "annotation_note": "Use org.ent.pressagency.keystone for historical mentions and photo credits identifying the Swiss Keystone picture agency, including bare Keystone in a clear credit such as (Keystone), Keystone Press, or explicit photo-agency forms. Keep this entity separate from ATS/SDA before their 2018 merger. Use org.ent.pressagency.ats-sda for explicit post-merger Keystone-SDA or Keystone-ATS forms. Do not annotate unrelated uses of the ordinary word keystone or the distinct foreign Keystone Press Agency unless the context identifies the Swiss agency represented in this inventory.",
+    "metadata_sources": [
+      {"type": "wikipedia", "url": "https://de.wikipedia.org/wiki/Keystone_(Bildagentur)"},
+      {"type": "public-broadcaster-history", "url": "https://www.srf.ch/radio-srf-1/radio-srf-1-60-jahre-keystone"},
+      {"type": "national-library-register", "url": "https://www.isil.nb.admin.ch/isil/CH-001470-9"},
+      {"type": "merger-report", "url": "https://www.swissinfo.ch/ger/aktionaere-der-sda-stimmen-der-fusion-mit-keystone-zu/44080590"},
+      {"type": "official-annual-report", "url": "https://www.keystone-sda.ch/documents/20143/235108/Keystone-ATS_Rapport_de_gestion_2018.pdf/71d220d9-c088-53c1-5238-b6afcdf76d9a?t=1560523380598"}
+    ]
+  },
+  {
     "canonical_id": "dpa",
     "label": "org.ent.pressagency.dpa",
     "display_name": "Deutsche Presse-Agentur",

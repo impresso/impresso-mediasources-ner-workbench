@@ -95,10 +95,13 @@ Examples:
 - Agence Radio
 - Cambodian/Kampuchean SPK / Agence Kampuchea Presse / AKP
 - Centre d'information de presse / Agentur CIP / Agence CIP
+- Keystone / Keystone Press (Swiss photo agency)
 
 Only labels backed by canonical metadata in `resources/newsagency_seeds.json` are trainable labels.
 
 Use `org.ent.pressagency.cip` for the Belgian Catholic religious-news agency Centre d'information de presse (CIP), active from 1944 through 2001. Explicit agency forms such as `Agentur CIP`, `Agence CIP`, `agence de presse CIP`, and `Centre d'information de presse` are positive. Bare `CIP` is positive only when agency, dispatch-source, Belgian/Brussels, or religious-news context resolves the acronym; do not annotate unrelated uses of CIP. In `Wie die Agentur CIP meldet`, annotate `Agentur CIP` and exclude the evidence verb `meldet`.
+
+Use `org.ent.pressagency.keystone` for the Swiss Keystone press-photo agency founded in Zurich in 1953. Photo credits such as `(Keystone)` are valid organization mentions even though they identify the image source rather than a textual dispatch source. Keep historical Keystone separate from ATS/SDA through 2017. From the 2018 merger onward, explicit `Keystone-SDA` and `Keystone-ATS` forms use `org.ent.pressagency.ats-sda`. Do not map historical bare `Keystone` to ATS/SDA, and do not annotate unrelated uses of the ordinary word `keystone`.
 
 Use `org.ent.pressagency.akp` for Cambodia's state news agency, including historical `SPK` (Sarpordamean/Sapordamean Kampuchea) and later `Agence Kampuchea Presse` / `AKP`. Bare `SPK` is positive only when Cambodian, Kampuchean, or Phnom Penh context identifies this agency. Do not normalize Cambodian SPK to the Swiss `org.ent.pressagency.spk-smp`; conversely, Swiss SPK/SMP mentions do not belong to AKP. In `l'agence cambodgienne SPK`, annotate the full visible agency phrase; annotate `SPK` alone in a following `Selon SPK` mention.
 
@@ -155,6 +158,8 @@ For earlier programme guides, especially 1920s material, `Radio-Londres` may ide
 Use `org.ent.radiostation.radio-bucharest` for `Radio Bucarest`, `Radio-Bucarest`, or `Radio Bucharest` when the context presents broadcasts or announcements from Bucharest as a media source. A sentence such as `Radio-Bucarest annonce ...` is positive. In 1948 newspaper material this is compatible with Romanian foreign-language broadcasts from Bucharest, the service later known as Radio Romania International.
 
 Use `org.ent.radiostation.vatican-radio` for `Vatican Radio`, `Radio Vatican`, `Radio-Vatican`, `Radio Vatikan`, `Radio Vaticano`, or `Radio Vaticana` when the context refers to the broadcaster, a broadcast, a programme, or a source attribution. Descriptive forms such as `radio vaticane` and `radio de la Cité du Vatican` are also positive when the phrase refers to the broadcaster. Example: `Nach einer Meldung von Radio Vatican ...` is positive. In `la radio de la Cité du Vatican a diffusé ...`, annotate `radio de la Cité du Vatican` and exclude the article `la`.
+
+Use `org.ent.radiostation.rfi` as the canonical umbrella label for France's public international broadcasting service from 1931 onward. Preserve the visible historical surface: annotate clearly identified international-service mentions of `Poste Colonial`, `Paris-Mondial`, `RTF Radio Paris`, and `ORTF Radio Paris` with the RFI label, as well as `RFI`, `R.F.I.`, `Radio France internationale`, Spanish `Radio Francia Internacional`, Portuguese `Rádio França Internacional`, and other explicitly identifying localized names. The current RFI name begins in 1975, but this dataset normalizes its institutional broadcasting lineage to one entity beginning in 1931. Bare `Radio Paris` is ambiguous and requires explicit French external-service context. In a post-1975 list such as `RFI, BBC, Deutsche Welle`, annotate `RFI` as a complete mention.
 
 Use `org.ent.radiostation.deutsche-welle` for the modern Deutsche Welle broadcaster and for historical 1920s/1930s programme-list references to Deutsche Welle GmbH/Deutschlandsender. In forms such as `Deutsche Welle-Königswusterhausen`, include the attached hyphenated station-location suffix because it is part of the visible station listing.
 

@@ -372,6 +372,61 @@
     "status": "metadata_enriched"
   },
   {
+    "canonical_id": "rfi",
+    "label": "org.ent.radiostation.rfi",
+    "display_name": "Radio France Internationale",
+    "aliases": [
+      "RFI",
+      "R.F.I.",
+      "Radio France Internationale",
+      "Radio France international",
+      "Radio Francia Internacional",
+      "Rádio França Internacional",
+      "Международное французское радио",
+      "Poste Colonial",
+      "Paris-Mondial",
+      "Paris Mondial",
+      "RTF Radio Paris",
+      "ORTF Radio Paris"
+    ],
+    "search_aliases": ["RFI", "Radio France Internationale"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_France_Internationale",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q19912",
+    "description": "Canonical umbrella entity for France's public international broadcasting service from the creation of Poste Colonial in 1931 through the present Radio France Internationale. The service successively appeared under historical names including Poste Colonial, Paris-Mondial, and external services of RTF/ORTF before the Radio France Internationale name was introduced on 6 January 1975. RFI became an independent national broadcasting company in 1987 and has belonged to France Médias Monde since 2008.",
+    "annotation_note": "Use org.ent.radiostation.rfi as the canonical label for the continuous French public international broadcasting lineage from 1931 onward, while preserving the historical visible name as the annotated surface. This includes clearly identified international-service mentions of Poste Colonial, Paris-Mondial, RTF Radio Paris, and ORTF Radio Paris, as well as RFI and Radio France Internationale from 1975 onward. Bare Radio Paris remains ambiguous and requires explicit French external-service context; do not globally normalize every Radio Paris mention to RFI.",
+    "active_period": {
+      "start": "1931",
+      "end": null,
+      "note": "Canonical coverage begins with Poste Colonial in 1931. The Radio France Internationale name was introduced on 6 January 1975; RFI became an independent national programme company in 1987 and remains active under France Médias Monde."
+    },
+    "historical_station_aliases": [
+      "Poste Colonial",
+      "Paris-Mondial",
+      "Paris Mondial",
+      "RTF Radio Paris",
+      "ORTF Radio Paris"
+    ],
+    "aliases_by_language": {
+      "de": ["RFI", "R.F.I.", "Radio France Internationale"],
+      "fr": ["RFI", "R.F.I.", "Radio France internationale", "Radio France Internationale", "Poste Colonial", "Paris-Mondial", "Paris Mondial", "RTF Radio Paris", "ORTF Radio Paris"],
+      "en": ["RFI", "R.F.I.", "Radio France Internationale"],
+      "es": ["RFI", "Radio Francia Internacional"],
+      "pt": ["RFI", "Rádio França Internacional"],
+      "it": ["RFI", "Radio France Internationale"],
+      "ru": ["RFI", "Международное французское радио"],
+      "lb": ["RFI", "Radio France Internationale"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q19912"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Radio_France_Internationale"},
+      {"type": "official-history", "url": "https://www.radiofrance.com/radio-france"},
+      {"type": "official-rfi-history", "url": "https://www1.rfi.fr/actubr/articles/082/article_753.asp"},
+      {"type": "broadcast-regulator", "url": "https://www.arcom.fr/radio-et-audio-numerique/radio-fm-dab/radios/rfi"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "radio-prague",
     "label": "org.ent.radiostation.radio-prague",
     "display_name": "Radio Prague",
