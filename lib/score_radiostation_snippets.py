@@ -262,19 +262,34 @@ def find_all_press_alias_spans(tokens: list[str], metadata: dict[str, dict[str, 
 def find_contextual_source_formula_spans(tokens: list[str], seed: dict[str, Any], label: str) -> list[dict[str, Any]]:
     spans: list[dict[str, Any]] = []
     for item in seed.get("contextual_aliases") or []:
-        if not isinstance(item, dict) or item.get("use") != "dispatch_source_formula":
+        if not isinstance(item, dict):
             continue
+        use = str(item.get("use") or "")
         alias = str(item.get("alias") or "").strip()
         if not alias:
             continue
         for span in find_alias_spans(tokens, [alias], label):
             start = int(span["token_start"])
             stop = int(span["token_stop"])
-            closes_formula = stop < len(tokens) and tokens[stop] == ")"
-            closes_after_period = stop + 1 < len(tokens) and tokens[stop] == "." and tokens[stop + 1] == ")"
-            if start > 0 and tokens[start - 1] == "(" and (closes_formula or closes_after_period):
+            if use == "dispatch_source_formula":
+                closes_formula = stop < len(tokens) and tokens[stop] == ")"
+                closes_after_period = stop + 1 < len(tokens) and tokens[stop] == "." and tokens[stop + 1] == ")"
+                matches_context = start > 0 and tokens[start - 1] == "(" and (closes_formula or closes_after_period)
+                matcher = "contextual_dispatch_source_formula"
+            elif use == "reporting_verb_context":
+                reporting_words = {
+                    "added", "said", "reported", "stated", "announced",
+                    "ajoute", "ajouté", "annonce", "annoncé", "déclare", "déclaré", "indique", "indiqué", "rapporte", "rapporté", "révèle", "révélé",
+                    "berichtete", "berichtet", "erklärte", "erklart", "meldete", "meldet",
+                }
+                context = {token.casefold() for token in tokens[max(0, start - 3) : min(len(tokens), stop + 3)]}
+                matches_context = bool(context & reporting_words)
+                matcher = "contextual_reporting_verb"
+            else:
+                continue
+            if matches_context:
                 contextual = dict(span)
-                contextual["matcher"] = "contextual_dispatch_source_formula"
+                contextual["matcher"] = matcher
                 spans.append(contextual)
     return spans
 

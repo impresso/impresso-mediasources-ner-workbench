@@ -44,6 +44,17 @@ def test_keystone_is_distinct_from_ats_sda_before_merger() -> None:
     assert "Keystone-SDA" in ats_sda["aliases_by_language"]["de"]
 
 
+def test_kyodo_is_separate_from_domei() -> None:
+    rows = load_json(ROOT / "resources" / "newsagency_seeds.json")
+    kyodo = next(row for row in rows if row.get("canonical_id") == "kyodo")
+    domei = next(row for row in rows if row.get("canonical_id") == "domei")
+
+    assert kyodo["label"] == "org.ent.pressagency.kyodo"
+    assert "Kyodo News Service" in kyodo["aliases"]
+    assert kyodo["active_period"]["start"] == "1945"
+    assert domei["label"] == "org.ent.pressagency.domei"
+
+
 def test_radiostation_metadata_contract() -> None:
     rows = load_json(ROOT / "resources" / "radiostation_seeds.json")
     errors = validate_rows(
@@ -64,3 +75,26 @@ def test_rfi_is_a_multilingual_canonical_radiostation() -> None:
     assert "Poste Colonial" in rfi["historical_station_aliases"]
     assert rfi["aliases_by_language"]["es"] == ["RFI", "Radio Francia Internacional"]
     assert rfi["aliases_by_language"]["pt"] == ["RFI", "Rádio França Internacional"]
+
+
+def test_cri_and_kol_yisrael_have_historical_boundaries() -> None:
+    rows = load_json(ROOT / "resources" / "radiostation_seeds.json")
+    cri = next(row for row in rows if row.get("canonical_id") == "china-radio-international")
+    kol = next(row for row in rows if row.get("canonical_id") == "kol-yisrael")
+
+    assert cri["label"] == "org.ent.radiostation.china-radio-international"
+    assert "Radio-Pékin" in cri["aliases"]
+    assert cri["active_period"]["start"] == "1941"
+    assert kol["label"] == "org.ent.radiostation.kol-yisrael"
+    assert "KOL Israël" in kol["aliases"]
+    assert kol["active_period"]["end"] == "2017"
+
+
+def test_deutschlandfunk_includes_1959_proposal_period() -> None:
+    rows = load_json(ROOT / "resources" / "radiostation_seeds.json")
+    dlf = next(row for row in rows if row.get("canonical_id") == "deutschlandfunk")
+
+    assert dlf["label"] == "org.ent.radiostation.deutschlandfunk"
+    assert dlf["wikidata_url"] == "https://www.wikidata.org/wiki/Q695328"
+    assert dlf["active_period"]["start"] == "1959"
+    assert "Deutschland-Funk" in dlf["aliases"]

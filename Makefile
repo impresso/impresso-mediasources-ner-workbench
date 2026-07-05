@@ -96,7 +96,7 @@ help-anno:
 	@echo "Media-source snippet annotation:"
 	@echo "  make plan-media-sampling MEDIA_FAMILY=pressagency"
 	@echo "                                             Plan focused sampling from coverage, pending work, and mention surfaces"
-	@echo "  make sample-holdout-gaps MEDIA_FAMILY=pressagency HOLDOUT_MIN_PER_LABEL=5"
+	@echo "  make sample-holdout-gaps MEDIA_FAMILY=pressagency HOLDOUT_MIN_PER_LABEL=10"
 	@echo "                                             Sample labels below validation/test positive-count targets"
 	@echo "  make sample-media-snippets MEDIA_FAMILY=pressagency"
 	@echo "                                             Focused sample press-agency label/language/surface gaps"
@@ -115,7 +115,7 @@ help-anno:
 	@echo "  make integrate-snippets                      Split, preview, then promote reviewed snippets"
 	@echo ""
 	@echo "Useful overrides:"
-	@echo "  MEDIA_FAMILY=pressagency|radiostation, REVIEWER=$$USER, REVIEW_MAX_ITEMS=20, MEDIA_SNIPPETS=..."
+	@echo "  MEDIA_FAMILY=pressagency|radiostation, REVIEWER=$$USER, SNIPPET_REVIEW_MAX_ITEMS=0 (all), MEDIA_SNIPPETS=..."
 	@echo "  MEDIA_SAMPLE_LABELS='org.ent.pressagency.reuters', MEDIA_SAMPLE_MODE=focused|coverage|surface"
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=false (set true for coverage-only review)"
 	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
@@ -736,14 +736,14 @@ suggest-media-snippet-spans:
 
 review-media-snippet-spans:
 	@echo "Reviewing $(MEDIA_FAMILY) snippet span suggestions and writing append-only decisions."
-	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
+	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(SNIPPET_REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --coverage-json "$(REVIEW_COVERAGE_JSON)" $(if $(filter true,$(REVIEW_ONLY_UNDER_TARGET)),--only-under-target,) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Split accepted snippets into train/validation/test."
 	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY)"
 
 review-auto-media-snippet-spans:
 	@echo "Auditing auto-accepted $(MEDIA_FAMILY) snippet spans and writing append-only decisions."
-	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --review-status auto_accepted $(ARGS)
+	$(PYTHON) -m lib.review_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SCORED_SNIPPETS)" --output "$(MEDIA_REVIEWED_SNIPPETS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --reviewer "$(REVIEWER)" --limit "$(SNIPPET_REVIEW_MAX_ITEMS)" --label-metadata "$(MEDIA_LABEL_METADATA)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --review-status auto_accepted $(ARGS)
 	@echo "Next step:"
 	@echo "  # Split accepted snippets into train/validation/test."
 	@echo "  make split-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY)"

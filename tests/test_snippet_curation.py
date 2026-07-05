@@ -115,6 +115,20 @@ def test_radiostation_scorer_accepts_all_entity_metadata_arguments() -> None:
     assert args.newspapers == "newspapers.json"
 
 
+def test_contextual_short_pressagency_alias_requires_reporting_verb() -> None:
+    from lib.score_radiostation_snippets import find_contextual_source_formula_spans
+
+    seed = {
+        "contextual_aliases": [
+            {"alias": "KNS", "use": "reporting_verb_context"},
+        ]
+    }
+    label = "org.ent.pressagency.kyodo"
+
+    assert find_contextual_source_formula_spans(["a", "ajouté", "KNS", "."], seed, label)[0]["label"] == label
+    assert find_contextual_source_formula_spans(["club", "KNS", "Zurich"], seed, label) == []
+
+
 def test_newsagency_curation_status_auto_accepts_matching_confident_span() -> None:
     row = {"candidate_label": "org.ent.pressagency.havas"}
     spans = [

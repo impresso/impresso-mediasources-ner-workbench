@@ -849,6 +849,51 @@
     ]
   },
   {
+    "canonical_id": "kyodo",
+    "label": "org.ent.pressagency.kyodo",
+    "display_name": "Kyodo News",
+    "aliases": [
+      "Kyodo",
+      "Kyodo News",
+      "Kyodo News Service",
+      "Agence Kyodo",
+      "Agence de presse Kyodo",
+      "Nachrichtenagentur Kyodo",
+      "Kyodo-Nachrichtenagentur",
+      "共同通信社"
+    ],
+    "search_aliases": ["Kyodo News Service", "Kyodo News", "Kyodo"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Kyodo_News",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q779730",
+    "trainable": true,
+    "status": "metadata_enriched",
+    "description": "Japanese nonprofit cooperative news agency established on 1 November 1945 after the dissolution of Domei. Kyodo distributes domestic and international news to Japanese newspapers and broadcasters; Kyodo News International has provided an overseas service since 1982.",
+    "active_period": {
+      "start": "1945",
+      "end": null,
+      "note": "Established on 1 November 1945 and still active. Domei is a predecessor but remains a separate canonical entity in this inventory."
+    },
+    "aliases_by_language": {
+      "de": ["Kyodo", "Kyodo News", "Kyodo News Service", "Nachrichtenagentur Kyodo", "Kyodo-Nachrichtenagentur"],
+      "fr": ["Kyodo", "Kyodo News", "Kyodo News Service", "Agence Kyodo", "Agence de presse Kyodo"],
+      "en": ["Kyodo", "Kyodo News", "Kyodo News Service"],
+      "ja": ["共同通信社", "共同"]
+    },
+    "contextual_aliases": [
+      {
+        "alias": "KNS",
+        "use": "reporting_verb_context",
+        "note": "Resolve KNS to Kyodo News Service only in a clear dispatch continuation or source attribution near reporting verbs such as added, said, reported, ajouté, or meldete."
+      }
+    ],
+    "annotation_note": "Annotate Kyodo, Kyodo News, Kyodo News Service, and equivalent language-specific agency names. Use KNS only when nearby source-attribution context resolves it to Kyodo News Service, especially after a full Kyodo mention in the same passage. Keep pre-1945 Domei mentions under org.ent.pressagency.domei.",
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q779730"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Kyodo_News"},
+      {"type": "government-briefing", "url": "https://www.gov.scot/binaries/content/documents/govscot/publications/foi-eir-release/2017/09/foi-17-01620/documents/foi-17-01620-briefings-mrs-hyslops-japan-visit-part-1-pdf/foi-17-01620%2BBriefings%2Bfor%2BMrs%2BHyslop%2527s%2BJapan-Visit%2B-%2Bpart%2B1.pdf"}
+    ]
+  },
+  {
     "canonical_id": "dpa",
     "label": "org.ent.pressagency.dpa",
     "display_name": "Deutsche Presse-Agentur",

@@ -234,13 +234,13 @@ Use `accept` for a correct suggested span, `modify` for a correct entity with wr
 To fill labels with fewer than five positive mentions in either validation or test, run:
 
 ```bash
-make sample-holdout-gaps MEDIA_FAMILY=pressagency HOLDOUT_MIN_PER_LABEL=5
+make sample-holdout-gaps MEDIA_FAMILY=pressagency HOLDOUT_MIN_PER_LABEL=10
 make suggest-media-snippet-spans MEDIA_FAMILY=pressagency
 make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
 make integrate-snippets
 ```
 
-`plan-holdout-gaps` writes the exact current deficits and a sampler-compatible query plan under `reports.d/holdout-gaps/`. Sampling requests 1.5 times the deficit by default (`HOLDOUT_SAMPLE_FACTOR=1.5`) to allow for false positives and rejected candidates, while split assignment still fills only the exact `HOLDOUT_MIN_PER_LABEL` criterion. During snippet export, existing split placements are preserved and source-issue groups remain together. If rejected samples leave gaps, rerun the cycle.
+`plan-holdout-gaps` writes the exact current deficits and a sampler-compatible query plan under `reports.d/holdout-gaps/`. The default minimum is 10 positive mentions per label in each holdout split, matching the boundary between insufficient and limited coverage in `DATASET_QUALITY.md`. Sampling requests 1.5 times the deficit by default (`HOLDOUT_SAMPLE_FACTOR=1.5`) to allow for false positives and rejected candidates, while split assignment still fills only the exact `HOLDOUT_MIN_PER_LABEL` criterion. During snippet export, existing split placements are preserved and source-issue groups remain together. If rejected samples leave gaps, rerun the cycle.
 
 Use this horizontal-extension path for more examples of existing agencies, language gaps, or newly added canonical agencies. The main coverage languages are German, French, and English; Luxembourgish and Italian are side languages with lower default targets.
 
@@ -767,7 +767,7 @@ Decision semantics:
 - `s`: skip temporarily; the sample remains pending and will be shown again in a later review run.
 - `R`: remove the sample permanently from review/export because the snippet itself is unusable or irrelevant.
 
-The review target defaults to 20 items per run. Override with `REVIEW_MAX_ITEMS=...` when you want a shorter or longer batch.
+Snippet review defaults to all pending sampled items (`SNIPPET_REVIEW_MAX_ITEMS=0`) so one review round covers the sampling batch. Set `SNIPPET_REVIEW_MAX_ITEMS=20`, or another positive number, when you deliberately want a shorter session. Audit review remains limited by `REVIEW_MAX_ITEMS`, which defaults to 20.
 
 Split accepted rows into train/validation/test JSONL:
 
@@ -785,7 +785,8 @@ Useful overrides:
 
 - `AUTO_ACCEPT_MIN_CONFIDENCE=0.95`
 - `AUTO_ACCEPT_MIN_MARGIN=0.30`
-- `REVIEW_MAX_ITEMS=20`
+- `SNIPPET_REVIEW_MAX_ITEMS=0` (all pending snippet items)
+- `REVIEW_MAX_ITEMS=20` (audit review)
 
 ### Language-Aware Coverage Targets
 

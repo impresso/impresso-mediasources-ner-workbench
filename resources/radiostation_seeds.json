@@ -427,6 +427,132 @@
     "status": "metadata_enriched"
   },
   {
+    "canonical_id": "china-radio-international",
+    "label": "org.ent.radiostation.china-radio-international",
+    "display_name": "China Radio International",
+    "aliases": [
+      "China Radio International",
+      "CRI",
+      "Radio Peking",
+      "Radio-Peking",
+      "Radio Beijing",
+      "Radio Pékin",
+      "Radio-Pékin",
+      "Radio Pekin",
+      "Radio-Pekin",
+      "Radio Chine Internationale",
+      "Rádio Internacional da China",
+      "中国国际广播电台"
+    ],
+    "search_aliases": ["Radio Peking", "Radio-Pékin", "Radio Beijing", "China Radio International"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/China_Radio_International",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q375117",
+    "description": "Chinese state international broadcaster founded in 1941. Its international service used the name Radio Peking from 1950, Radio Beijing from 1983, and China Radio International from 1993. It is now part of China Media Group.",
+    "annotation_note": "Use one canonical label across the broadcaster's historical names: Radio Peking/Radio-Pékin, Radio Beijing, and China Radio International/CRI. Preserve the printed historical surface. Do not confuse this international broadcaster with the separate local Radio Beijing International service.",
+    "active_period": {
+      "start": "1941",
+      "end": null,
+      "note": "Founded in 1941; named Radio Peking from 1950, Radio Beijing from 1983, and China Radio International from 1993; still active."
+    },
+    "aliases_by_language": {
+      "de": ["Radio Peking", "Radio-Peking", "Radio Beijing", "China Radio International", "CRI"],
+      "fr": ["Radio Pékin", "Radio-Pékin", "Radio Pekin", "Radio-Pekin", "Radio Beijing", "Radio Chine Internationale", "CRI"],
+      "en": ["Radio Peking", "Radio Beijing", "China Radio International", "CRI"],
+      "es": ["Radio Pekín", "Radio Internacional de China", "CRI"],
+      "pt": ["Rádio Pequim", "Rádio Internacional da China", "CRI"],
+      "zh": ["中国国际广播电台", "中国国际广播电台（CRI）"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q375117"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/China_Radio_International"},
+      {"type": "official-profile", "url": "https://polish.cri.cn/1272/2013/09/24/21s120377.htm"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
+    "canonical_id": "kol-yisrael",
+    "label": "org.ent.radiostation.kol-yisrael",
+    "display_name": "Kol Yisrael",
+    "aliases": [
+      "Kol Yisrael",
+      "Kol Israel",
+      "KOL Israel",
+      "KOL Israël",
+      "Kol Israël",
+      "Voice of Israel",
+      "Voix d'Israël",
+      "Voix d’Israël",
+      "Stimme Israels",
+      "Radio Israel",
+      "Radio Israël",
+      "קול ישראל"
+    ],
+    "search_aliases": ["Kol Yisrael", "Kol Israel", "KOL Israël", "Voice of Israel"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Kol_Yisrael",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1714952",
+    "description": "Israeli public domestic and international radio service. It became the official Kol Yisrael broadcaster at Israeli independence in May 1948, drawing on late-1947 Haganah broadcasting, and later operated under the Israel Broadcasting Authority until that authority closed in May 2017.",
+    "annotation_note": "Annotate Kol Yisrael/Kol Israel, KOL Israël, Voice of Israel, and equivalent clearly identifying names for the historical Israeli public radio service. Keep the post-2017 Israeli Public Broadcasting Corporation and Kan services separate unless the visible mention still explicitly names Kol Yisrael.",
+    "active_period": {
+      "start": "1948",
+      "end": "2017",
+      "note": "Official broadcaster from Israeli independence on 14 May 1948 until the Israel Broadcasting Authority closed on 14 May 2017; immediate broadcasting roots date to late 1947."
+    },
+    "aliases_by_language": {
+      "de": ["Kol Israel", "Kol Yisrael", "KOL Israel", "Stimme Israels", "Radio Israel"],
+      "fr": ["Kol Israël", "Kol Israel", "KOL Israël", "Voix d'Israël", "Voix d’Israël", "Radio Israël"],
+      "en": ["Kol Yisrael", "Kol Israel", "Voice of Israel", "Israel Radio"],
+      "es": ["Kol Israel", "La Voz de Israel", "Radio Israel"],
+      "it": ["Kol Israel", "Voce di Israele", "Radio Israele"],
+      "he": ["קול ישראל"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q1714952"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Kol_Yisrael"},
+      {"type": "historical-study", "url": "https://openscholar.huji.ac.il/sites/default/files/eshkol/files/acoustic_space_the_role_of_radio_in_israeli_collective_history-_tamar_liebes.pdf"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
+    "canonical_id": "deutschlandfunk",
+    "label": "org.ent.radiostation.deutschlandfunk",
+    "display_name": "Deutschlandfunk",
+    "aliases": [
+      "Deutschlandfunk",
+      "Deutschland-Funk",
+      "DLF",
+      "D.L.F.",
+      "DeutschlandRadio Köln",
+      "Deutschlandradio Köln"
+    ],
+    "search_aliases": ["Deutschlandfunk", "Deutschland-Funk", "DLF"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Deutschlandfunk",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q695328",
+    "description": "German national public radio service conceived by the West German federal government in 1959, established as a federal public-law broadcasting institution in November 1960, and first broadcast on 1 January 1962. It originally addressed listeners across divided Germany and German-speaking audiences in Europe. Since 1994 Deutschlandfunk has operated as the news and current-affairs service of Deutschlandradio.",
+    "annotation_note": "Annotate Deutschlandfunk, Deutschland-Funk, DLF, and explicit transitional DeutschlandRadio Köln forms when they name the broadcaster, its planned institution, programmes, transmissions, or staff. Prospective institutional mentions in the 1959 legislative proposal are valid even though regular broadcasting began in 1962. Keep Deutschlandfunk separate from Deutsche Welle, Deutschlandradio Kultur, Deutschlandfunk Kultur, Deutschlandfunk Nova, and the proposed Deutschland-Fernsehen television organization.",
+    "active_period": {
+      "start": "1959",
+      "end": null,
+      "note": "Proposed by the federal government in 1959, legally established on 29 November 1960, began broadcasting on 1 January 1962, and has continued as a Deutschlandradio service since 1994."
+    },
+    "aliases_by_language": {
+      "de": ["Deutschlandfunk", "Deutschland-Funk", "DLF", "D.L.F.", "DeutschlandRadio Köln", "Deutschlandradio Köln"],
+      "fr": ["Deutschlandfunk", "DLF"],
+      "en": ["Deutschlandfunk", "DLF"],
+      "it": ["Deutschlandfunk", "DLF"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q695328"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Deutschlandfunk"},
+      {"type": "official-history", "url": "https://www.deutschlandfunk.de/zwei-neue-sender-fuer-das-land-100.html"},
+      {"type": "official-broadcast-archive", "url": "https://www.deutschlandfunk.de/programmstart-deutschlandfunk-dlf-08b0cafe-100.html"},
+      {"type": "federal-law", "url": "https://dejure.org/BGBl/1960/BGBl._I_S._862"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "radio-prague",
     "label": "org.ent.radiostation.radio-prague",
     "display_name": "Radio Prague",
