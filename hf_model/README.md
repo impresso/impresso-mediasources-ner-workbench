@@ -27,6 +27,8 @@ The published model should include:
 
 The first publication is a standard Transformers `token-classification` model. A custom Impresso JSON pipeline will be added later, after the inference interface has been finalized.
 
+The model `config.json` records `annotation_tokenization`, `label_all_tokens`, `subtoken_labeling`, and `subtoken_decoding`. Inference must apply the declared annotation-token profile and decode the first model subtoken for each annotation token. `label_all_tokens` describes training supervision; it does not change the declared first-subtoken inference decoding policy.
+
 The v0.1 model predicts cited source mentions for news agencies and radio stations. The repository name uses "media sources" because the label space may later grow to cover other cited media-source families, such as newspaper citations.
 
 This model is fine-tuned from `impresso-project/mmbert-multilingual-impresso-continued-mlm`, which continued pretraining from `jhu-clsp/mmBERT-base`. The upstream mmBERT base model is released under the MIT license.

@@ -11,6 +11,7 @@ from typing import Any
 SPLITS = ("train", "validation", "test")
 DATASET_ROW_FIELDS = (
     "schema_version",
+    "tokenization",
     "id",
     "document_id",
     "split",

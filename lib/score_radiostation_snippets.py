@@ -19,6 +19,7 @@ from .score_newsagency_snippets import (
     resolve_model_ref,
     score_tokens,
     suppress_overlapping_spans,
+    validate_model_inference_metadata,
 )
 
 
@@ -135,7 +136,11 @@ def has_word_char(value: str) -> bool:
 
 def alias_matches_hyphenated_suffix(tokens: list[str], start: int, stop: int, alias: str) -> bool:
     alias_words = re.findall(r"\w+", alias, flags=re.UNICODE)
-    if not alias_words or stop - start != len(alias_words):
+    if not alias_words:
+        return False
+    if stop - start == len(alias_words) + 2 and tokens[stop - 2] == "-":
+        return all(compact(tokens[start + offset]) == compact(word) for offset, word in enumerate(alias_words))
+    if stop - start != len(alias_words):
         return False
     for offset, alias_word in enumerate(alias_words[:-1]):
         if compact(tokens[start + offset]) != compact(alias_word):
@@ -155,7 +160,7 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
         for alias in aliases
         if compact(alias)
     ]
-    max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) for alias in aliases), default=1)
+    max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) for alias in aliases), default=1) + 2
     for start in range(len(tokens)):
         for stop in range(start + 1, min(len(tokens), start + max_len) + 1):
             if not has_word_char(tokens[start]):
@@ -183,6 +188,12 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
                         continue
                     matcher = "alias_hyphenated_suffix"
                 else:
+                    if len(re.findall(r"\w+", surface, flags=re.UNICODE)) != len(
+                        re.findall(r"\w+", alias, flags=re.UNICODE)
+                    ):
+                        continue
+                    if any(token in {"(", ")", "[", "]", "{", "}"} for token in tokens[start:stop]):
+                        continue
                     matcher = "alias_compact"
                 actual_stop = stop
                 if alias.rstrip().endswith(".") and stop < len(tokens) and tokens[stop] == "." and is_unclosed_dotted_acronym(tokens, start, stop):
@@ -344,6 +355,7 @@ def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, An
     device = device_for(str(getattr(args, "device", "auto")), torch)
     tokenizer = tokenizer_cls.from_pretrained(model_ref)
     model = model_cls.from_pretrained(model_ref).to(device)
+    validate_model_inference_metadata(model.config, model_name)
     model.eval()
     return torch, tokenizer, model, device, model_name
 

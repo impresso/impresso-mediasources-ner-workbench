@@ -3,6 +3,8 @@
 include configs/common.mk
 
 MODEL = models.d/newsagency_radiostation_modernbert_v1.0.0
+# Preserve the published v1 first-subtoken-only training behavior.
+LABEL_ALL_TOKENS = false
 TRAIN_JSONL = data/curated/legacy-import/train.jsonl
 VALIDATION_JSONL = data/curated/legacy-import/validation.jsonl
 TEST_JSONL = data/curated/legacy-import/test.jsonl

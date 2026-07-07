@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .snippet_data import candidate_tokens, load_jsonl, strip_html, tokenize_with_offsets, write_jsonl
+from .tokenization import CharacterEntity, TOKENIZATION_PROFILE, narrow_french_agence
 
 
 ACCEPTED_STATUSES = {"auto_accepted", "accepted"}
@@ -73,6 +74,22 @@ def canonicalize_span_labels(row_id: str, spans: list[dict[str, Any]]) -> list[d
             print(f"{row_id}: canonicalized snippet label {span.get('label')} -> {label}")
         out.append({**span, "label": label})
     return out
+
+
+def normalize_span_boundaries(spans: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
+    normalized = []
+    for span in spans:
+        entity = CharacterEntity(int(span["start"]), int(span["stop"]), str(span["label"]))
+        entity, _ = narrow_french_agence(entity, text)
+        normalized.append(
+            {
+                **span,
+                "start": entity.start,
+                "stop": entity.stop,
+                "surface": text[entity.start : entity.stop],
+            }
+        )
+    return normalized
 
 
 def empty_labels(token_count: int) -> list[str]:
@@ -491,6 +508,8 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         text, tokens, starts, stops = candidate_tokens(row)
         text, tokens, starts, stops, spans = patch_window_for_accepted_spans(row, spans, text=text, tokens=tokens, starts=starts, stops=stops)
         spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
+        spans = normalize_span_boundaries(spans, text)
+        spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
         if not spans and status in ACCEPTED_STATUSES:
             continue
         prepared.append((row, spans, text, tokens, starts, stops))
@@ -510,7 +529,8 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         source_document_id = row.get("sample_document_id") or source.get("document_id") or ""
         exported.append(
             {
-                "schema_version": "mediaagencies-jsonl-v0.1",
+                "schema_version": "mediaagencies-jsonl-v0.2",
+                "tokenization": TOKENIZATION_PROFILE,
                 "id": row_id,
                 "document_id": row_id,
                 "split": "train",

@@ -26,7 +26,8 @@ The token-level representation is convenient for Hugging Face token-classificati
 
 ```json
 {
-  "schema_version": "mediasources-jsonl-v0.1",
+  "schema_version": "mediaagencies-jsonl-v0.2",
+  "tokenization": "unicode-word-punctuation-v1",
   "id": "DTT-1945-08-09-a-i0008",
   "split": "validation",
   "language": "de",
@@ -73,7 +74,8 @@ The token-level representation is convenient for Hugging Face token-classificati
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `schema_version` | string | yes | Schema identifier, initially `mediasources-jsonl-v0.1`. |
+| `schema_version` | string | yes | Schema identifier. The v2 prerelease uses `mediaagencies-jsonl-v0.2`. |
+| `tokenization` | string | yes | Annotation-token profile. The v2 prerelease requires `unicode-word-punctuation-v1`. |
 | `id` | string | yes | Stable document ID. Prefer the Impresso content item ID or HIPE `document_id`. |
 | `split` | string | yes | `train`, `validation`, or `test`. Legacy `dev` maps to `validation`. |
 | `language` | string | yes | ISO-style language code from HIPE `# language = ...` or Impresso metadata. |
@@ -82,7 +84,7 @@ The token-level representation is convenient for Hugging Face token-classificati
 | `year` | int | yes | Four-digit year derived from `date`. |
 | `document_id` | string | yes | Original document ID from the source annotation. May equal `id`. |
 | `text` | string | yes | Normalized model text. All character offsets point into this field. |
-| `tokens` | list[string] | yes | Source tokens after HIPE import or workbench tokenization. |
+| `tokens` | list[string] | yes | Canonical annotation tokens generated from `text` by the declared profile. |
 | `token_start_offsets` | list[int] | yes | Inclusive token start offsets into `text`. |
 | `token_end_offsets` | list[int] | yes | Exclusive token end offsets into `text`. |
 | `token_labels` | list[string] | yes | BIO labels aligned with `tokens`. |
@@ -92,6 +94,12 @@ The token-level representation is convenient for Hugging Face token-classificati
 | `legacy` | object | no | Minimal trace-back metadata from the original HIPE import, currently `source_format` and `source_file`. The field name is kept for compatibility; it refers to source provenance, not obsolete data. Not part of the training contract. |
 
 The array fields `tokens`, `token_start_offsets`, `token_end_offsets`, and `token_labels` must have exactly the same length. Integer label IDs are derived from `token_labels` and `label_map.json` by training code when needed.
+
+## Canonical Tokenization
+
+The `unicode-word-punctuation-v1` profile uses the context-independent Unicode expression `[^\W\d_]+|\d+|_+|[^\w\s]`: maximal Unicode letter sequences, digit runs, and underscore runs are tokens; every other non-whitespace punctuation character is a separate token. Letter-number transitions are boundaries, which preserves useful distinctions in OCR strings such as `Havas3`. Whitespace is represented only by `text` and offsets. ASCII `'` and typographic `’` apostrophes are treated identically as boundaries while their original characters are preserved. Hyphens and dash variants are likewise separate tokens. Tokenization never consults entity labels, aliases, language, or model predictions.
+
+For `l'agence Havas` and `l’agence Havas`, use `l`, apostrophe, `agence`, `Havas`. The first two tokens remain `O`; `agence Havas` is the press-agency span. In `ATS-AFP`, the hyphen is `O` between two entity spans. In lexical names such as `Telegraphen-Union`, the hyphen is an `I-...` token inside one entity span.
 
 ## Entity Fields
 

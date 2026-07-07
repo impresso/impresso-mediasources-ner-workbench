@@ -305,8 +305,21 @@ def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, st
     device = device_for(str(getattr(args, "device", "auto")), torch)
     tokenizer = tokenizer_cls.from_pretrained(model_ref)
     model = model_cls.from_pretrained(model_ref).to(device)
+    validate_model_inference_metadata(model.config, model_name)
     model.eval()
     return torch, tokenizer, model, device, model_name
+
+
+def validate_model_inference_metadata(config: Any, model_name: str) -> None:
+    required = ("annotation_tokenization", "label_all_tokens", "subtoken_labeling", "subtoken_decoding")
+    missing = [field for field in required if not hasattr(config, field)]
+    if missing:
+        raise ValueError(
+            f"model {model_name!r} lacks inference metadata: {', '.join(missing)}; "
+            "run `make stamp-model-inference-metadata` for a local checkpoint"
+        )
+    if str(config.subtoken_decoding) != "first_subtoken":
+        raise ValueError(f"model {model_name!r} uses unsupported subtoken decoding: {config.subtoken_decoding!r}")
 
 
 def known_entity_alias_spans(tokens: list[str], starts: list[int], stops: list[int], text: str, args: argparse.Namespace) -> list[dict[str, Any]]:

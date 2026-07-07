@@ -14,7 +14,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping semantic-search validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization migrate-tokenization semantic-search validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -137,6 +137,8 @@ help-data:
 	@echo ""
 	@echo "  make validate-labels                       Validate canonical label metadata"
 	@echo "  make validate-dataset-splits               Check train/validation/test split integrity"
+	@echo "  make audit-tokenization                    Verify canonical punctuation tokenization and boundaries"
+	@echo "  make migrate-tokenization                  Stage canonicalized train/validation/test JSONL"
 	@echo "  make sync-label-map                        Derive label_map.json from minimal train/validation/test"
 	@echo "  make dataset-statistics                    Generate the release Markdown statistics report"
 	@echo "  make dataset-quality-analysis              Refresh validation/test evaluation and quality report"
@@ -190,6 +192,9 @@ help-finetune:
 	@echo "Use this group for training and evaluating the token-classification NER model with the configured v2 dataset splits."
 	@echo ""
 	@echo "  make train CFG=...                         Train via training submodule"
+	@echo "    LABEL_ALL_TOKENS=true                    B: all subtokens supervised; continuation B-X becomes I-X (v2 default)"
+	@echo "    LABEL_ALL_TOKENS=false                   A: first subtoken supervised; continuations use -100"
+	@echo "  make stamp-model-inference-metadata       Stamp tokenization/training/decoding policy into config.json"
 	@echo "  make test CFG=...                          Evaluate validation via training submodule"
 	@echo "  make test-official CFG=...                 Evaluate test and record official metrics"
 
@@ -214,8 +219,21 @@ validate-labels:
 	@echo "Validating canonical news-agency and radio-station label metadata."
 	$(PYTHON) -m lib.validate_labels --newsagencies resources/newsagency_seeds.json --radiostations resources/radiostation_seeds.json
 
+audit-tokenization:
+	@echo "Auditing train/validation/test against the canonical v2 punctuation tokenization profile without changing data."
+	$(PYTHON) -m lib.migrate_tokenization --split train="$(TRAIN_JSONL)" --split validation="$(VALIDATION_JSONL)" --split test="$(TEST_JSONL)" --summary-json "$(TOKENIZATION_AUDIT_JSON)" --changes-jsonl "$(TOKENIZATION_CHANGES_JSONL)" --report-md "$(TOKENIZATION_AUDIT_MD)"
+	@echo "Reports:"
+	@echo "  $(TOKENIZATION_AUDIT_MD)"
+	@echo "  $(TOKENIZATION_CHANGES_JSONL)"
+
+migrate-tokenization:
+	@echo "Materializing canonical v2 punctuation-tokenized train/validation/test files in the migration staging directory."
+	$(PYTHON) -m lib.migrate_tokenization --split train="$(TRAIN_JSONL)" --split validation="$(VALIDATION_JSONL)" --split test="$(TEST_JSONL)" --output-dir "$(TOKENIZATION_MIGRATION_DIR)" --summary-json "$(TOKENIZATION_AUDIT_JSON)" --changes-jsonl "$(TOKENIZATION_CHANGES_JSONL)" --report-md "$(TOKENIZATION_AUDIT_MD)"
+	@echo "Staged migrated splits: $(TOKENIZATION_MIGRATION_DIR)"
+
 data-housekeeping:
 	@echo "Running complete housekeeping for the configured dataset and checker model."
+	$(MAKE) audit-tokenization
 	$(MAKE) sync-label-map
 	$(MAKE) validate-labels
 	$(MAKE) validate-dataset-splits
@@ -636,7 +654,11 @@ publish-testset:
 train: sync-label-map
 	@echo "Fine-tuning the token-classification NER model on the configured train/validation splits."
 	$(PYTHON) -m py_compile training/newsagency-radiostation-modernbert-classifier/src/mediaagency_modernbert/*.py
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-train --model-name-or-path "$(BASE_MODEL)" $(if $(CHECKPOINT),--checkpoint "$(CHECKPOINT)",) --train-jsonl "$(TRAIN_JSONL)" --validation-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)" --epochs "$(EPOCHS)" --train-batch-size "$(BATCH)" --eval-batch-size "$(EVAL_BATCH)" --gradient-accumulation-steps "$(GRADIENT_ACCUMULATION_STEPS)" $(if $(filter true,$(GRADIENT_CHECKPOINTING)),--gradient-checkpointing,--no-gradient-checkpointing) $(if $(filter true,$(FREEZE_BASE_MODEL)),--freeze-base-model,--no-freeze-base-model) --unfreeze-top-layers "$(UNFREEZE_TOP_LAYERS)" --optimizer "$(OPTIMIZER)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --learning-rate "$(LEARNING_RATE)" --weight-decay "$(WEIGHT_DECAY)" --warmup-steps "$(WARMUP_STEPS)" --logging-steps "$(LOGGING_STEPS)" --early-stopping-patience "$(EARLY_STOPPING_PATIENCE)" --early-stopping-metric "$(EARLY_STOPPING_METRIC)" --early-stopping-mode "$(EARLY_STOPPING_MODE)" --early-stopping-min-delta "$(EARLY_STOPPING_MIN_DELTA)" --seed "$(SEED)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-train --model-name-or-path "$(BASE_MODEL)" $(if $(CHECKPOINT),--checkpoint "$(CHECKPOINT)",) --train-jsonl "$(TRAIN_JSONL)" --validation-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)" --epochs "$(EPOCHS)" --train-batch-size "$(BATCH)" --eval-batch-size "$(EVAL_BATCH)" --gradient-accumulation-steps "$(GRADIENT_ACCUMULATION_STEPS)" $(if $(filter true,$(GRADIENT_CHECKPOINTING)),--gradient-checkpointing,--no-gradient-checkpointing) $(if $(filter true,$(LABEL_ALL_TOKENS)),--label-all-tokens,--no-label-all-tokens) $(if $(filter true,$(FREEZE_BASE_MODEL)),--freeze-base-model,--no-freeze-base-model) --unfreeze-top-layers "$(UNFREEZE_TOP_LAYERS)" --optimizer "$(OPTIMIZER)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --learning-rate "$(LEARNING_RATE)" --weight-decay "$(WEIGHT_DECAY)" --warmup-steps "$(WARMUP_STEPS)" --logging-steps "$(LOGGING_STEPS)" --early-stopping-patience "$(EARLY_STOPPING_PATIENCE)" --early-stopping-metric "$(EARLY_STOPPING_METRIC)" --early-stopping-mode "$(EARLY_STOPPING_MODE)" --early-stopping-min-delta "$(EARLY_STOPPING_MIN_DELTA)" --seed "$(SEED)" --device "$(DEVICE)" $(ARGS)
+
+stamp-model-inference-metadata:
+	@echo "Stamping annotation tokenization and subtoken policies into the trained model config."
+	$(PYTHON) -m lib.stamp_model_inference_metadata --model-dir "$(MODEL)" --dataset "$(TRAIN_JSONL)" --label-all-tokens "$(LABEL_ALL_TOKENS)"
 
 test: sync-label-map
 	@echo "Evaluating the configured model on the validation split."

@@ -30,12 +30,21 @@ def label_sort_key(label: str) -> tuple[str, int]:
 
 
 def make_label_map(rows: list[dict[str, Any]]) -> dict[str, dict[str, int] | dict[str, str]]:
+    observed = {
+        str(label)
+        for row in rows
+        for label in row.get("token_labels", [])
+        if str(label) != "O"
+    }
+    invalid = sorted(label for label in observed if not label.startswith(("B-", "I-")))
+    if invalid:
+        raise ValueError(f"token labels must use BIO prefixes: {', '.join(invalid)}")
+    entity_labels = {base_label(label) for label in observed}
     labels = sorted(
         {
-            str(label)
-            for row in rows
-            for label in row.get("token_labels", [])
-            if str(label) != "O"
+            f"{prefix}-{label}"
+            for label in entity_labels
+            for prefix in ("B", "I")
         },
         key=label_sort_key,
     )

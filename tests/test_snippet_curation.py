@@ -60,7 +60,7 @@ def test_tokenize_with_offsets_keeps_character_spans() -> None:
 
     tokens, starts, stops = tokenize_with_offsets(text)
 
-    assert tokens == ["Selon", "l'Agence", "Havas", "."]
+    assert tokens == ["Selon", "l", "'", "Agence", "Havas", "."]
     assert [text[start:stop] for start, stop in zip(starts, stops, strict=True)] == tokens
 
 
@@ -1785,14 +1785,16 @@ def test_export_snippet_rows_expands_window_for_duplicate_accepted_surface(tmp_p
     label_map_path.write_text(
         json.dumps(
             {
-                "label2id": {
-                    "O": 0,
-                    "B-org.ent.radiostation.radio-bucharest": 1,
-                },
-                "id2label": {
-                    "0": "O",
-                    "1": "B-org.ent.radiostation.radio-bucharest",
-                },
+                    "label2id": {
+                        "O": 0,
+                        "B-org.ent.radiostation.radio-bucharest": 1,
+                        "I-org.ent.radiostation.radio-bucharest": 2,
+                    },
+                    "id2label": {
+                        "0": "O",
+                        "1": "B-org.ent.radiostation.radio-bucharest",
+                        "2": "I-org.ent.radiostation.radio-bucharest",
+                    },
             }
         ),
         encoding="utf-8",

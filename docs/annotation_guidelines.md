@@ -275,6 +275,8 @@ Do not annotate unresolved unknowns as labels. Mark them for review if they migh
 
 ## Boundaries
 
+The v2 annotation-token profile splits every punctuation character from adjacent word characters. ASCII `'` and typographic `’` apostrophes have identical boundary behavior, as do hyphen and dash variants; the original character is preserved. Tokenization is entity-independent. Annotation determines whether a punctuation token is `O` or belongs inside a contiguous entity span.
+
 Annotate the shortest span that preserves the full visible organization-name surface. In compounds, the full compound token or hyphenated compound may be the correct practical span when a canonical agency name is embedded in it.
 
 Include:
@@ -314,6 +316,7 @@ News-agency names with `Agence`:
 
 - Include `Agence` when it immediately precedes a specific agency name and functions as part of the named mention.
 - Exclude articles and elided articles before it: annotate `Agence Wolff`, not `l' Agence Wolff`.
+- For both `l'agence` and `l’agence`, leave `l` and the apostrophe `O` and begin the entity at `agence`.
 - Prefer the full visible proper-name surface over the shortest canonical label token. For example, annotate `Agence Havas`, not only `Havas`, when both words are cleanly present.
 - If the text only has the agency name without `Agence`, annotate the name alone: `Havas`, `Wolff`, `Reuter`, `Reuters`.
 - If `agence` is lowercase or syntactically generic but immediately names the organization, include it when the phrase is still the proper-name surface: `l'agence Havas` -> `agence Havas`.

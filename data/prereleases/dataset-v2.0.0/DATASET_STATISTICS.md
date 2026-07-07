@@ -6,10 +6,10 @@ This report is generated from the released train, validation, and test JSONL fil
 
 | Split | Documents | With mentions | Tokens | Mentions | Newspapers | Date range |
 |---|---:|---:|---:|---:|---:|---|
-| train | 1,994 | 1,460 | 861,586 | 2,357 | 69 | 1840-01-04 to 2000-12-04 |
-| validation | 333 | 266 | 111,276 | 375 | 41 | 1841-09-28 to 2000-12-23 |
-| test | 337 | 276 | 100,792 | 462 | 36 | 1840-06-16 to 2000-08-22 |
-| **Total** | **2,664** | **2,002** | **1,073,654** | **3,194** | - | - |
+| train | 1,994 | 1,460 | 868,764 | 2,357 | 69 | 1840-01-04 to 2000-12-04 |
+| validation | 333 | 266 | 112,560 | 375 | 41 | 1841-09-28 to 2000-12-23 |
+| test | 340 | 279 | 102,181 | 465 | 36 | 1840-06-16 to 2000-08-22 |
+| **Total** | **2,667** | **2,005** | **1,083,505** | **3,197** | - | - |
 
 ## Split Integrity
 
@@ -19,9 +19,9 @@ No document IDs occur in more than one split.
 
 | Value | Train | Validation | Test | Total |
 |---|---:|---:|---:|---:|
-| `de` | 696 | 112 | 112 | 920 |
+| `de` | 696 | 112 | 113 | 921 |
 | `en` | 85 | 19 | 11 | 115 |
-| `fr` | 1,202 | 201 | 209 | 1,612 |
+| `fr` | 1,202 | 201 | 211 | 1,614 |
 | `it` | 2 | 0 | 1 | 3 |
 | `lb` | 9 | 1 | 4 | 14 |
 
@@ -29,7 +29,7 @@ No document IDs occur in more than one split.
 
 | Value | Train | Validation | Test | Total |
 |---|---:|---:|---:|---:|
-| `press agency` | 1,902 | 252 | 316 | 2,470 |
+| `press agency` | 1,902 | 252 | 319 | 2,473 |
 | `radio station` | 455 | 123 | 146 | 724 |
 
 ## Mentions by Entity Label
@@ -38,7 +38,7 @@ No document IDs occur in more than one split.
 |---|---:|---:|---:|---:|
 | `org.ent.pressagency.afp` | 276 | 29 | 31 | 336 |
 | `org.ent.pressagency.agence-radio` | 16 | 5 | 5 | 26 |
-| `org.ent.pressagency.akp` | 0 | 1 | 5 | 6 |
+| `org.ent.pressagency.akp` | 0 | 1 | 7 | 8 |
 | `org.ent.pressagency.ansa` | 21 | 5 | 5 | 31 |
 | `org.ent.pressagency.ap` | 84 | 14 | 14 | 112 |
 | `org.ent.pressagency.apa` | 17 | 3 | 5 | 25 |
@@ -59,7 +59,7 @@ No document IDs occur in more than one split.
 | `org.ent.pressagency.kyodo` | 0 | 0 | 2 | 2 |
 | `org.ent.pressagency.palach-press` | 10 | 1 | 3 | 14 |
 | `org.ent.pressagency.reuters` | 285 | 36 | 43 | 364 |
-| `org.ent.pressagency.spk-smp` | 32 | 6 | 5 | 43 |
+| `org.ent.pressagency.spk-smp` | 32 | 6 | 6 | 44 |
 | `org.ent.pressagency.st-petersburg-telegraph-agency` | 13 | 4 | 2 | 19 |
 | `org.ent.pressagency.stefani` | 23 | 4 | 5 | 32 |
 | `org.ent.pressagency.tanjug` | 24 | 5 | 5 | 34 |

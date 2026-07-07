@@ -10,6 +10,7 @@ sys.path.insert(0, str(TRAINING_SRC))
 
 from mediaagency_modernbert.data import labels_to_entities, load_jsonl, make_windows
 from mediaagency_modernbert.metrics import entity_metrics, token_metrics
+from mediaagency_modernbert.train import WindowDataset, continuation_label_ids
 
 
 def test_make_windows_covers_long_documents() -> None:
@@ -26,6 +27,64 @@ def test_make_windows_covers_long_documents() -> None:
         (0, ["a", "b", "c"]),
         (2, ["c", "d", "e"]),
     ]
+
+
+class FakeEncoding(dict):
+    def __init__(self, word_ids: list[int | None]):
+        super().__init__({"input_ids": list(range(len(word_ids))), "attention_mask": [1] * len(word_ids)})
+        self._word_ids = word_ids
+
+    def word_ids(self) -> list[int | None]:
+        return self._word_ids
+
+
+class FakeTokenizer:
+    def __call__(self, *_args, **_kwargs):
+        return FakeEncoding([None, 0, 0, 1, 1, None])
+
+
+def test_window_dataset_mode_a_ignores_continuation_subtokens() -> None:
+    windows = make_windows(
+        [{"id": "doc", "tokens": ["Agence", "Havas"], "token_label_ids": [1, 0]}],
+        max_words=2,
+        stride_words=0,
+    )
+
+    encoded = WindowDataset(windows, FakeTokenizer(), 512)[0]
+
+    assert encoded["labels"] == [-100, 1, -100, 0, -100, -100]
+
+
+def test_mode_a_does_not_require_unobserved_i_label() -> None:
+    label_map = {
+        "label2id": {"O": 0, "B-org.ent.pressagency.keystone": 1},
+        "id2label": {"0": "O", "1": "B-org.ent.pressagency.keystone"},
+    }
+
+    # Mode A does not construct or use a continuation map.
+    assert label_map["label2id"]["B-org.ent.pressagency.keystone"] == 1
+
+
+def test_window_dataset_mode_b_labels_continuations_with_b_to_i() -> None:
+    label_map = {
+        "label2id": {"O": 0, "B-org.ent.pressagency.havas": 1, "I-org.ent.pressagency.havas": 2},
+        "id2label": {"0": "O", "1": "B-org.ent.pressagency.havas", "2": "I-org.ent.pressagency.havas"},
+    }
+    windows = make_windows(
+        [{"id": "doc", "tokens": ["Agence", "Havas"], "token_label_ids": [1, 0]}],
+        max_words=2,
+        stride_words=0,
+    )
+
+    encoded = WindowDataset(
+        windows,
+        FakeTokenizer(),
+        512,
+        label_all_tokens=True,
+        continuation_label_ids=continuation_label_ids(label_map),
+    )[0]
+
+    assert encoded["labels"] == [-100, 1, 2, 0, 0, -100]
 
 
 def test_load_jsonl_derives_label_ids_from_minimal_rows(tmp_path: Path) -> None:

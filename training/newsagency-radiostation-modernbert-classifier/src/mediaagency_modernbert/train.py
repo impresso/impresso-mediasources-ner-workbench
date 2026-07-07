@@ -14,6 +14,7 @@ from .metrics import entity_metrics, entity_metrics_by_label, token_metrics
 
 
 IGNORE_INDEX = -100
+FIRST_SUBTOKEN_DECODING = "first_subtoken"
 
 
 @dataclass
@@ -26,10 +27,20 @@ class Runtime:
 
 
 class WindowDataset:
-    def __init__(self, windows: list[Any], tokenizer: Any, max_length: int):
+    def __init__(
+        self,
+        windows: list[Any],
+        tokenizer: Any,
+        max_length: int,
+        *,
+        label_all_tokens: bool = False,
+        continuation_label_ids: dict[int, int] | None = None,
+    ):
         self.windows = windows
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.label_all_tokens = label_all_tokens
+        self.continuation_label_ids = continuation_label_ids or {}
 
     def __len__(self) -> int:
         return len(self.windows)
@@ -51,6 +62,9 @@ class WindowDataset:
                 labels.append(IGNORE_INDEX)
             elif word_id != previous_word_id:
                 labels.append(window.label_ids[word_id])
+            elif self.label_all_tokens:
+                label_id = int(window.label_ids[word_id])
+                labels.append(self.continuation_label_ids.get(label_id, label_id))
             else:
                 labels.append(IGNORE_INDEX)
             previous_word_id = word_id
@@ -168,6 +182,17 @@ def load_model_and_tokenizer(args: argparse.Namespace, label_map: dict[str, Any]
     return model, tokenizer
 
 
+def configure_inference_metadata(model: Any, rows: list[dict[str, Any]], *, label_all_tokens: bool) -> None:
+    profiles = {str(row.get("tokenization") or "") for row in rows}
+    profiles.discard("")
+    if len(profiles) > 1:
+        raise ValueError(f"training data mixes tokenization profiles: {sorted(profiles)}")
+    model.config.annotation_tokenization = next(iter(profiles), "unspecified")
+    model.config.label_all_tokens = bool(label_all_tokens)
+    model.config.subtoken_labeling = "all_subtokens_b_to_i" if label_all_tokens else "first_subtoken_only"
+    model.config.subtoken_decoding = FIRST_SUBTOKEN_DECODING
+
+
 def freeze_base_model(model: Any, unfreeze_top_layers: int) -> None:
     layer_indices = []
     for name, _parameter in model.named_parameters():
@@ -220,9 +245,35 @@ def make_optimizer(model: Any, args: argparse.Namespace, runtime: Runtime) -> An
     raise ValueError(f"unsupported optimizer: {args.optimizer}")
 
 
-def make_dataloader(rows: list[dict[str, Any]], tokenizer: Any, args: argparse.Namespace, runtime: Runtime, shuffle: bool) -> tuple[Any, list[Any]]:
+def continuation_label_ids(label_map: dict[str, Any]) -> dict[int, int]:
+    label2id = {str(label): int(label_id) for label, label_id in label_map["label2id"].items()}
+    mapping = {label_id: label_id for label_id in label2id.values()}
+    for label, label_id in label2id.items():
+        if not label.startswith("B-"):
+            continue
+        inside = f"I-{label[2:]}"
+        if inside not in label2id:
+            raise ValueError(f"label_all_tokens requires corresponding continuation label: {inside}")
+        mapping[label_id] = label2id[inside]
+    return mapping
+
+
+def make_dataloader(
+    rows: list[dict[str, Any]],
+    tokenizer: Any,
+    label_map: dict[str, Any],
+    args: argparse.Namespace,
+    runtime: Runtime,
+    shuffle: bool,
+) -> tuple[Any, list[Any]]:
     windows = make_windows(rows, max_words=args.max_words_per_window, stride_words=args.stride_words)
-    dataset = WindowDataset(windows, tokenizer, args.max_sequence_len)
+    dataset = WindowDataset(
+        windows,
+        tokenizer,
+        args.max_sequence_len,
+        label_all_tokens=bool(args.label_all_tokens),
+        continuation_label_ids=continuation_label_ids(label_map) if args.label_all_tokens else None,
+    )
     return runtime.torch.utils.data.DataLoader(
         dataset,
         batch_size=args.train_batch_size if shuffle else args.eval_batch_size,
@@ -317,14 +368,15 @@ def train(args: argparse.Namespace, runtime: Runtime) -> None:
     train_rows = load_jsonl(args.train_jsonl, label_map=label_map)
     validation_rows = load_jsonl(args.validation_jsonl, label_map=label_map) if args.validation_jsonl else []
     model, tokenizer = load_model_and_tokenizer(args, label_map, runtime)
+    configure_inference_metadata(model, train_rows, label_all_tokens=bool(args.label_all_tokens))
     device = device_for(args.device, runtime.torch)
     model.to(device)
     set_seed(args.seed, runtime.torch)
 
-    train_loader, train_windows = make_dataloader(train_rows, tokenizer, args, runtime, shuffle=True)
+    train_loader, train_windows = make_dataloader(train_rows, tokenizer, label_map, args, runtime, shuffle=True)
     validation_windows = []
     if validation_rows:
-        _validation_loader, validation_windows = make_dataloader(validation_rows, tokenizer, args, runtime, shuffle=False)
+        _validation_loader, validation_windows = make_dataloader(validation_rows, tokenizer, label_map, args, runtime, shuffle=False)
     optimizer = make_optimizer(model, args, runtime)
     total_steps = args.max_steps if args.max_steps > 0 else args.epochs * max(1, len(train_loader))
     warmup_steps = args.warmup_steps
@@ -348,6 +400,10 @@ def train(args: argparse.Namespace, runtime: Runtime) -> None:
             "train_batch_size": args.train_batch_size,
             "eval_batch_size": args.eval_batch_size,
             "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        },
+        "subtoken_labels": {
+            "label_all_tokens": bool(args.label_all_tokens),
+            "continuation_policy": "b_to_i" if args.label_all_tokens else "ignore_index",
         },
         "windows": {
             "train": len(train_windows),
@@ -484,7 +540,7 @@ def evaluate_rows(
 ) -> Any:
     id2label = {int(idx): label for idx, label in label_map["id2label"].items()}
     device = next(model.parameters()).device
-    loader, _windows = make_dataloader(rows, tokenizer, args, runtime, shuffle=False)
+    loader, _windows = make_dataloader(rows, tokenizer, label_map, args, runtime, shuffle=False)
     pred_ids_by_doc = [[0 for _ in row["tokens"]] for row in rows]
     seen_by_doc = [[False for _ in row["tokens"]] for row in rows]
     model.eval()
@@ -593,6 +649,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eval-batch-size", type=int, default=8)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=1)
     parser.add_argument("--gradient-checkpointing", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument(
+        "--label-all-tokens",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Label every model subtoken; continuation subtokens convert B-X to I-X. Default labels only the first subtoken.",
+    )
     parser.add_argument("--freeze-base-model", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--unfreeze-top-layers", type=int, default=0, help="When freezing the base model, keep this many top encoder layers trainable.")
     parser.add_argument("--optimizer", choices=["adafactor", "adamw"], default="adafactor")

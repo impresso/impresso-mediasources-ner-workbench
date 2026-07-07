@@ -18,4 +18,8 @@ CURATION_LABEL_MAP = $(CURATION_MODEL)/label_map.json
 CURATION_INPUT_DIR = $(DATASET_SOURCE_DIR)
 CURATION_APPLIED_DIR = $(DATASET_SOURCE_DIR)
 
+# Supervise every model subtoken and convert B-X continuation labels to I-X.
+# Validation and test comparisons against first-subtoken-only training favored B.
+LABEL_ALL_TOKENS = true
+
 EMPTY_DOC_AUDIT_ROOT = audit.d/empty-docs/dataset-v2.0.0

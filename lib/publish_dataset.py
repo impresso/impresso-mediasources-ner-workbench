@@ -18,6 +18,7 @@ PRIMARY_FILES = tuple(f"{split}.jsonl" for split in SPLITS) + ("label_map.json",
 OPTIONAL_AUDIT_FILES = ("curation_summary.json", "curation_changes.jsonl", "curation_changes_tags.tsv")
 PUBLIC_ROW_FIELDS = (
     "schema_version",
+    "tokenization",
     "id",
     "document_id",
     "split",
