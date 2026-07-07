@@ -124,6 +124,7 @@ help-anno:
 	@echo "  EMPTY_DOC_MODEL=$(EMPTY_DOC_MODEL) (defaults to CURATION_MODEL)"
 	@echo "  ANNOTATION_MAIN_LANGS='$(ANNOTATION_MAIN_LANGS)', ANNOTATION_SIDE_LANGS='$(ANNOTATION_SIDE_LANGS)'"
 	@echo "  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG), ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)"
+	@echo "  SUGGEST_NON_O_MIN_CONFIDENCE=0.33 (suggest best non-O label even when O wins)"
 	@echo "  AUTO_ACCEPT_ENABLED=true|false, AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
 	@echo "  CURATION_STATE_JSON=$(CURATION_STATE_JSON)"
 
@@ -751,7 +752,7 @@ suggest-eval-disagreements-test: curation-eval-test curation-review-test
 
 suggest-media-snippet-spans:
 	@echo "Suggesting $(MEDIA_FAMILY) snippet spans: use the configured model and known entity metadata matchers."
-	$(PYTHON) -m lib.score_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SNIPPETS)" --output "$(MEDIA_SCORED_SNIPPETS)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newspapers "$(NEWSPAPER_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" $(if $(filter true,$(AUTO_ACCEPT_ENABLED)),--auto-accept,--no-auto-accept) --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
+	$(PYTHON) -m lib.score_media_snippets --family "$(MEDIA_FAMILY)" --input "$(MEDIA_SNIPPETS)" --output "$(MEDIA_SCORED_SNIPPETS)" --newsagencies "$(NEWSAGENCY_LABEL_METADATA)" --radiostations "$(RADIOSTATION_LABEL_METADATA)" --newspapers "$(NEWSPAPER_LABEL_METADATA)" --model "$(HF_MODEL)" --device "$(DEVICE)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --suggest-non-o-min-confidence "$(SUGGEST_NON_O_MIN_CONFIDENCE)" $(if $(filter true,$(AUTO_ACCEPT_ENABLED)),--auto-accept,--no-auto-accept) --auto-accept-min-confidence "$(AUTO_ACCEPT_MIN_CONFIDENCE)" --auto-accept-min-margin "$(AUTO_ACCEPT_MIN_MARGIN)" --auto-accept-multiple-min-confidence "$(AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Review suggested media-source snippet spans."
 	@echo "  make review-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY) REVIEWER=\"$$USER\""

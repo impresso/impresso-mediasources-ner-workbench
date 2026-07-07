@@ -15,6 +15,7 @@ from .score_newsagency_snippets import (
     is_unclosed_dotted_acronym,
     labels_to_spans,
     load_generic_label_metadata,
+    merge_adjacent_same_label_spans,
     normalize_dotted_acronym_spans,
     resolve_model_ref,
     score_tokens,
@@ -385,7 +386,15 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         model_spans: list[dict[str, Any]] = []
         if model_runtime is not None:
             torch, tokenizer, model, device, _model_name = model_runtime
-            labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, int(getattr(args, "max_sequence_len", 512)))
+            labels, confidences, margins = score_tokens(
+                tokens,
+                tokenizer,
+                model,
+                torch,
+                device,
+                int(getattr(args, "max_sequence_len", 512)),
+                float(getattr(args, "suggest_non_o_min_confidence", 0.33)),
+            )
             model_spans = normalize_dotted_acronym_spans(
                 attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text),
                 tokens,
@@ -394,7 +403,9 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
                 text,
             )
             model_spans = suppress_model_spans_covered_by_aliases(model_spans, alias_spans)
-        spans = suppress_overlapping_spans(dedupe_spans(alias_spans + model_spans))
+        spans = merge_adjacent_same_label_spans(
+            suppress_overlapping_spans(dedupe_spans(alias_spans + model_spans)), text
+        )
         out = dict(row)
         out["id"] = candidate_id(row, index)
         out["candidate_label"] = label or None
@@ -405,6 +416,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         out["token_end_offsets"] = stops
         out["model"] = {
             "repo_id": str(getattr(args, "model", "") or "alias-matcher"),
+            "suggest_non_o_min_confidence": float(getattr(args, "suggest_non_o_min_confidence", 0.33)),
             "scorers": ["radiostation_alias_matcher", "pressagency_alias_matcher"]
             + (["newspaper_alias_matcher"] if newspapers_path.is_file() else [])
             + (["token_classifier"] if model_runtime is not None else []),
@@ -447,6 +459,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--model", default="")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)
+    parser.add_argument("--suggest-non-o-min-confidence", type=float, default=0.33)
     parser.add_argument("--auto-accept-min-confidence", type=float, default=0.99)
     parser.add_argument("--auto-accept-min-margin", type=float, default=0.30)
     parser.add_argument("--auto-accept-multiple-min-confidence", type=float, default=0.99)

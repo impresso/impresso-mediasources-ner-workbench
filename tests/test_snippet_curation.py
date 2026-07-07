@@ -3,10 +3,12 @@ import random
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 import lib.sample_newsagencies as sample_newsagencies
 from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
-from lib.export_snippet_training_data import apply_holdout_deficit_assignments, apply_split_assignments, deduplicate_exported_rows, export_rows, write_split_outputs
+from lib.export_snippet_training_data import apply_holdout_deficit_assignments, apply_split_assignments, canonical_label, deduplicate_exported_rows, export_rows, write_split_outputs
 from lib.review_newsagency_snippets import (
     confirm_annotation_finished,
     coverage_priority,
@@ -47,7 +49,9 @@ from lib.score_newsagency_snippets import (
     attach_surfaces,
     curation_status,
     load_input_rows,
+    merge_adjacent_same_label_spans,
     normalize_dotted_acronym_spans,
+    select_suggested_label,
     score_rows as score_newsagency_rows,
     suppress_contained_same_label_spans,
     suppress_overlapping_spans,
@@ -64,10 +68,78 @@ def test_tokenize_with_offsets_keeps_character_spans() -> None:
     assert [text[start:stop] for start, stop in zip(starts, stops, strict=True)] == tokens
 
 
+def test_recall_suggestion_selects_non_o_above_threshold_when_o_wins() -> None:
+    label, confidence, margin = select_suggested_label(
+        [0.55, 0.40, 0.05],
+        {0: "O", 1: "B-org.ent.pressagency.havas", 2: "I-org.ent.pressagency.havas"},
+        0.33,
+    )
+
+    assert label == "B-org.ent.pressagency.havas"
+    assert confidence == 0.40
+    assert round(margin, 2) == -0.15
+
+
+def test_recall_suggestion_keeps_o_at_or_below_threshold() -> None:
+    label, confidence, margin = select_suggested_label(
+        [0.60, 0.33, 0.07],
+        {0: "O", 1: "B-org.ent.pressagency.havas", 2: "I-org.ent.pressagency.havas"},
+        0.33,
+    )
+
+    assert label == "O"
+    assert confidence == 0.60
+    assert round(margin, 2) == 0.27
+
+
+def test_adjacent_same_label_spans_are_merged_conservatively() -> None:
+    text = "Nachrichtenagentur CTK"
+    spans = [
+        {
+            "token_start": 0,
+            "token_stop": 1,
+            "start": 0,
+            "stop": 18,
+            "surface": "Nachrichtenagentur",
+            "label": "org.ent.pressagency.ctk",
+            "confidence": 0.388,
+            "margin": -0.214,
+        },
+        {
+            "token_start": 1,
+            "token_stop": 2,
+            "start": 19,
+            "stop": 22,
+            "surface": "CTK",
+            "label": "org.ent.pressagency.ctk",
+            "confidence": 0.689,
+            "margin": 0.379,
+        },
+    ]
+
+    merged = merge_adjacent_same_label_spans(spans, text)
+
+    assert len(merged) == 1
+    assert merged[0]["token_start"] == 0
+    assert merged[0]["token_stop"] == 2
+    assert merged[0]["surface"] == "Nachrichtenagentur CTK"
+    assert merged[0]["confidence"] == 0.388
+    assert merged[0]["margin"] == -0.214
+    assert len(merged[0]["merged_components"]) == 2
+
+
 def test_export_deduplicates_identical_materialized_snippet_rows() -> None:
     row = {"id": "doc#snippet-a", "document_id": "doc#snippet-a", "text": "SPK", "token_labels": ["B-spk"]}
 
     assert deduplicate_exported_rows([row, dict(row)]) == [row]
+
+
+def test_export_canonicalizes_conti_to_wolff() -> None:
+    assert canonical_label("org.ent.pressagency.conti") == "org.ent.pressagency.wolff"
+
+
+def test_export_canonicalizes_ats_shorthand() -> None:
+    assert canonical_label("org.ent.pressagency.ats") == "org.ent.pressagency.ats-sda"
 
 
 def test_export_rejects_conflicting_materialized_snippet_ids() -> None:
@@ -1224,6 +1296,51 @@ def test_export_snippet_training_data_includes_rejected_snippets_as_negative_row
     assert set(rows[0]["token_labels"]) == {"O"}
     assert rows[0]["quality_flags"] == ["reviewed_negative_snippet"]
     assert rows[0]["legacy"]["review_status"] == "rejected"
+
+
+def test_export_rejected_snippet_ignores_stale_model_predictions(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {"O": 0, "B-org.ent.radiostation.bbc": 1},
+                "id2label": {"0": "O", "1": "B-org.ent.radiostation.bbc"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "snippet-old-rejection",
+                "text": "BBC is a basketball club here.",
+                "language": "en",
+                "curation": {"status": "rejected", "label": "org.ent.radiostation.bbc"},
+                "model": {
+                    "predicted_spans": [
+                        {
+                            "start": 0,
+                            "stop": 3,
+                            "token_start": 0,
+                            "token_stop": 1,
+                            "surface": "BBC",
+                            "label": "org.ent.radiostation.bbc",
+                        }
+                    ]
+                },
+                "source": {"document_id": "snippet-old-rejection"},
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert len(rows) == 1
+    assert rows[0]["entities"] == []
+    assert set(rows[0]["token_labels"]) == {"O"}
+    assert rows[0]["quality_flags"] == ["reviewed_negative_snippet"]
 
 
 def test_export_snippet_training_data_splits_by_source_issue(tmp_path: Path) -> None:
@@ -2661,6 +2778,44 @@ def test_manual_span_accepts_canonical_id_label() -> None:
     assert pasted_span["token_start"] == 6
     assert pasted_span["token_stop"] == 8
     assert pasted_span["label"] == "org.ent.pressagency.agence-radio"
+
+
+def test_manual_span_rejects_unknown_full_label_when_catalog_is_loaded() -> None:
+    row = {
+        "text": "(Conti.)",
+        "tokens": ["(", "Conti", ".", ")"],
+        "token_start_offsets": [0, 1, 6, 7],
+        "token_end_offsets": [1, 6, 7, 8],
+        "candidate_label": "org.ent.pressagency.wolff",
+    }
+    metadata = {
+        "org.ent.pressagency.wolff": {
+            "canonical_id": "wolff",
+            "label": "org.ent.pressagency.wolff",
+        }
+    }
+
+    with pytest.raises(ValueError, match="unknown entity label org.ent.pressagency.conti"):
+        parse_manual_span("1:2 org.ent.pressagency.conti", row, metadata)
+
+
+def test_manual_span_rejects_unknown_short_label_when_catalog_is_loaded() -> None:
+    row = {
+        "text": "(Conti.)",
+        "tokens": ["(", "Conti", ".", ")"],
+        "token_start_offsets": [0, 1, 6, 7],
+        "token_end_offsets": [1, 6, 7, 8],
+        "candidate_label": "org.ent.pressagency.wolff",
+    }
+    metadata = {
+        "org.ent.pressagency.wolff": {
+            "canonical_id": "wolff",
+            "label": "org.ent.pressagency.wolff",
+        }
+    }
+
+    with pytest.raises(ValueError, match="unknown entity label conti"):
+        parse_manual_span("1:2 conti", row, metadata)
 
 
 def test_prompt_manual_spans_prints_interpretation(monkeypatch, capsys) -> None:

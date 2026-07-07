@@ -15,6 +15,8 @@ from .tokenization import CharacterEntity, TOKENIZATION_PROFILE, narrow_french_a
 ACCEPTED_STATUSES = {"auto_accepted", "accepted"}
 NEGATIVE_STATUSES = {"rejected"}
 LABEL_ALIASES = {
+    "org.ent.pressagency.ats": "org.ent.pressagency.ats-sda",
+    "org.ent.pressagency.conti": "org.ent.pressagency.wolff",
     "org.ent.pressagency.reuter": "org.ent.pressagency.reuters",
 }
 
@@ -501,7 +503,7 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         status = str(curation.get("status") or "")
         if status not in ACCEPTED_STATUSES | NEGATIVE_STATUSES:
             continue
-        spans = selected_spans(row)
+        spans = [] if status in NEGATIVE_STATUSES else selected_spans(row)
         if not spans and status in ACCEPTED_STATUSES:
             continue
         spans = canonicalize_span_labels(str(row.get("id") or row.get("document_id") or ""), spans)

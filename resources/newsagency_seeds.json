@@ -1378,6 +1378,6 @@
         "url": "https://www.deutsche-digitale-bibliothek.de/item/CRJBOH2SS3GGI4OUJRWYT7DKHNCSETQW"
       }
     ],
-    "annotation_note": "Use for Telegraphen-Union / T.U. references and for contextual source formulas such as (UTA) in Weimar-period German political dispatches. Do not map UTA to ATS/SDA."
+    "annotation_note": "Use for the German news agency in Telegraphen-Union / T.U. references and contextual source formulas such as (UTA) in Weimar-period German political dispatches. Do not map UTA to ATS/SDA. Reject homonymous references to the international telegraph/radiotelegraph organization, especially administrative contexts such as Internationales Bureau der Telegraphen-Union, telecommunications departments, officials, secretaries, appointments, treaties, or member states."
   }
 ]

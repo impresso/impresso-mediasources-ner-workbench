@@ -93,7 +93,38 @@ def labels_to_spans(labels: list[str], confidences: list[float], margins: list[f
     return spans
 
 
-def score_tokens(tokens: list[str], tokenizer: Any, model: Any, torch: Any, device: Any, max_length: int) -> tuple[list[str], list[float], list[float]]:
+def select_suggested_label(
+    probabilities: list[float], id2label: dict[int, str] | dict[str, str], non_o_min_confidence: float
+) -> tuple[str, float, float]:
+    ranked = sorted(range(len(probabilities)), key=lambda index: probabilities[index], reverse=True)
+    top = ranked[0]
+    top_label = str(id2label.get(top, id2label.get(str(top), "O")))
+    selected = top
+    if top_label == "O":
+        selected = next(
+            (
+                index
+                for index in ranked[1:]
+                if str(id2label.get(index, id2label.get(str(index), "O"))) != "O"
+                and probabilities[index] > non_o_min_confidence
+            ),
+            top,
+        )
+    selected_label = str(id2label.get(selected, id2label.get(str(selected), "O")))
+    competitor = next((index for index in ranked if index != selected), selected)
+    margin = probabilities[selected] - probabilities[competitor] if competitor != selected else probabilities[selected]
+    return selected_label, probabilities[selected], margin
+
+
+def score_tokens(
+    tokens: list[str],
+    tokenizer: Any,
+    model: Any,
+    torch: Any,
+    device: Any,
+    max_length: int,
+    non_o_min_confidence: float = 0.33,
+) -> tuple[list[str], list[float], list[float]]:
     encoding = tokenizer(
         tokens,
         is_split_into_words=True,
@@ -116,11 +147,13 @@ def score_tokens(tokens: list[str], tokenizer: Any, model: Any, torch: Any, devi
         if word_id is None or word_id in seen_words or word_id >= len(tokens):
             continue
         seen_words.add(word_id)
-        ranked = torch.topk(probs[token_index], k=min(2, probs.shape[-1]))
-        label_id = int(ranked.indices[0].item())
-        labels[word_id] = str(id2label[label_id])
-        confidences[word_id] = float(ranked.values[0].item())
-        margins[word_id] = float(ranked.values[0].item() - ranked.values[1].item()) if len(ranked.values) > 1 else float(ranked.values[0].item())
+        probability_values = [float(value) for value in probs[token_index].tolist()]
+        label, confidence, margin = select_suggested_label(
+            probability_values, id2label, non_o_min_confidence
+        )
+        labels[word_id] = label
+        confidences[word_id] = confidence
+        margins[word_id] = margin
     return labels, confidences, margins
 
 
@@ -217,6 +250,37 @@ def suppress_overlapping_spans(spans: list[dict[str, Any]]) -> list[dict[str, An
             continue
         kept.append((original_index, span))
     return [span for _, span in sorted(kept)]
+
+
+def merge_adjacent_same_label_spans(spans: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
+    if not spans:
+        return []
+    ordered = sorted(spans, key=lambda span: (int(span["token_start"]), int(span["token_stop"])))
+    merged: list[dict[str, Any]] = []
+    for span in ordered:
+        item = dict(span)
+        if not merged:
+            merged.append(item)
+            continue
+        previous = merged[-1]
+        if (
+            str(previous.get("label", "")) == str(item.get("label", ""))
+            and int(previous["token_stop"]) == int(item["token_start"])
+        ):
+            components = list(previous.get("merged_components") or [dict(previous)])
+            components.extend(item.get("merged_components") or [dict(item)])
+            previous["token_stop"] = int(item["token_stop"])
+            previous["stop"] = int(item["stop"])
+            previous["surface"] = text[int(previous["start"]) : int(previous["stop"])]
+            previous["confidence"] = min(
+                float(previous.get("confidence", 0.0)), float(item.get("confidence", 0.0))
+            )
+            previous["margin"] = min(float(previous.get("margin", 0.0)), float(item.get("margin", 0.0)))
+            previous["matcher"] = "adjacent_same_label_merge"
+            previous["merged_components"] = components
+            continue
+        merged.append(item)
+    return merged
 
 
 def is_high_confidence_span(span: dict[str, Any], *, min_confidence: float, min_margin: float) -> bool:
@@ -409,7 +473,15 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         model_spans: list[dict[str, Any]] = []
         if model_runtime is not None:
             torch, tokenizer, model, device, _model_name = model_runtime
-            labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, args.max_sequence_len)
+            labels, confidences, margins = score_tokens(
+                tokens,
+                tokenizer,
+                model,
+                torch,
+                device,
+                args.max_sequence_len,
+                float(getattr(args, "suggest_non_o_min_confidence", 0.33)),
+            )
             model_spans = normalize_dotted_acronym_spans(
                 attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text),
                 tokens,
@@ -418,7 +490,9 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
                 text,
             )
             model_spans = suppress_model_spans_covered_by_aliases(model_spans, alias_spans)
-        spans = suppress_overlapping_spans(alias_spans + model_spans)
+        spans = merge_adjacent_same_label_spans(
+            suppress_overlapping_spans(alias_spans + model_spans), text
+        )
         status, reasons = curation_status(
             row,
             spans,
@@ -435,6 +509,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         out["token_end_offsets"] = stops
         out["model"] = {
             "repo_id": args.model,
+            "suggest_non_o_min_confidence": float(getattr(args, "suggest_non_o_min_confidence", 0.33)),
             "scorers": known_entity_scorers(args) + (["token_classifier"] if model_runtime is not None else []),
             "predicted_spans": spans,
         }
@@ -472,6 +547,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--newspapers", default="resources/newspaper_seeds.json")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)
+    parser.add_argument("--suggest-non-o-min-confidence", type=probability, default=0.33)
     parser.add_argument("--auto-accept-min-confidence", type=probability, default=0.99)
     parser.add_argument("--auto-accept-min-margin", type=probability, default=0.30)
     parser.add_argument("--auto-accept-multiple-min-confidence", type=probability, default=0.99)

@@ -6,6 +6,7 @@
 include configs/common.mk
 
 MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0
+SELECTED_MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0-label-all-tokens/best
 DATASET_SOURCE_DIR = data/prereleases/dataset-v2.0.0
 DATASET_REVISION = v2.0.0
 DATASET_TSV_COMPARE_VERSION = v1.0.0
@@ -13,8 +14,9 @@ TRAIN_JSONL = data/prereleases/dataset-v2.0.0/train.jsonl
 VALIDATION_JSONL = data/prereleases/dataset-v2.0.0/validation.jsonl
 TEST_JSONL = data/prereleases/dataset-v2.0.0/test.jsonl
 LABEL_MAP = data/prereleases/dataset-v2.0.0/label_map.json
-CURATION_MODEL = $(MODEL)
-CURATION_LABEL_MAP = $(CURATION_MODEL)/label_map.json
+HF_MODEL = $(SELECTED_MODEL)
+CURATION_MODEL = $(SELECTED_MODEL)
+CURATION_LABEL_MAP = $(LABEL_MAP)
 CURATION_INPUT_DIR = $(DATASET_SOURCE_DIR)
 CURATION_APPLIED_DIR = $(DATASET_SOURCE_DIR)
 

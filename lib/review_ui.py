@@ -85,14 +85,23 @@ def resolve_manual_label(
     label_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> str:
     label = raw_label.strip()
+    strict_catalog = bool(label_metadata)
+    label_metadata = label_metadata or {}
     if not label:
         inferred = target_label(row)
         if inferred:
+            if strict_catalog and inferred not in label_metadata:
+                raise ValueError(
+                    f"unknown entity label {inferred}; it is not present in the loaded entity catalogs"
+                )
             return inferred
         raise ValueError("cannot infer label; add a full label or canonical id, e.g. agence-radio")
     if label.startswith(("org.ent.pressagency.", "org.ent.radiostation.", "org.ent.newspaper.")):
+        if strict_catalog and label not in label_metadata:
+            raise ValueError(
+                f"unknown entity label {label}; it is not present in the loaded entity catalogs"
+            )
         return label
-    label_metadata = label_metadata or {}
     matches = []
     for metadata_label, metadata_row in label_metadata.items():
         canonical_id = str(metadata_row.get("canonical_id") or metadata_label.rsplit(".", 1)[-1])
@@ -102,6 +111,10 @@ def resolve_manual_label(
         return matches[0]
     if len(matches) > 1:
         raise ValueError(f"ambiguous canonical id {label}; use the full label")
+    if strict_catalog:
+        raise ValueError(
+            f"unknown entity label {label}; use a canonical id or full label from the loaded entity catalogs"
+        )
     target = target_label(row)
     if target.startswith(("org.ent.pressagency.", "org.ent.radiostation.", "org.ent.newspaper.")):
         family = ".".join(target.split(".")[:3])
