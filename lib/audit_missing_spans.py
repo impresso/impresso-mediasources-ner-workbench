@@ -12,6 +12,8 @@ from .score_radiostation_snippets import (
     find_contextual_source_formula_spans,
     high_precision_press_aliases,
     seed_aliases,
+)
+from .score_newsagency_snippets import (
     suppress_contained_same_label_spans,
 )
 
