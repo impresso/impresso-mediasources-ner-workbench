@@ -323,6 +323,7 @@ News-agency names with `Agence`:
 - If the text only has the agency name without `Agence`, annotate the name alone: `Havas`, `Wolff`, `Reuter`, `Reuters`.
 - If `agence` is lowercase or syntactically generic but immediately names the organization, include it when the phrase is still the proper-name surface: `l'agence Havas` -> `agence Havas`.
 - Do not include generic descriptors that are not part of the name: in `une agence de presse Havas` or `l'agence télégraphique Reuter`, annotate `Havas` or `Reuter` unless the source clearly uses `Agence Havas` or `Agence Reuter` as the name.
+- In plural or list constructions such as `les agences de presse Itar-Tass et Interfax`, `agences de presse` is a generic classifier for several organizations, not part of either name. Annotate the named agencies separately: `Itar-Tass` and `Interfax`.
 - Do not include corrupted tokens merely because they might stand for `Agence`. If OCR gives `A qgcncc Reuter`, annotate the clean identifiable name `Reuter` and add a correction note if useful.
 - If `Agence` is readable but the following agency token is OCR-noisy and identifiable, include the readable `Agence` plus the noisy agency token.
 
@@ -335,6 +336,7 @@ Examples:
 | `presse , Havas .`       | `Havas`        | `presse , Havas`, `Havas .`    |
 | `( A . F . P . ) .`      | `A . F . P .`  | `A . F . P`, `( A . F . P . )` |
 | `l'agence Havas annonce` | `agence Havas` | `l'agence`, `Havas`            |
+| `les agences de presse Itar-Tass et Interfax` | `Itar-Tass`, `Interfax` | `agences de presse Itar-Tass`, `agences de presse` |
 | `A qgcncc Reuter`        | `Reuter`       | `A qgcncc Reuter`              |
 
 Compounds:

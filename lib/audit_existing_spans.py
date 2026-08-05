@@ -72,16 +72,17 @@ def has_verified_audit_mark(row: dict[str, Any], *, audit_id: str, entity: dict[
     return False
 
 
-def build_candidates(input_jsonl: Path, *, target_label: str, audit_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+def build_candidates(input_jsonl: Path, *, target_label: str, audit_id: str, limit: int = 0) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     if not target_label:
         raise ValueError("target_label is required")
+    if limit < 0:
+        raise ValueError("limit must be non-negative")
     rows = load_jsonl(input_jsonl)
-    candidates: list[dict[str, Any]] = []
-    tsv_rows: list[dict[str, Any]] = []
-    by_language: dict[str, int] = {}
+    candidate_rows_by_document: dict[str, dict[str, Any]] = {}
+    span_records: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    total_by_language: dict[str, int] = {}
 
     for row in rows:
-        spans = []
         for entity in row.get("entities") or []:
             if not isinstance(entity, dict) or entity.get("label") != target_label:
                 continue
@@ -95,52 +96,76 @@ def build_candidates(input_jsonl: Path, *, target_label: str, audit_id: str) -> 
                 "token_start": entity.get("token_start"),
                 "token_stop": entity.get("token_stop"),
             }
-            spans.append(span)
             language = str(row.get("language") or "")
-            by_language[language] = by_language.get(language, 0) + 1
-            tsv_rows.append(
-                {
-                    "date": row.get("date", ""),
-                    "document_id": row_id(row),
-                    "label": target_label,
-                    "language": language,
-                    "newspaper": row.get("newspaper", ""),
-                    "start": span["start"],
-                    "stop": span["stop"],
-                    "surface": span["surface"],
-                    "token_start": span.get("token_start"),
-                    "token_stop": span.get("token_stop"),
-                }
+            total_by_language[language] = total_by_language.get(language, 0) + 1
+            span_records.append(
+                (
+                    row,
+                    span,
+                    {
+                        "date": row.get("date", ""),
+                        "document_id": row_id(row),
+                        "label": target_label,
+                        "language": language,
+                        "newspaper": row.get("newspaper", ""),
+                        "start": span["start"],
+                        "stop": span["stop"],
+                        "surface": span["surface"],
+                        "token_start": span.get("token_start"),
+                        "token_stop": span.get("token_stop"),
+                    },
+                )
             )
-        if not spans:
-            continue
-        candidates.append(
-            {
+
+    span_records.sort(key=lambda item: (row_id(item[0]), int(item[1]["start"]), int(item[1]["stop"])))
+    total_candidate_spans = len(span_records)
+    selected_span_records = span_records[:limit] if limit else span_records
+    tsv_rows = [tsv_row for _row, _span, tsv_row in selected_span_records]
+    queued_by_language: dict[str, int] = {}
+    for row, _span, _tsv_row in selected_span_records:
+        language = str(row.get("language") or "")
+        queued_by_language[language] = queued_by_language.get(language, 0) + 1
+
+    for row, span, _tsv_row in selected_span_records:
+        document_id = row_id(row)
+        candidate = candidate_rows_by_document.get(document_id)
+        if candidate is None:
+            candidate = {
                 "audit_mode": "existing-span-boundary",
                 "date": row.get("date", ""),
-                "document_id": row_id(row),
+                "document_id": document_id,
                 "language": row.get("language", ""),
                 "newspaper": row.get("newspaper", ""),
-                "candidate_spans": sorted(spans, key=entity_key),
+                "candidate_spans": [],
                 "target_label": target_label,
                 "text": row.get("text", ""),
                 "token_end_offsets": row.get("token_end_offsets", []),
                 "token_start_offsets": row.get("token_start_offsets", []),
                 "tokens": row.get("tokens", []),
             }
-        )
+            candidate_rows_by_document[document_id] = candidate
+        candidate["candidate_spans"].append(span)
 
+    candidates = list(candidate_rows_by_document.values())
     candidates.sort(key=lambda row: str(row["document_id"]))
+    for candidate in candidates:
+        candidate["candidate_spans"].sort(key=entity_key)
     tsv_rows.sort(key=lambda row: (str(row["document_id"]), int(row["start"]), int(row["stop"])))
+    exhaustive = limit == 0 or total_candidate_spans <= limit
     summary = {
         "audit_id": audit_id,
         "audit_mode": "existing-span-boundary",
         "input_jsonl": str(input_jsonl),
         "target_label": target_label,
+        "limit": limit,
+        "exhaustive": exhaustive,
         "documents": len(rows),
         "candidate_documents": len(candidates),
         "candidate_spans": len(tsv_rows),
-        "candidate_spans_by_language": dict(sorted(by_language.items())),
+        "total_candidate_spans": total_candidate_spans,
+        "omitted_candidate_spans": max(0, total_candidate_spans - len(tsv_rows)),
+        "candidate_spans_by_language": dict(sorted(queued_by_language.items())),
+        "total_candidate_spans_by_language": dict(sorted(total_by_language.items())),
     }
     return candidates, tsv_rows, summary
 
@@ -153,16 +178,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--candidates-jsonl", required=True)
     parser.add_argument("--candidates-tsv", required=True)
     parser.add_argument("--summary-json", required=True)
+    parser.add_argument("--limit", type=int, default=0, help="Maximum existing spans to queue; 0 means exhaustive.")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    candidates, tsv_rows, summary = build_candidates(Path(args.input_jsonl), target_label=args.target_label, audit_id=args.audit_id)
+    candidates, tsv_rows, summary = build_candidates(Path(args.input_jsonl), target_label=args.target_label, audit_id=args.audit_id, limit=args.limit)
     write_jsonl(Path(args.candidates_jsonl), candidates)
     write_tsv(Path(args.candidates_tsv), tsv_rows)
     write_json(Path(args.summary_json), summary)
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
+    if not summary["exhaustive"]:
+        print(
+            "audit queue is not exhaustive: "
+            f"queued {summary['candidate_spans']} of {summary['total_candidate_spans']} eligible spans; "
+            "rerun with --limit 0 for a complete audit"
+        )
     return 0
 
 

@@ -304,13 +304,15 @@ Use an existing-span boundary audit when you want to select one agency or statio
 Build the audit queue for one label:
 
 ```bash
-make audit-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make audit-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas SPAN_BOUNDARY_SPLIT=train
 ```
+
+Use `SPAN_BOUNDARY_SPLIT=train`, `SPAN_BOUNDARY_SPLIT=validation` or `SPAN_BOUNDARY_SPLIT=dev`, or `SPAN_BOUNDARY_SPLIT=test` to choose the configured split. Existing-span audits queue 20 spans by default; set `SPAN_BOUNDARY_AUDIT_LIMIT=0` for an exhaustive queue.
 
 Review with the same span-patch interface:
 
 ```bash
-make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas REVIEWER="$USER"
+make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas SPAN_BOUNDARY_SPLIT=train REVIEWER="$USER"
 ```
 
 Choice meanings in this audit mode are:
@@ -323,19 +325,19 @@ Choice meanings in this audit mode are:
 Apply reviewed decisions to a local patched split:
 
 ```bash
-make apply-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make apply-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas SPAN_BOUNDARY_SPLIT=train
 ```
 
 This writes a local patched output file. It does not change the prerelease split yet. Inspect whether the patched output still differs from the configured promotion target:
 
 ```bash
-make existing-span-status SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make existing-span-status SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas SPAN_BOUNDARY_SPLIT=train
 ```
 
 Promote the patched output into the configured prerelease/source split, which is the file that feeds into training and export:
 
 ```bash
-make promote-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make promote-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas SPAN_BOUNDARY_SPLIT=train
 ```
 
 Promotion overwrites the configured source split with the patched version. The patched file also writes `changes.jsonl` and `changes.tsv` alongside it so you can review what changed before committing.
@@ -343,7 +345,7 @@ Promotion overwrites the configured source split with the patched version. The p
 For the normal apply-and-promote sequence, use:
 
 ```bash
-make integrate-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make integrate-existing-spans SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas SPAN_BOUNDARY_SPLIT=train
 ```
 
 `integrate-existing-spans` is the normal shortcut for applying and promoting in one step. Use `existing-span-status` beforehand if you want to confirm that there are pending changes worth promoting.

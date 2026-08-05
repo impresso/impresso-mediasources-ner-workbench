@@ -120,6 +120,7 @@ help-anno:
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=false (set true for coverage-only review)"
 	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
 	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
+	@echo "  SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.tass, SPAN_BOUNDARY_SPLIT=train|validation|dev|test"
 	@echo "  CURATION_MODEL=$(CURATION_MODEL), CURATION_LABEL_MAP=$(CURATION_LABEL_MAP)"
 	@echo "  EMPTY_DOC_MODEL=$(EMPTY_DOC_MODEL) (defaults to CURATION_MODEL)"
 	@echo "  ANNOTATION_MAIN_LANGS='$(ANNOTATION_MAIN_LANGS)', ANNOTATION_SIDE_LANGS='$(ANNOTATION_SIDE_LANGS)'"
@@ -412,7 +413,16 @@ missing-span-status:
 	@echo "promote target:  $(MISSING_SPAN_PROMOTE_JSONL)"
 	@test -f "$(MISSING_SPAN_OUTPUT_JSONL)" || { echo "patched output:  missing; run make apply-missing-spans first"; exit 1; }
 	@test -f "$(MISSING_SPAN_PROMOTE_JSONL)" || { echo "promote target:  missing"; exit 1; }
-	@if cmp -s "$(MISSING_SPAN_OUTPUT_JSONL)" "$(MISSING_SPAN_PROMOTE_JSONL)"; then echo "state:           promoted target is up to date"; else echo "state:           patched output differs from promote target"; fi
+	@if cmp -s "$(MISSING_SPAN_OUTPUT_JSONL)" "$(MISSING_SPAN_PROMOTE_JSONL)"; then \
+		echo "state:           promoted target is up to date"; \
+	else \
+		echo "state:           patched output differs from promote target"; \
+		echo "Next step:"; \
+		echo "  # Promote the patched split."; \
+		echo "  make promote-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT)"; \
+		echo "  # Or apply reviewed decisions and promote in one command."; \
+		echo "  make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT)"; \
+	fi
 
 promote-missing-spans:
 	@echo "Promoting the missing-span patched split into the configured source split."
@@ -425,42 +435,57 @@ integrate-missing-spans: apply-missing-spans promote-missing-spans
 	@echo "Missing-span integration complete."
 
 audit-existing-spans:
-	@echo "Building a boundary/label/removal audit queue for existing spans of $(SPAN_BOUNDARY_TARGET_LABEL)."
+	@echo "Building a boundary/label/removal audit queue for existing spans of $(SPAN_BOUNDARY_TARGET_LABEL) in $(SPAN_BOUNDARY_SPLIT_KEY)."
 	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
-	$(PYTHON) -m lib.audit_existing_spans --input-jsonl "$(TRAIN_JSONL)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --candidates-jsonl "$(SPAN_BOUNDARY_CANDIDATES)" --candidates-tsv "$(SPAN_BOUNDARY_CANDIDATES_TSV)" --summary-json "$(SPAN_BOUNDARY_SUMMARY_JSON)" $(ARGS)
+	@test "$(SPAN_BOUNDARY_SPLIT_KEY)" = "train" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "validation" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "test" || { echo "SPAN_BOUNDARY_SPLIT must be train, validation/dev, or test"; exit 1; }
+	$(PYTHON) -m lib.audit_existing_spans --input-jsonl "$(SPAN_BOUNDARY_SOURCE_JSONL)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --candidates-jsonl "$(SPAN_BOUNDARY_CANDIDATES)" --candidates-tsv "$(SPAN_BOUNDARY_CANDIDATES_TSV)" --summary-json "$(SPAN_BOUNDARY_SUMMARY_JSON)" --limit "$(SPAN_BOUNDARY_AUDIT_LIMIT)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Review existing-span boundary candidates."
-	@echo "  make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) REVIEWER=\"$$USER\""
+	@echo "  make review-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) SPAN_BOUNDARY_SPLIT=$(SPAN_BOUNDARY_SPLIT_KEY) REVIEWER=\"$$USER\""
 
 review-existing-spans:
 	@echo "Reviewing existing-span audit candidates and writing append-only decisions."
 	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
+	@test "$(SPAN_BOUNDARY_SPLIT_KEY)" = "train" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "validation" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "test" || { echo "SPAN_BOUNDARY_SPLIT must be train, validation/dev, or test"; exit 1; }
 	$(PYTHON) -m lib.span_patch_review --candidates "$(SPAN_BOUNDARY_CANDIDATES)" --decisions "$(SPAN_BOUNDARY_DECISIONS)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(SPAN_BOUNDARY_REVIEW_SUMMARY_JSON)" --queue-jsonl "$(SPAN_BOUNDARY_QUEUE_JSONL)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Apply reviewed existing-span decisions."
-	@echo "  make apply-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL)"
+	@echo "  make apply-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) SPAN_BOUNDARY_SPLIT=$(SPAN_BOUNDARY_SPLIT_KEY)"
 
 apply-existing-spans:
 	@echo "Applying reviewed existing-span decisions to a patched split."
 	@test -n "$(SPAN_BOUNDARY_TARGET_LABEL)" || { echo "SPAN_BOUNDARY_TARGET_LABEL is required, e.g. SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas"; exit 1; }
-	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(TRAIN_JSONL)" --output-jsonl "$(SPAN_BOUNDARY_OUTPUT_JSONL)" --candidates "$(SPAN_BOUNDARY_CANDIDATES)" --decisions "$(SPAN_BOUNDARY_DECISIONS)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --changes-jsonl "$(SPAN_BOUNDARY_CHANGES_JSONL)" --changes-tsv "$(SPAN_BOUNDARY_CHANGES_TSV)" --summary-json "$(SPAN_BOUNDARY_APPLY_SUMMARY_JSON)" --replace-overlaps $(ARGS)
+	@test "$(SPAN_BOUNDARY_SPLIT_KEY)" = "train" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "validation" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "test" || { echo "SPAN_BOUNDARY_SPLIT must be train, validation/dev, or test"; exit 1; }
+	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(SPAN_BOUNDARY_SOURCE_JSONL)" --output-jsonl "$(SPAN_BOUNDARY_OUTPUT_JSONL)" --candidates "$(SPAN_BOUNDARY_CANDIDATES)" --decisions "$(SPAN_BOUNDARY_DECISIONS)" --audit-id "$(SPAN_BOUNDARY_AUDIT_ID)" --target-label "$(SPAN_BOUNDARY_TARGET_LABEL)" --changes-jsonl "$(SPAN_BOUNDARY_CHANGES_JSONL)" --changes-tsv "$(SPAN_BOUNDARY_CHANGES_TSV)" --summary-json "$(SPAN_BOUNDARY_APPLY_SUMMARY_JSON)" --replace-overlaps $(ARGS)
 	@echo "Next step:"
 	@echo "  # Check whether the patched split is ready for promotion."
-	@echo "  make existing-span-status SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL)"
+	@echo "  make existing-span-status SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) SPAN_BOUNDARY_SPLIT=$(SPAN_BOUNDARY_SPLIT_KEY)"
 
 existing-span-status:
 	@echo "Checking whether the existing-span patched output is ready for promotion."
+	@test "$(SPAN_BOUNDARY_SPLIT_KEY)" = "train" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "validation" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "test" || { echo "SPAN_BOUNDARY_SPLIT must be train, validation/dev, or test"; exit 1; }
 	@echo "audit id:        $(SPAN_BOUNDARY_AUDIT_ID)"
 	@echo "target label:    $(SPAN_BOUNDARY_TARGET_LABEL)"
-	@echo "source split:    $(TRAIN_JSONL)"
+	@echo "split:           $(SPAN_BOUNDARY_SPLIT_KEY)"
+	@echo "source split:    $(SPAN_BOUNDARY_SOURCE_JSONL)"
 	@echo "patched output:  $(SPAN_BOUNDARY_OUTPUT_JSONL)"
 	@echo "promote target:  $(SPAN_BOUNDARY_PROMOTE_JSONL)"
 	@test -f "$(SPAN_BOUNDARY_OUTPUT_JSONL)" || { echo "patched output:  missing; run make apply-existing-spans first"; exit 1; }
 	@test -f "$(SPAN_BOUNDARY_PROMOTE_JSONL)" || { echo "promote target:  missing"; exit 1; }
-	@if cmp -s "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"; then echo "state:           promoted target is up to date"; else echo "state:           patched output differs from promote target"; fi
+	@if cmp -s "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"; then \
+		echo "state:           promoted target is up to date"; \
+	else \
+		echo "state:           patched output differs from promote target"; \
+		echo "Next step:"; \
+		echo "  # Promote the patched split."; \
+		echo "  make promote-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) SPAN_BOUNDARY_SPLIT=$(SPAN_BOUNDARY_SPLIT_KEY)"; \
+		echo "  # Or apply reviewed decisions and promote in one command."; \
+		echo "  make integrate-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) SPAN_BOUNDARY_SPLIT=$(SPAN_BOUNDARY_SPLIT_KEY)"; \
+	fi
 
 promote-existing-spans:
 	@echo "Promoting the existing-span patched split into the configured source split."
+	@test "$(SPAN_BOUNDARY_SPLIT_KEY)" = "train" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "validation" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "test" || { echo "SPAN_BOUNDARY_SPLIT must be train, validation/dev, or test"; exit 1; }
 	@test -f "$(SPAN_BOUNDARY_OUTPUT_JSONL)" || { echo "Missing patched output: $(SPAN_BOUNDARY_OUTPUT_JSONL). Run make apply-existing-spans first."; exit 1; }
 	@echo "Promoting $(SPAN_BOUNDARY_OUTPUT_JSONL) -> $(SPAN_BOUNDARY_PROMOTE_JSONL)"
 	cp "$(SPAN_BOUNDARY_OUTPUT_JSONL)" "$(SPAN_BOUNDARY_PROMOTE_JSONL)"

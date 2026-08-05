@@ -6,7 +6,7 @@
 include configs/common.mk
 
 MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0
-SELECTED_MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0-label-all-tokens/best
+SELECTED_MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0/best
 DATASET_SOURCE_DIR = data/prereleases/dataset-v2.0.0
 DATASET_REVISION = v2.0.0
 DATASET_TSV_COMPARE_VERSION = v1.0.0

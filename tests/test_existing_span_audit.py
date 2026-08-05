@@ -52,6 +52,27 @@ def test_existing_span_audit_builds_candidates_for_target_label(tmp_path: Path) 
     assert candidates[0]["candidate_spans"][0]["token_start"] == 1
 
 
+def test_existing_span_audit_limit_reports_non_exhaustive_queue(tmp_path: Path) -> None:
+    source = tmp_path / "train.jsonl"
+    rows = []
+    for index in range(3):
+        row = source_row()
+        row["document_id"] = f"doc-{index}"
+        rows.append(row)
+    write_jsonl(source, rows)
+
+    candidates, tsv_rows, summary = build_candidates(source, target_label=LABEL, audit_id="existing-havas", limit=2)
+
+    assert len(candidates) == 2
+    assert len(tsv_rows) == 2
+    assert summary["candidate_spans"] == 2
+    assert summary["total_candidate_spans"] == 3
+    assert summary["omitted_candidate_spans"] == 1
+    assert summary["exhaustive"] is False
+    assert summary["candidate_spans_by_language"] == {"fr": 2}
+    assert summary["total_candidate_spans_by_language"] == {"fr": 3}
+
+
 def test_existing_span_accept_only_adds_audit_mark(tmp_path: Path) -> None:
     source = tmp_path / "train.jsonl"
     candidates_path = tmp_path / "candidates.jsonl"
