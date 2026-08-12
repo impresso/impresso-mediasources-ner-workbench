@@ -37,7 +37,7 @@ Annotate the visible organization-name span for every explicit mention of a spec
 Typical positive examples:
 
 - `Reuters meldet ...` -> annotate `Reuters`
-- `Selon l'agence Havas ...` -> annotate `agence Havas`
+- `Selon l'agence Havas ...` -> annotate `Havas`
 - `D.N.B. berichtet ...` -> annotate `D.N.B.`
 - `Radio Londres annonce ...` -> annotate `Radio Londres`
 - `Nach einer Meldung der BBC ...` -> annotate `BBC`
@@ -99,13 +99,13 @@ Examples:
 
 Only labels backed by canonical metadata in `resources/newsagency_seeds.json` are trainable labels.
 
-Use `org.ent.pressagency.cip` for the Belgian Catholic religious-news agency Centre d'information de presse (CIP), active from 1944 through 2001. Explicit agency forms such as `Agentur CIP`, `Agence CIP`, `agence de presse CIP`, and `Centre d'information de presse` are positive. Bare `CIP` is positive only when agency, dispatch-source, Belgian/Brussels, or religious-news context resolves the acronym; do not annotate unrelated uses of CIP. In `Wie die Agentur CIP meldet`, annotate `Agentur CIP` and exclude the evidence verb `meldet`.
+Use `org.ent.pressagency.cip` for the Belgian Catholic religious-news agency Centre d'information de presse (CIP), active from 1944 through 2001. Explicit agency forms such as `Agentur CIP`, `Agence CIP`, `agence de presse CIP`, and `Centre d'information de presse` are positive. Bare `CIP` is positive only when agency, dispatch-source, Belgian/Brussels, or religious-news context resolves the acronym; do not annotate unrelated uses of CIP.
 
 Use `org.ent.pressagency.keystone` for the Swiss Keystone press-photo agency founded in Zurich in 1953. Photo credits such as `(Keystone)` are valid organization mentions even though they identify the image source rather than a textual dispatch source. Keep historical Keystone separate from ATS/SDA through 2017. From the 2018 merger onward, explicit `Keystone-SDA` and `Keystone-ATS` forms use `org.ent.pressagency.ats-sda`. Do not map historical bare `Keystone` to ATS/SDA, and do not annotate unrelated uses of the ordinary word `keystone`.
 
 Use `org.ent.pressagency.kyodo` for `Kyodo`, `Kyodo News`, `Kyodo News Service`, and language-specific agency forms such as `Agence Kyodo` or `Nachrichtenagentur Kyodo`. `KNS` is positive only in a clear dispatch continuation or source attribution that identifies Kyodo News Service, especially when a full Kyodo name appears nearby. Keep pre-1945 Domei references under `org.ent.pressagency.domei`.
 
-Use `org.ent.pressagency.akp` for Cambodia's state news agency, including historical `SPK` (Sarpordamean/Sapordamean Kampuchea) and later `Agence Kampuchea Presse` / `AKP`. Bare `SPK` is positive only when Cambodian, Kampuchean, or Phnom Penh context identifies this agency. Do not normalize Cambodian SPK to the Swiss `org.ent.pressagency.spk-smp`; conversely, Swiss SPK/SMP mentions do not belong to AKP. In `l'agence cambodgienne SPK`, annotate the full visible agency phrase; annotate `SPK` alone in a following `Selon SPK` mention.
+Use `org.ent.pressagency.akp` for Cambodia's state news agency, including historical `SPK` (Sarpordamean/Sapordamean Kampuchea) and later `Agence Kampuchea Presse` / `AKP`. Bare `SPK` is positive only when Cambodian, Kampuchean, or Phnom Penh context identifies this agency. Do not normalize Cambodian SPK to the Swiss `org.ent.pressagency.spk-smp`; conversely, Swiss SPK/SMP mentions do not belong to AKP. In `l'agence cambodgienne SPK`, annotate `SPK`; the classifier resolves the acronym but stays outside the span.
 
 Use `org.ent.pressagency.telegraphen-union` for `Telegraphen-Union`, `T.U.`, and contextual Weimar-period source formulas such as `Berlin, 7. Januar. (UTA)`. For `UTA`, require source-formula context; do not treat arbitrary `UTA` in running text as a press-agency mention, and do not map it to `org.ent.pressagency.ats-sda`.
 
@@ -114,8 +114,6 @@ Do not annotate `Telegraphen-Union` when it denotes the international telegraph 
 Use `org.ent.pressagency.wolff` for the Wolff/Continental agency complex: `Wolff`, `W.T.B.`, `Wolffs Telegraphisches Bureau`, `Continental-Telegraphen-Compagnie`, `Continental Telegraph Company`, `The Continental`, `Agence Continentale`, and `Compagnie télégraphique continentale`. The Continental company was the corporate frame behind the operating agency commonly cited as Wolff, so this inventory does not assign it a separate trainable entity. Also normalize explicit `Conti-Nachrichtendienst` mentions to Wolff.
 
 Treat bare `Conti` as a contextual alias only. Annotate it as `org.ent.pressagency.wolff` in a clear parenthesized or formulaic dispatch attribution, for example `Berlin. 25. Febr. (Conti.)`. Do not annotate arbitrary `Conti` in running text: it may be a surname, an unrelated abbreviation, or another corporate reference. The source-formula restriction applies to bare `Conti`, not to an explicit full Continental company or `Conti-Nachrichtendienst` name.
-
-In source phrases such as `Telegraphen-Union berichtet:`, annotate only `Telegraphen-Union` with `org.ent.pressagency.telegraphen-union`. The following verb (`berichtet`) is context evidence and must stay outside the entity span, even if a model predicts it as another agency.
 
 Use `org.ent.pressagency.ctk` for CTK/ČTK, Ceteka, the Czech/Czechoslovak News Agency, `Československá tisková kancelář`, `tschechoslowakische Nachrichtenagentur`, `tschechoslowakischen Nachrichtenagentur`, `Tschechoslowakisches Nachrichtenbüro`, and comparable language-specific renderings of the Czechoslovak/Czech press agency. In phrases such as `Meldung der tschechoslowakischen Nachrichtenagentur`, annotate only the visible agency phrase (`tschechoslowakischen Nachrichtenagentur`) and exclude surrounding evidence words such as `Meldung der`.
 
@@ -191,7 +189,7 @@ Annotate the visible organization-name span for every explicit mention of a spec
 
 For radio stations and broadcasters, annotate the visible organization-name span when the mention refers to the broadcaster/media outlet, its broadcasts, programmes, institutional organization, media staff, or media-source function.
 
-Surrounding verbs and nouns are only context evidence. Do not annotate words such as `meldet`, `berichtet`, `annonce`, `dépêche`, `communiqué`, `émission`, or `broadcast` unless they are part of the visible organization name. In `Reuters meldet ...`, annotate only `Reuters`. In `Radio Londres annonce ...`, annotate only `Radio Londres`.
+Annotate the media-source name, not surrounding context words. Verbs and nouns such as `meldet`, `berichtet`, `annonce`, `dépêche`, `communiqué`, `émission`, or `broadcast` stay outside the span unless they are part of the visible organization name. For example, annotate `Reuters` in `Reuters meldet ...` and `Radio Londres` in `Radio Londres annonce ...`.
 
 Common positive evidence includes:
 
@@ -204,8 +202,8 @@ Also annotate institutional, business, and programme contexts:
 
 - `Reuters eröffnet ein Büro ...`
 - `La BBC emploie ...`
-- `L'agence Havas fut critiquée ...`
-- `Fusion de l'agence Havas avec ...`
+- `Havas fut critiquée ...`
+- `Fusion de Havas avec ...`
 - `Programme de Radio Londres ...`
 - `BBC Orchestra ...`
 
@@ -234,8 +232,8 @@ Examples:
 - `Reply in confidence under No L. 39, Agence Havas, Brussels.` -> do not annotate; reply/box-number intermediary.
 - `BENELUX — Agence Havas belge, 13-17, boulevard Adolphe Max, Bruxelles.` -> do not annotate; regional advertising representative/contact in a newspaper advertising notice.
 - `RIVIERA, MONACO, CORSE — Agence Havas, 13, pl. Masséna, Nice.` -> do not annotate; regional advertising representative/contact in a newspaper advertising notice.
-- `Selon l'Agence Havas, les négociations ont repris.` -> annotate `Agence Havas`; news-source attribution.
-- `Une dépêche de l'Agence Havas annonce ...` -> annotate `Agence Havas`; news-distribution context.
+- `Selon l'Agence Havas, les négociations ont repris.` -> annotate `Havas`; news-source attribution.
+- `Une dépêche de l'Agence Havas annonce ...` -> annotate `Havas`; news-distribution context.
 
 ### Agence Radio vs Radio Stations
 
@@ -285,8 +283,8 @@ Include:
 
 - abbreviation periods, including the final period of dotted acronyms: `D.N.B.`, `A.F.P.`
 - abbreviation-internal hyphens or slashes when part of the name: `ATS-SDA`, `Kipa/Apic`
-- words that are part of the official name: `Agence France Presse`, `United Press`
-- generic type words when they are used as part of the proper-name surface: `Agence Havas`, `Agence Wolff`, `Agence Reuter`
+- words that are part of the official name: `Agence France Presse`, `Agence Radio`, `United Press`
+- agency words only when they are part of a lexicalized official or established name, not before complete short names such as `Havas`, `Wolff`, or `Reuter`
 - OCR-noisy characters that belong to the mention if the mention is still identifiable
 - full compound tokens or hyphenated compounds when a canonical agency name is embedded in the compound
 
@@ -316,28 +314,69 @@ Examples:
 
 News-agency names with `Agence`:
 
-- Include `Agence` when it immediately precedes a specific agency name and functions as part of the named mention.
-- Exclude articles and elided articles before it: annotate `Agence Wolff`, not `l' Agence Wolff`.
-- For both `l'agence` and `l’agence`, leave `l` and the apostrophe `O` and begin the entity at `agence`.
-- Prefer the full visible proper-name surface over the shortest canonical label token. For example, annotate `Agence Havas`, not only `Havas`, when both words are cleanly present.
-- If the text only has the agency name without `Agence`, annotate the name alone: `Havas`, `Wolff`, `Reuter`, `Reuters`.
-- If `agence` is lowercase or syntactically generic but immediately names the organization, include it when the phrase is still the proper-name surface: `l'agence Havas` -> `agence Havas`.
-- Do not include generic descriptors that are not part of the name: in `une agence de presse Havas` or `l'agence télégraphique Reuter`, annotate `Havas` or `Reuter` unless the source clearly uses `Agence Havas` or `Agence Reuter` as the name.
+- Include `Agence` only when it is part of the agency's lexicalized official or established name.
+- Omit `agence`, `Agentur`, `Nachrichtenagentur`, `news agency`, and comparable agency words when the following element is already the agency's proper short name, surname, acronym, or stable core name.
+- Exclude articles and elided articles before it. For both `l'agence` and `l’agence`, leave `l` and the apostrophe `O`.
+- If removing `Agence` still leaves a complete proper name such as `Havas`, `Belga`, `Stefani`, `Reuter`, `Wolff`, `APA`, or `AP`, annotate that core name only.
+- If removing `Agence` would leave only a description or incomplete name, keep it: `Agence Chine Nouvelle`, `Agence télégraphique suisse`, `Agence Radio`, `Agence France-Presse`.
+- Generic descriptors that are not part of the name stay outside the span. In `une agence de presse Havas` or `l'agence télégraphique Reuter`, annotate `Havas` or `Reuter`.
 - In plural or list constructions such as `les agences de presse Itar-Tass et Interfax`, `agences de presse` is a generic classifier for several organizations, not part of either name. Annotate the named agencies separately: `Itar-Tass` and `Interfax`.
 - Do not include corrupted tokens merely because they might stand for `Agence`. If OCR gives `A qgcncc Reuter`, annotate the clean identifiable name `Reuter` and add a correction note if useful.
-- If `Agence` is readable but the following agency token is OCR-noisy and identifiable, include the readable `Agence` plus the noisy agency token.
+- If an agency token is OCR-noisy but identifiable, annotate the identifiable core-name span without adding surrounding generic agency words.
 
 Examples:
 
 | Text                     | Annotate       | Do not annotate                |
 | ------------------------ | -------------- | ------------------------------ |
-| `l' Agence Wolff`        | `Agence Wolff` | `l' Agence Wolff`, `Wolff`     |
-| `Agence Havas`           | `Agence Havas` | `Havas`                        |
+| `l' Agence Wolff`        | `Wolff`        | `l' Agence Wolff`, `Agence Wolff` |
+| `Agence Havas`           | `Havas`        | `Agence Havas`                 |
 | `presse , Havas .`       | `Havas`        | `presse , Havas`, `Havas .`    |
 | `( A . F . P . ) .`      | `A . F . P .`  | `A . F . P`, `( A . F . P . )` |
-| `l'agence Havas annonce` | `agence Havas` | `l'agence`, `Havas`            |
+| `l'agence Havas annonce` | `Havas`        | `l'agence`, `agence Havas`     |
+| `Agence France-Presse`   | `Agence France-Presse` | `France-Presse`          |
+| `Agence télégraphique suisse` | `Agence télégraphique suisse` | `télégraphique suisse` |
 | `les agences de presse Itar-Tass et Interfax` | `Itar-Tass`, `Interfax` | `agences de presse Itar-Tass`, `agences de presse` |
 | `A qgcncc Reuter`        | `Reuter`       | `A qgcncc Reuter`              |
+
+Per-label agency-word policy:
+
+The seed catalog stores the same decision in `agency_word_boundary_policy`. Use this table as the annotator-facing default. "Keep official name" means the agency word is part of a lexicalized proper name when that proper name is visibly present. "Strip before short name" means the agency word is contextual evidence and should stay `O` before a complete core name/acronym.
+
+| Label | Keep agency word when visible as official/proper name | Strip generic classifier before core name |
+|---|---|---|
+| `org.ent.pressagency.agence-radio` | `Agence Radio`, `Agence Télégraphique Radio`, `Radio-Agentur` | bare contextual `Radio` follows the source-formula rule |
+| `org.ent.pressagency.afp` | `Agence France-Presse`, `Agence France Presse` | `agence AFP`, `agence de presse AFP` -> `AFP` |
+| `org.ent.pressagency.akp` | `Agence Kampuchea Presse`, `Agence Kampuchea Press` | `agence cambodgienne SPK`, `agence officielle SPK` -> `SPK` |
+| `org.ent.pressagency.ansa` | `Agenzia Nazionale Stampa Associata` | `agence de presse italienne ANSA`, `italienische Nachrichtenagentur ANSA` -> `ANSA` |
+| `org.ent.pressagency.ap` | `Associated Press` | `agence américaine AP` -> `AP` |
+| `org.ent.pressagency.apa` | `Austria Presse Agentur`, `Austria-Presse-Agentur`, `Austria Press Agency` | `agence de presse autrichienne APA` -> `APA` |
+| `org.ent.pressagency.ata` | `Albanian Telegraphic Agency`, `Agjencia Telegrafike Shqiptare`, `Agence télégraphique albanaise` | `agence albanaise de presse ATA`, `albanische Nachrichtenagentur ATA` -> `ATA` |
+| `org.ent.pressagency.ats-sda` | `Agence télégraphique suisse`, `Schweizerische Depeschenagentur` | `agence ATS`, `Nachrichtenagentur SDA` -> `ATS`, `SDA` |
+| `org.ent.pressagency.belga` | `Belga News Agency` | `Agence Belga`, `agence Belga` -> `Belga` |
+| `org.ent.pressagency.cip` | `Centre d'information de presse` | `Agentur CIP`, `Agence CIP`, `agence de presse CIP` -> `CIP` |
+| `org.ent.pressagency.ctk` | `Czech News Agency`, `Československá tisková kancelář` | `agence CTK`, `agence Ceteka`, `Nachrichtenagentur CTK` -> `CTK`, `Ceteka` |
+| `org.ent.pressagency.ddp-dapd` | `Deutscher Depeschendienst`, `Deutscher Auslands-Depeschendienst` | `agence DDP`, `Agentur DAPD` -> `DDP`, `DAPD` |
+| `org.ent.pressagency.dnb` | `Deutsches Nachrichtenbüro`, `Deutsches Nachrichtenbuero` | `Agentur DNB`, `Nachrichtenagentur DNB` -> `DNB` |
+| `org.ent.pressagency.domei` | `Domei News Agency` | `Agentur Domei` -> `Domei` |
+| `org.ent.pressagency.dpa` | `Deutsche Presse-Agentur`, `Deutsche Presse Agentur` | `agence DPA`, `Agentur dpa` -> `DPA`, `dpa` |
+| `org.ent.pressagency.extel` | `Exchange Telegraph Company` | `Agence Extel` unless clearly lexicalized -> `Extel` |
+| `org.ent.pressagency.havas` | none for short-name forms | `Agence Havas`, `agence de presse Havas`, `Agentur Havas` -> `Havas` |
+| `org.ent.pressagency.keystone` | `Keystone photo agency` when used as the visible proper-name phrase | `agence Keystone` -> `Keystone` |
+| `org.ent.pressagency.kipa` | `Katholische Internationale Presseagentur`, `Agence de presse internationale catholique` | `agence KIPA` -> `KIPA` |
+| `org.ent.pressagency.kyodo` | `Kyodo News`, `Kyodo News Service` | `agence Kyodo`, `KNS` with generic classifier -> `Kyodo`, `KNS` |
+| `org.ent.pressagency.palach-press` | `Palach Press`, `Palach Press Agency` | `agence dissidente Palach Press` -> `Palach Press` |
+| `org.ent.pressagency.reuters` | official company forms when visible | `Agence Reuter`, `Agentur Reuter` -> `Reuter`; `agence Reuters` -> `Reuters` |
+| `org.ent.pressagency.spk-smp` | `Schweizerische Politische Korrespondenz`, `Schweizer Mittelpresse` | `Agentur SPK`, `agence SMP` -> `SPK`, `SMP` |
+| `org.ent.pressagency.stefani` | `Agenzia Stefani` | `Agence Stefani`, `agence Stefani` -> `Stefani` |
+| `org.ent.pressagency.tanjug` | established full official names when visible | `jugoslawische Nachrichtenagentur Tanjug`, `agence Tanjug` -> `Tanjug` |
+| `org.ent.pressagency.tass` | `TASS`, `ITAR-TASS`, `Russian News Agency TASS`, `Telegraph Agency of the Soviet Union` | `agences de presse Itar-Tass et Interfax` -> `Itar-Tass`, `Interfax` |
+| `org.ent.pressagency.telegraphen-union` | `Telegraphen-Union` | exclude unrelated institutional classifiers such as `Internationales Bureau der` |
+| `org.ent.pressagency.up-upi` | `United Press`, `United Press International` | `agence UPI` -> `UPI` |
+| `org.ent.pressagency.wolff` | `Wolffs Telegraphisches Bureau`, `Continental-Telegraphen-Compagnie` | `Agence Wolff`, `Agentur Wolff` -> `Wolff` |
+| `org.ent.pressagency.xinhua` | `Xinhua News Agency`, `New China News Agency`, `Chine Nouvelle`, `Agence Chine nouvelle` | `agence Xinhua`, `Nachrichtenagentur Xinhua` -> `Xinhua` |
+| `org.ent.pressagency.st-petersburg-telegraph-agency` | `St. Petersburg Telegraph Agency`, `Russische Telegraphen-Agentur`, `Petersburger Telegraphen-Agentur` | generic classifier before `PTA`/`SPTA` -> short alias only |
+| `org.ent.pressagency.europapress` | `Europapress` | `agence Europapress` -> `Europapress` |
+| `org.ent.pressagency.ag` | no agency word is a normal proper name | only use unresolved formulaic `ag.` cases allowed by curation policy |
 
 Compounds:
 
@@ -484,7 +523,7 @@ The practical consequence is that annotators should spend less time deciding whe
 | `Selon Reuters, la situation reste confuse.`       | annotate                                             | `Reuters`                          | `org.ent.pressagency.reuters`                                                          |
 | `Reuters ouvre un nouveau bureau.`                 | annotate                                             | `Reuters`                          | `org.ent.pressagency.reuters`                                                          |
 | `D.N.B. meldet aus Berlin ...`                     | annotate                                             | `D.N.B.`                           | `org.ent.pressagency.dnb`                                                              |
-| `l'agence Havas annonce ...`                       | annotate                                             | `agence Havas`                     | `org.ent.pressagency.havas`                                                            |
+| `l'agence Havas annonce ...`                       | annotate                                             | `Havas`                            | `org.ent.pressagency.havas`                                                            |
 | `Reutermeldung aus Berlin ...`                     | annotate                                             | `Reutermeldung`                    | `org.ent.pressagency.reuters`                                                          |
 | `DNB-Nachricht über die Lage ...`                  | annotate                                             | `DNB-Nachricht`                    | `org.ent.pressagency.dnb`                                                              |
 | `Londres, le 15 janvier ... (Radio.)`              | annotate                                             | `Radio`                            | `org.ent.pressagency.agence-radio`; dispatch-source formula                            |
@@ -514,7 +553,7 @@ The practical consequence is that annotators should spend less time deciding whe
 | `(sda / apa / dpa)`                                | annotate                                             | `sda`, `apa`, `dpa`                | `org.ent.pressagency.ats-sda`, `org.ent.pressagency.apa`, `org.ent.pressagency.dpa`    |
 | `Austria Presse-Agentur (APA) meldete ...`         | annotate                                             | `Austria Presse-Agentur`, `APA`    | `org.ent.pressagency.apa`                                                              |
 | `dem Deutschen Depeschendienst (ddp)`              | annotate                                             | `Deutschen Depeschendienst`, `ddp` | `org.ent.pressagency.ddp-dapd`                                                         |
-| `Agence Belga meldet ...`                          | annotate                                             | `Agence Belga`                     | `org.ent.pressagency.belga`                                                            |
+| `Agence Belga meldet ...`                          | annotate                                             | `Belga`                            | `org.ent.pressagency.belga`                                                            |
 | `Jan Palach, der Student ...`                      | do not annotate                                      | none                               | all `O`; person mention, not Palach Press                                              |
 | `RESULTS UP TO DATE. Pta Played. Won. Lost ...`    | do not annotate                                      | none                               | all `O`; sports table, not St. Petersburg Telegraph Agency                             |
 | `CA PTA IN`                                        | do not annotate                                      | none                               | all `O`; OCR split of `CAPTAIN`                                                        |

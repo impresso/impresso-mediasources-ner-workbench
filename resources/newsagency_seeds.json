@@ -21,8 +21,15 @@
       "note": "Historical French news agency; precursor activity from 1904, formally Agence Radio from 1918, renamed Agence Téléradio in 1941, activities largely ceased by 1943, disappeared around 1944."
     },
     "aliases_by_language": {
-      "en": ["Agence Radio", "Radio Agency", "Radio-Telegraphic Agency"],
-      "de": ["Agence Radio", "Radio-Agentur"],
+      "en": [
+        "Agence Radio",
+        "Radio Agency",
+        "Radio-Telegraphic Agency"
+      ],
+      "de": [
+        "Agence Radio",
+        "Radio-Agentur"
+      ],
       "fr": [
         "Agence Radio",
         "Radio-Agence télégraphique",
@@ -48,7 +55,11 @@
         "type": "wikipedia",
         "url": "https://fr.wikipedia.org/wiki/Agence_Radio"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Agence/Agentur when it is part of the proper name Agence Radio, Agence Télégraphique Radio, Radio-Agence télégraphique, or Radio-Agentur."
+    }
   },
   {
     "canonical_id": "akp",
@@ -64,7 +75,12 @@
       "Kampuchea News Agency",
       "agence cambodgienne SPK"
     ],
-    "search_aliases": ["SPK", "Agence Kampuchea Presse", "Agence Kampuchea Press", "Sarpordamean Kampuchea"],
+    "search_aliases": [
+      "SPK",
+      "Agence Kampuchea Presse",
+      "Agence Kampuchea Press",
+      "Sarpordamean Kampuchea"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Agence_Kampuchea_Press",
     "wikidata_url": null,
     "trainable": true,
@@ -76,9 +92,24 @@
       "note": "Known as SPK from its establishment in 1978 until its post-1993 renaming as AKP; still active."
     },
     "aliases_by_language": {
-      "en": ["Agence Kampuchea Press", "AKP", "Sarpordamean Kampuchea", "Cambodian News Agency", "Kampuchea News Agency"],
-      "de": ["Kambodschanische Nachrichtenagentur SPK", "Nachrichtenagentur SPK", "AKP"],
-      "fr": ["Agence Kampuchea Presse", "agence cambodgienne SPK", "agence de presse cambodgienne SPK", "AKP"]
+      "en": [
+        "Agence Kampuchea Press",
+        "AKP",
+        "Sarpordamean Kampuchea",
+        "Cambodian News Agency",
+        "Kampuchea News Agency"
+      ],
+      "de": [
+        "Kambodschanische Nachrichtenagentur SPK",
+        "Nachrichtenagentur SPK",
+        "AKP"
+      ],
+      "fr": [
+        "Agence Kampuchea Presse",
+        "agence cambodgienne SPK",
+        "agence de presse cambodgienne SPK",
+        "AKP"
+      ]
     },
     "contextual_aliases": [
       {
@@ -87,7 +118,7 @@
         "note": "Normalize SPK to AKP when Cambodian, Kampuchean, or Phnom Penh context identifies the state news agency, especially in 1978-1993 reporting. Do not confuse it with the Swiss SPK/SMP agency."
       }
     ],
-    "annotation_note": "Use org.ent.pressagency.akp for Cambodian/Kampuchean SPK and modern AKP. In phrases such as l'agence cambodgienne SPK, annotate the full visible agency phrase. Bare SPK requires Cambodian/Kampuchean context; Swiss SPK references belong to org.ent.pressagency.spk-smp.",
+    "annotation_note": "Use org.ent.pressagency.akp for Cambodian/Kampuchean SPK and modern AKP. In phrases such as l'agence cambodgienne SPK, the classifier resolves the acronym but stays outside the span; annotate SPK. Swiss SPK references belong to org.ent.pressagency.spk-smp.",
     "metadata_sources": [
       {
         "type": "wikipedia",
@@ -97,7 +128,11 @@
         "type": "official-history",
         "url": "https://mirror.pia.gov.ph/news/2023/05/12/asean-journalists-tour-cambodian-state-media-facilities"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official_strip_short",
+      "note": "Keep Agence Kampuchea Presse/Press as the official AKP name; strip generic classifiers before SPK/AKP, for example agence cambodgienne SPK -> SPK."
+    }
   },
   {
     "canonical_id": "ata",
@@ -125,7 +160,11 @@
       "note": "Founded in 1920; still active as Albania's national news agency."
     },
     "aliases_by_language": {
-      "en": ["Albanian Telegraphic Agency", "Albanian News Agency", "ATA"],
+      "en": [
+        "Albanian Telegraphic Agency",
+        "Albanian News Agency",
+        "ATA"
+      ],
       "de": [
         "Albanische Nachrichtenagentur",
         "Albanische Telegraphenagentur",
@@ -136,9 +175,13 @@
         "Agence albanaise de presse",
         "ATA"
       ],
-      "sq": ["Agjencia Telegrafike Shqiptare", "ATSH", "ATA"]
+      "sq": [
+        "Agjencia Telegrafike Shqiptare",
+        "ATSH",
+        "ATA"
+      ]
     },
-    "annotation_note": "In phrases such as Die albanische Nachrichtenagentur ATA bestätigte, annotate the resolved agency-name phrase. Prefer the full visible phrase albanische Nachrichtenagentur ATA when it is cleanly present; ATA alone is also valid when only the acronym is present or when the descriptive phrase is outside the selected span.",
+    "annotation_note": "Use org.ent.pressagency.ata for ATA/ATSH and established full names such as Albanian Telegraphic Agency, Agjencia Telegrafike Shqiptare, or Agence télégraphique albanaise. In descriptive phrases such as Die albanische Nachrichtenagentur ATA bestätigte, the classifier resolves the acronym but stays outside the span; annotate ATA.",
     "metadata_sources": [
       {
         "type": "wikidata",
@@ -152,7 +195,11 @@
         "type": "wikipedia",
         "url": "https://fr.wikipedia.org/wiki/Agence_t%C3%A9l%C3%A9graphique_albanaise"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official_strip_short",
+      "note": "Keep established full official-language names such as Albanian Telegraphic Agency, Agjencia Telegrafike Shqiptare, or Agence télégraphique albanaise; strip generic classifiers before ATA/ATSH."
+    }
   },
   {
     "canonical_id": "cip",
@@ -182,10 +229,25 @@
       "note": "Founded after the liberation of Belgium in 1944; the French-language Brussels agency ceased activity on 31 December 2001. French- and Dutch-language operations had become autonomous in 1991."
     },
     "aliases_by_language": {
-      "en": ["Centre d'information de presse", "CIP"],
-      "de": ["Agentur CIP", "Katholische Presseagentur CIP", "CIP"],
-      "fr": ["Centre d'information de presse", "Agence CIP", "agence de presse CIP", "CIP"],
-      "nl": ["persagentschap CIP", "CIP"]
+      "en": [
+        "Centre d'information de presse",
+        "CIP"
+      ],
+      "de": [
+        "Agentur CIP",
+        "Katholische Presseagentur CIP",
+        "CIP"
+      ],
+      "fr": [
+        "Centre d'information de presse",
+        "Agence CIP",
+        "agence de presse CIP",
+        "CIP"
+      ],
+      "nl": [
+        "persagentschap CIP",
+        "CIP"
+      ]
     },
     "contextual_aliases": [
       {
@@ -194,7 +256,7 @@
         "note": "Use bare CIP only when an explicit press-agency or dispatch context identifies the Belgian Catholic agency, for example Wie die Agentur CIP meldet or selon l'agence CIP. Do not globally match arbitrary CIP acronyms."
       }
     ],
-    "annotation_note": "Annotate CIP as org.ent.pressagency.cip when the context identifies the Belgian Catholic news agency. Explicit forms such as Agentur CIP, Agence CIP, agence de presse CIP, and Centre d'information de presse are positive. Bare CIP requires agency, religious-news, Brussels/Belgian, or dispatch-source context because the acronym is ambiguous.",
+    "annotation_note": "Annotate CIP as org.ent.pressagency.cip when the context identifies the Belgian Catholic news agency. Explicit classifier forms such as Agentur CIP, Agence CIP, or agence de presse CIP are positive evidence, but annotate the core acronym CIP; keep Centre d'information de presse as the full proper-name span. Bare CIP requires agency, religious-news, Brussels/Belgian, or dispatch-source context because the acronym is ambiguous.",
     "metadata_sources": [
       {
         "type": "agency-anniversary-history",
@@ -208,13 +270,21 @@
         "type": "institutional-repository-history",
         "url": "https://pure.unamur.be/ws/portalfiles/portal/38576335/LaCite_6.pdf"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Centre d’information de presse as part of the full proper name. For Agentur CIP, Agence CIP, or agence de presse CIP, strip the classifier and annotate CIP."
+    }
   },
   {
     "canonical_id": "reuters",
     "label": "org.ent.pressagency.reuters",
     "display_name": "Reuters",
-    "aliases": ["Reuters", "Reuter", "Reutermeldung"],
+    "aliases": [
+      "Reuters",
+      "Reuter",
+      "Reutermeldung"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Reuters",
     "wikidata_url": "https://www.wikidata.org/wiki/Q130879",
     "trainable": true,
@@ -227,9 +297,19 @@
       "note": "Founded in 1851; still active."
     },
     "aliases_by_language": {
-      "en": ["Reuters", "Reuter"],
-      "de": ["Reuters", "Reuter", "Reutermeldung"],
-      "fr": ["Reuters", "Agence Reuters"]
+      "en": [
+        "Reuters",
+        "Reuter"
+      ],
+      "de": [
+        "Reuters",
+        "Reuter",
+        "Reutermeldung"
+      ],
+      "fr": [
+        "Reuters",
+        "Agence Reuters"
+      ]
     },
     "metadata_sources": [
       {
@@ -240,13 +320,20 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Reuters"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "strip_short_name",
+      "note": "Omit Agence/Agentur/agency classifiers when followed by the proper short name Reuter or Reuters. Annotate Reuter/Reuters in Agence Reuter, Agentur Reuter, or agence Reuters."
+    }
   },
   {
     "canonical_id": "stefani",
     "label": "org.ent.pressagency.stefani",
     "display_name": "Agenzia Stefani",
-    "aliases": ["Stefani", "Agence Stefani"],
+    "aliases": [
+      "Stefani",
+      "Agence Stefani"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Agenzia_Stefani",
     "wikidata_url": "https://www.wikidata.org/wiki/Q1415690",
     "trainable": true,
@@ -258,9 +345,18 @@
       "note": "Historical Italian agency; dissolved after World War II."
     },
     "aliases_by_language": {
-      "en": ["Agenzia Stefani", "Stefani Agency"],
-      "de": ["Stefani", "Agenzia Stefani"],
-      "fr": ["Agence Stefani", "Agenzia Stefani"]
+      "en": [
+        "Agenzia Stefani",
+        "Stefani Agency"
+      ],
+      "de": [
+        "Stefani",
+        "Agenzia Stefani"
+      ],
+      "fr": [
+        "Agence Stefani",
+        "Agenzia Stefani"
+      ]
     },
     "metadata_sources": [
       {
@@ -271,13 +367,21 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Agenzia_Stefani"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "strip_short_name",
+      "note": "Omit Agence/agency classifiers when followed by the proper short name Stefani. Annotate Stefani in Agence Stefani or agence Stefani."
+    }
   },
   {
     "canonical_id": "extel",
     "label": "org.ent.pressagency.extel",
     "display_name": "Exchange Telegraph Company",
-    "aliases": ["Extel", "Exchange Telegraph", "Agence Extel"],
+    "aliases": [
+      "Extel",
+      "Exchange Telegraph",
+      "Agence Extel"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Exchange_Telegraph_Company",
     "wikidata_url": "https://www.wikidata.org/wiki/Q3520792",
     "trainable": true,
@@ -289,9 +393,20 @@
       "note": "Founded as Exchange Telegraph Company; later financial-information brand Extel."
     },
     "aliases_by_language": {
-      "en": ["Exchange Telegraph Company", "Exchange Telegraph", "Extel"],
-      "de": ["Exchange Telegraph", "Extel"],
-      "fr": ["The Exchange Telegraph Company", "Agence Extel", "Extel"]
+      "en": [
+        "Exchange Telegraph Company",
+        "Exchange Telegraph",
+        "Extel"
+      ],
+      "de": [
+        "Exchange Telegraph",
+        "Extel"
+      ],
+      "fr": [
+        "The Exchange Telegraph Company",
+        "Agence Extel",
+        "Extel"
+      ]
     },
     "metadata_sources": [
       {
@@ -302,13 +417,20 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Exchange_Telegraph_Company"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "mixed",
+      "note": "Keep Exchange Telegraph Company as the full official name. Strip generic classifiers in Agence Extel/agency Extel unless the source clearly uses that exact form as a proper name."
+    }
   },
   {
     "canonical_id": "havas",
     "label": "org.ent.pressagency.havas",
     "display_name": "Havas",
-    "aliases": ["Havas", "Agence Havas"],
+    "aliases": [
+      "Havas",
+      "Agence Havas"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Havas",
     "wikidata_url": "https://www.wikidata.org/wiki/Q2826560",
     "trainable": true,
@@ -320,9 +442,18 @@
       "note": "Historical news-agency activity; AFP was created from the information branch in 1944."
     },
     "aliases_by_language": {
-      "en": ["Havas", "Agence Havas"],
-      "de": ["Havas", "Agentur Havas"],
-      "fr": ["Havas", "Agence Havas"]
+      "en": [
+        "Havas",
+        "Agence Havas"
+      ],
+      "de": [
+        "Havas",
+        "Agentur Havas"
+      ],
+      "fr": [
+        "Havas",
+        "Agence Havas"
+      ]
     },
     "metadata_sources": [
       {
@@ -333,13 +464,21 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Havas"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "strip_short_name",
+      "note": "Omit Agence/Agentur when followed by the proper short name Havas. Annotate Havas in Agence Havas, agence de presse Havas, or Agentur Havas."
+    }
   },
   {
     "canonical_id": "xinhua",
     "label": "org.ent.pressagency.xinhua",
     "display_name": "Xinhua News Agency",
-    "aliases": ["Xinhua", "Chine Nouvelle", "New China News Agency"],
+    "aliases": [
+      "Xinhua",
+      "Chine Nouvelle",
+      "New China News Agency"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Xinhua_News_Agency",
     "wikidata_url": "https://www.wikidata.org/wiki/Q204839",
     "trainable": true,
@@ -351,13 +490,22 @@
       "note": "Founded in 1931; still active."
     },
     "aliases_by_language": {
-      "en": ["Xinhua", "Xinhua News Agency", "New China News Agency", "NCNA"],
+      "en": [
+        "Xinhua",
+        "Xinhua News Agency",
+        "New China News Agency",
+        "NCNA"
+      ],
       "de": [
         "Xinhua",
         "Nachrichtenagentur Xinhua",
         "Xinhua-Nachrichtenagentur"
       ],
-      "fr": ["Xinhua", "Chine nouvelle", "Agence Chine nouvelle"]
+      "fr": [
+        "Xinhua",
+        "Chine nouvelle",
+        "Agence Chine nouvelle"
+      ]
     },
     "metadata_sources": [
       {
@@ -368,14 +516,23 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Xinhua_News_Agency"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official_strip_short",
+      "note": "Keep Xinhua News Agency, New China News Agency, Chine Nouvelle, and Agence Chine nouvelle as established names; strip generic classifiers before Xinhua."
+    }
   },
   {
     "canonical_id": "domei",
     "label": "org.ent.pressagency.domei",
     "display_name": "Domei Tsushin",
-    "aliases": ["Domei", "Domei News Agency"],
-    "search_aliases": ["Domei"],
+    "aliases": [
+      "Domei",
+      "Domei News Agency"
+    ],
+    "search_aliases": [
+      "Domei"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Domei_Tsushin",
     "wikidata_url": "https://www.wikidata.org/wiki/Q2913752",
     "trainable": true,
@@ -387,9 +544,20 @@
       "note": "Created in 1935; dissolved after World War II."
     },
     "aliases_by_language": {
-      "en": ["Domei", "Dōmei Tsushin", "Dōmei News Agency"],
-      "de": ["Domei", "Dōmei Tsushin"],
-      "fr": ["Domei", "Agence de presse Dōmei", "Dōmei Tsushin"]
+      "en": [
+        "Domei",
+        "Dōmei Tsushin",
+        "Dōmei News Agency"
+      ],
+      "de": [
+        "Domei",
+        "Dōmei Tsushin"
+      ],
+      "fr": [
+        "Domei",
+        "Agence de presse Dōmei",
+        "Dōmei Tsushin"
+      ]
     },
     "metadata_sources": [
       {
@@ -400,13 +568,20 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Domei_Tsushin"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "mixed",
+      "note": "Keep Domei News Agency when visible as an English proper-name form; strip generic classifiers before Domei."
+    }
   },
   {
     "canonical_id": "belga",
     "label": "org.ent.pressagency.belga",
     "display_name": "Belga News Agency",
-    "aliases": ["Belga", "Agence Belga"],
+    "aliases": [
+      "Belga",
+      "Agence Belga"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Belga_(news_agency)",
     "wikidata_url": "https://www.wikidata.org/wiki/Q815453",
     "trainable": true,
@@ -418,9 +593,18 @@
       "note": "Founded in 1920; still active."
     },
     "aliases_by_language": {
-      "en": ["Belga", "Belga News Agency"],
-      "de": ["Belga"],
-      "fr": ["Belga", "Agence Belga", "Agence télégraphique belge de presse"]
+      "en": [
+        "Belga",
+        "Belga News Agency"
+      ],
+      "de": [
+        "Belga"
+      ],
+      "fr": [
+        "Belga",
+        "Agence Belga",
+        "Agence télégraphique belge de presse"
+      ]
     },
     "metadata_sources": [
       {
@@ -431,7 +615,11 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Belga_(news_agency)"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "strip_short_name",
+      "note": "Omit Agence/agency classifiers when followed by the proper short name Belga. Annotate Belga in Agence Belga or agence Belga."
+    }
   },
   {
     "canonical_id": "ctk",
@@ -483,7 +671,11 @@
         "Česká tisková kancelář",
         "Československá tisková kancelář"
       ],
-      "fr": ["Agence de presse tchèque", "ČTK", "Ceteka"]
+      "fr": [
+        "Agence de presse tchèque",
+        "ČTK",
+        "Ceteka"
+      ]
     },
     "metadata_sources": [
       {
@@ -494,7 +686,11 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Czech_News_Agency"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official_strip_short",
+      "note": "Keep Czech News Agency and established full names such as Československá tisková kancelář; strip generic classifiers before CTK/ČTK/Ceteka."
+    }
   },
   {
     "canonical_id": "palach-press",
@@ -564,13 +760,19 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Jan_Kavan"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Palach Press and Palach Press Agency as proper names; strip descriptive classifiers such as agence dissidente before the proper name."
+    }
   },
   {
     "canonical_id": "ansa",
     "label": "org.ent.pressagency.ansa",
     "display_name": "Agenzia Nazionale Stampa Associata",
-    "aliases": ["ANSA"],
+    "aliases": [
+      "ANSA"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Agenzia_Nazionale_Stampa_Associata",
     "wikidata_url": "https://www.wikidata.org/wiki/Q392934",
     "trainable": true,
@@ -582,9 +784,18 @@
       "note": "Founded in 1945; still active."
     },
     "aliases_by_language": {
-      "en": ["ANSA", "Agenzia Nazionale Stampa Associata"],
-      "de": ["ANSA", "Agenzia Nazionale Stampa Associata"],
-      "fr": ["ANSA", "Agenzia Nazionale Stampa Associata"]
+      "en": [
+        "ANSA",
+        "Agenzia Nazionale Stampa Associata"
+      ],
+      "de": [
+        "ANSA",
+        "Agenzia Nazionale Stampa Associata"
+      ],
+      "fr": [
+        "ANSA",
+        "Agenzia Nazionale Stampa Associata"
+      ]
     },
     "metadata_sources": [
       {
@@ -595,13 +806,20 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Agenzia_Nazionale_Stampa_Associata"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Agenzia Nazionale Stampa Associata as the official Italian name; strip generic classifiers in agence de presse italienne ANSA or italienische Nachrichtenagentur ANSA and annotate ANSA."
+    }
   },
   {
     "canonical_id": "dnb",
     "label": "org.ent.pressagency.dnb",
     "display_name": "Deutsches Nachrichtenburo",
-    "aliases": ["DNB", "Deutsches Nachrichtenbuero"],
+    "aliases": [
+      "DNB",
+      "Deutsches Nachrichtenbuero"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Deutsches_Nachrichtenb%C3%BCro",
     "wikidata_url": "https://www.wikidata.org/wiki/Q1205856",
     "trainable": true,
@@ -613,9 +831,19 @@
       "note": "Nazi-state controlled German agency."
     },
     "aliases_by_language": {
-      "en": ["German News Bureau", "DNB"],
-      "de": ["Deutsches Nachrichtenbüro", "Deutsches Nachrichtenburo", "DNB"],
-      "fr": ["Deutsches Nachrichten Büro", "DNB"]
+      "en": [
+        "German News Bureau",
+        "DNB"
+      ],
+      "de": [
+        "Deutsches Nachrichtenbüro",
+        "Deutsches Nachrichtenburo",
+        "DNB"
+      ],
+      "fr": [
+        "Deutsches Nachrichten Büro",
+        "DNB"
+      ]
     },
     "metadata_sources": [
       {
@@ -626,7 +854,11 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Deutsches_Nachrichtenb%C3%BCro"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Deutsches Nachrichtenbüro and Deutsches Nachrichtenbuero as official names; strip generic classifiers before DNB."
+    }
   },
   {
     "canonical_id": "wolff",
@@ -693,13 +925,20 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Wolffs_Telegraphisches_Bureau"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "strip_short_name",
+      "note": "Omit Agence/Agentur/agency classifiers when followed by the proper short name Wolff or WTB. Keep lexicalized bureau/company names such as Wolffs Telegraphisches Bureau and Continental-Telegraphen-Compagnie."
+    }
   },
   {
     "canonical_id": "afp",
     "label": "org.ent.pressagency.afp",
     "display_name": "Agence France-Presse",
-    "aliases": ["AFP", "Agence France Presse"],
+    "aliases": [
+      "AFP",
+      "Agence France Presse"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Agence_France-Presse",
     "wikidata_url": "https://www.wikidata.org/wiki/Q40464",
     "trainable": true,
@@ -711,14 +950,23 @@
       "note": "Created in 1944; roots in Havas founded in 1835; still active."
     },
     "aliases_by_language": {
-      "en": ["AFP", "Agence France-Presse", "Agence France Presse"],
+      "en": [
+        "AFP",
+        "Agence France-Presse",
+        "Agence France Presse"
+      ],
       "de": [
         "AFP",
         "Agence France-Presse",
         "France-Presse",
         "Agence France Presse"
       ],
-      "fr": ["AFP", "Agence France-Presse", "Agence France Presse", "L'AFP"]
+      "fr": [
+        "AFP",
+        "Agence France-Presse",
+        "Agence France Presse",
+        "L'AFP"
+      ]
     },
     "metadata_sources": [
       {
@@ -729,13 +977,22 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Agence_France-Presse"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Agence France-Presse / Agence France Presse as the official name; strip generic classifiers before AFP."
+    }
   },
   {
     "canonical_id": "up-upi",
     "label": "org.ent.pressagency.up-upi",
     "display_name": "United Press International",
-    "aliases": ["UP", "UPI", "United Press", "United Press International"],
+    "aliases": [
+      "UP",
+      "UPI",
+      "United Press",
+      "United Press International"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/United_Press_International",
     "wikidata_url": "https://www.wikidata.org/wiki/Q493845",
     "trainable": true,
@@ -747,9 +1004,24 @@
       "note": "United Press founded 1907; UPI name after 1958 merger; still exists in reduced form."
     },
     "aliases_by_language": {
-      "en": ["UP", "UPI", "United Press", "United Press International"],
-      "de": ["UP", "UPI", "United Press", "United Preß"],
-      "fr": ["UP", "UPI", "United Press", "United Press International"]
+      "en": [
+        "UP",
+        "UPI",
+        "United Press",
+        "United Press International"
+      ],
+      "de": [
+        "UP",
+        "UPI",
+        "United Press",
+        "United Preß"
+      ],
+      "fr": [
+        "UP",
+        "UPI",
+        "United Press",
+        "United Press International"
+      ]
     },
     "metadata_sources": [
       {
@@ -760,7 +1032,11 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/United_Press_International"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep United Press and United Press International as proper names; strip generic classifiers before UP/UPI."
+    }
   },
   {
     "canonical_id": "ats-sda",
@@ -786,14 +1062,21 @@
       "note": "Founded in 1895; modern successor Keystone-SDA."
     },
     "aliases_by_language": {
-      "en": ["Swiss Telegraphic Agency", "ATS-SDA"],
+      "en": [
+        "Swiss Telegraphic Agency",
+        "ATS-SDA"
+      ],
       "de": [
         "Schweizerische Depeschenagentur",
         "Schweizer Depeschenagentur",
         "SDA",
         "Keystone-SDA"
       ],
-      "fr": ["Agence télégraphique suisse", "ATS", "ATS-SDA"]
+      "fr": [
+        "Agence télégraphique suisse",
+        "ATS",
+        "ATS-SDA"
+      ]
     },
     "metadata_sources": [
       {
@@ -804,7 +1087,11 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Swiss_Telegraphic_Agency"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Agence télégraphique suisse and Schweizerische Depeschenagentur as established official names; strip generic classifiers before ATS/SDA/Keystone-SDA."
+    }
   },
   {
     "canonical_id": "keystone",
@@ -822,7 +1109,11 @@
       "Agence photographique Keystone",
       "Agence photo Keystone"
     ],
-    "search_aliases": ["Keystone", "Keystone Press", "Keystone-Press"],
+    "search_aliases": [
+      "Keystone",
+      "Keystone Press",
+      "Keystone-Press"
+    ],
     "wikipedia_url": "https://de.wikipedia.org/wiki/Keystone_(Bildagentur)",
     "wikidata_url": null,
     "trainable": true,
@@ -834,19 +1125,59 @@
       "note": "Independent Swiss Keystone photo-agency lineage from its Zurich founding in 1953 through 31 December 2017; merged with SDA/ATS effective 1 January 2018."
     },
     "aliases_by_language": {
-      "de": ["Keystone", "Keystone-Press", "Keystone Press AG", "Keystone AG", "Bildagentur Keystone", "Keystone Bildagentur", "Keystone Fotoagentur"],
-      "fr": ["Keystone", "Keystone Press", "Agence photographique Keystone", "Agence photo Keystone"],
-      "en": ["Keystone", "Keystone Press", "Keystone Press Agency", "Keystone photo agency"],
-      "it": ["Keystone", "agenzia fotografica Keystone"]
+      "de": [
+        "Keystone",
+        "Keystone-Press",
+        "Keystone Press AG",
+        "Keystone AG",
+        "Bildagentur Keystone",
+        "Keystone Bildagentur",
+        "Keystone Fotoagentur"
+      ],
+      "fr": [
+        "Keystone",
+        "Keystone Press",
+        "Agence photographique Keystone",
+        "Agence photo Keystone"
+      ],
+      "en": [
+        "Keystone",
+        "Keystone Press",
+        "Keystone Press Agency",
+        "Keystone photo agency"
+      ],
+      "it": [
+        "Keystone",
+        "agenzia fotografica Keystone"
+      ]
     },
     "annotation_note": "Use org.ent.pressagency.keystone for historical mentions and photo credits identifying the Swiss Keystone picture agency, including bare Keystone in a clear credit such as (Keystone), Keystone Press, or explicit photo-agency forms. Keep this entity separate from ATS/SDA before their 2018 merger. Use org.ent.pressagency.ats-sda for explicit post-merger Keystone-SDA or Keystone-ATS forms. Do not annotate unrelated uses of the ordinary word keystone or the distinct foreign Keystone Press Agency unless the context identifies the Swiss agency represented in this inventory.",
     "metadata_sources": [
-      {"type": "wikipedia", "url": "https://de.wikipedia.org/wiki/Keystone_(Bildagentur)"},
-      {"type": "public-broadcaster-history", "url": "https://www.srf.ch/radio-srf-1/radio-srf-1-60-jahre-keystone"},
-      {"type": "national-library-register", "url": "https://www.isil.nb.admin.ch/isil/CH-001470-9"},
-      {"type": "merger-report", "url": "https://www.swissinfo.ch/ger/aktionaere-der-sda-stimmen-der-fusion-mit-keystone-zu/44080590"},
-      {"type": "official-annual-report", "url": "https://www.keystone-sda.ch/documents/20143/235108/Keystone-ATS_Rapport_de_gestion_2018.pdf/71d220d9-c088-53c1-5238-b6afcdf76d9a?t=1560523380598"}
-    ]
+      {
+        "type": "wikipedia",
+        "url": "https://de.wikipedia.org/wiki/Keystone_(Bildagentur)"
+      },
+      {
+        "type": "public-broadcaster-history",
+        "url": "https://www.srf.ch/radio-srf-1/radio-srf-1-60-jahre-keystone"
+      },
+      {
+        "type": "national-library-register",
+        "url": "https://www.isil.nb.admin.ch/isil/CH-001470-9"
+      },
+      {
+        "type": "merger-report",
+        "url": "https://www.swissinfo.ch/ger/aktionaere-der-sda-stimmen-der-fusion-mit-keystone-zu/44080590"
+      },
+      {
+        "type": "official-annual-report",
+        "url": "https://www.keystone-sda.ch/documents/20143/235108/Keystone-ATS_Rapport_de_gestion_2018.pdf/71d220d9-c088-53c1-5238-b6afcdf76d9a?t=1560523380598"
+      }
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "mixed",
+      "note": "Keep Keystone photo agency when the full proper-name phrase is visible; strip generic classifiers before Keystone."
+    }
   },
   {
     "canonical_id": "kyodo",
@@ -862,7 +1193,11 @@
       "Kyodo-Nachrichtenagentur",
       "共同通信社"
     ],
-    "search_aliases": ["Kyodo News Service", "Kyodo News", "Kyodo"],
+    "search_aliases": [
+      "Kyodo News Service",
+      "Kyodo News",
+      "Kyodo"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Kyodo_News",
     "wikidata_url": "https://www.wikidata.org/wiki/Q779730",
     "trainable": true,
@@ -874,10 +1209,29 @@
       "note": "Established on 1 November 1945 and still active. Domei is a predecessor but remains a separate canonical entity in this inventory."
     },
     "aliases_by_language": {
-      "de": ["Kyodo", "Kyodo News", "Kyodo News Service", "Nachrichtenagentur Kyodo", "Kyodo-Nachrichtenagentur"],
-      "fr": ["Kyodo", "Kyodo News", "Kyodo News Service", "Agence Kyodo", "Agence de presse Kyodo"],
-      "en": ["Kyodo", "Kyodo News", "Kyodo News Service"],
-      "ja": ["共同通信社", "共同"]
+      "de": [
+        "Kyodo",
+        "Kyodo News",
+        "Kyodo News Service",
+        "Nachrichtenagentur Kyodo",
+        "Kyodo-Nachrichtenagentur"
+      ],
+      "fr": [
+        "Kyodo",
+        "Kyodo News",
+        "Kyodo News Service",
+        "Agence Kyodo",
+        "Agence de presse Kyodo"
+      ],
+      "en": [
+        "Kyodo",
+        "Kyodo News",
+        "Kyodo News Service"
+      ],
+      "ja": [
+        "共同通信社",
+        "共同"
+      ]
     },
     "contextual_aliases": [
       {
@@ -888,16 +1242,33 @@
     ],
     "annotation_note": "Annotate Kyodo, Kyodo News, Kyodo News Service, and equivalent language-specific agency names. Use KNS only when nearby source-attribution context resolves it to Kyodo News Service, especially after a full Kyodo mention in the same passage. Keep pre-1945 Domei mentions under org.ent.pressagency.domei.",
     "metadata_sources": [
-      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q779730"},
-      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Kyodo_News"},
-      {"type": "government-briefing", "url": "https://www.gov.scot/binaries/content/documents/govscot/publications/foi-eir-release/2017/09/foi-17-01620/documents/foi-17-01620-briefings-mrs-hyslops-japan-visit-part-1-pdf/foi-17-01620%2BBriefings%2Bfor%2BMrs%2BHyslop%2527s%2BJapan-Visit%2B-%2Bpart%2B1.pdf"}
-    ]
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q779730"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Kyodo_News"
+      },
+      {
+        "type": "government-briefing",
+        "url": "https://www.gov.scot/binaries/content/documents/govscot/publications/foi-eir-release/2017/09/foi-17-01620/documents/foi-17-01620-briefings-mrs-hyslops-japan-visit-part-1-pdf/foi-17-01620%2BBriefings%2Bfor%2BMrs%2BHyslop%2527s%2BJapan-Visit%2B-%2Bpart%2B1.pdf"
+      }
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "mixed",
+      "note": "Keep Kyodo News and Kyodo News Service as proper names; strip generic classifiers before Kyodo/KNS."
+    }
   },
   {
     "canonical_id": "dpa",
     "label": "org.ent.pressagency.dpa",
     "display_name": "Deutsche Presse-Agentur",
-    "aliases": ["DPA", "dpa", "Deutsche Presse Agentur"],
+    "aliases": [
+      "DPA",
+      "dpa",
+      "Deutsche Presse Agentur"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Deutsche_Presse-Agentur",
     "wikidata_url": "https://www.wikidata.org/wiki/Q312653",
     "trainable": true,
@@ -909,14 +1280,20 @@
       "note": "Founded in 1949; still active."
     },
     "aliases_by_language": {
-      "en": ["German Press Agency", "DPA"],
+      "en": [
+        "German Press Agency",
+        "DPA"
+      ],
       "de": [
         "Deutsche Presse-Agentur",
         "Deutsche Presse Agentur",
         "DPA",
         "dpa"
       ],
-      "fr": ["Deutsche Presse-Agentur", "DPA"]
+      "fr": [
+        "Deutsche Presse-Agentur",
+        "DPA"
+      ]
     },
     "metadata_sources": [
       {
@@ -927,13 +1304,21 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Deutsche_Presse-Agentur"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Deutsche Presse-Agentur and Deutsche Presse Agentur as official names; strip generic classifiers before DPA/dpa."
+    }
   },
   {
     "canonical_id": "kipa",
     "label": "org.ent.pressagency.kipa",
     "display_name": "Katholische Internationale Presseagentur",
-    "aliases": ["Kipa", "Apic", "Kipa/Apic"],
+    "aliases": [
+      "Kipa",
+      "Apic",
+      "Kipa/Apic"
+    ],
     "wikipedia_url": "https://de.wikipedia.org/wiki/Katholische_Internationale_Presseagentur",
     "wikidata_url": null,
     "trainable": true,
@@ -945,9 +1330,20 @@
       "note": "Operated as KIPA/APIC; integrated into Catholic media centers in 2015."
     },
     "aliases_by_language": {
-      "en": ["International Catholic News Agency", "KIPA", "APIC"],
-      "de": ["Katholische internationale Presseagentur", "Kipa"],
-      "fr": ["Agence de presse internationale catholique", "APIC", "KIPA"]
+      "en": [
+        "International Catholic News Agency",
+        "KIPA",
+        "APIC"
+      ],
+      "de": [
+        "Katholische internationale Presseagentur",
+        "Kipa"
+      ],
+      "fr": [
+        "Agence de presse internationale catholique",
+        "APIC",
+        "KIPA"
+      ]
     },
     "metadata_sources": [
       {
@@ -958,13 +1354,21 @@
         "type": "wikipedia",
         "url": "https://fr.wikipedia.org/wiki/Agence_de_presse_internationale_catholique"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Katholische Internationale Presseagentur and Agence de presse internationale catholique as established full names; strip generic classifiers before KIPA."
+    }
   },
   {
     "canonical_id": "ag",
     "label": null,
     "display_name": "Generic agency source marker",
-    "aliases": ["ag.", "agence", "Agentur"],
+    "aliases": [
+      "ag.",
+      "agence",
+      "Agentur"
+    ],
     "wikipedia_url": null,
     "wikidata_url": null,
     "trainable": false,
@@ -976,17 +1380,33 @@
       "note": "Not an organization; kept only to document excluded legacy material."
     },
     "aliases_by_language": {
-      "en": ["agency"],
-      "de": ["Agentur", "ag."],
-      "fr": ["agence", "ag."]
+      "en": [
+        "agency"
+      ],
+      "de": [
+        "Agentur",
+        "ag."
+      ],
+      "fr": [
+        "agence",
+        "ag."
+      ]
     },
-    "metadata_sources": []
+    "metadata_sources": [],
+    "agency_word_boundary_policy": {
+      "policy": "strip_generic",
+      "note": "Do not use generic agency words as a name. This label is only for unresolved formulaic agency markers when explicitly allowed by the curation policy."
+    }
   },
   {
     "canonical_id": "ap",
     "label": "org.ent.pressagency.ap",
     "display_name": "Associated Press",
-    "aliases": ["AP", "Associated Press", "Assoc. Press"],
+    "aliases": [
+      "AP",
+      "Associated Press",
+      "Assoc. Press"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Associated_Press",
     "wikidata_url": "https://www.wikidata.org/wiki/Q40469",
     "trainable": true,
@@ -998,9 +1418,22 @@
       "note": "Founded in 1846; still active."
     },
     "aliases_by_language": {
-      "en": ["AP", "A.P.", "Associated Press", "The Associated Press"],
-      "de": ["AP", "Associated Press", "The Associated Press"],
-      "fr": ["AP", "Associated Press", "The Associated Press"]
+      "en": [
+        "AP",
+        "A.P.",
+        "Associated Press",
+        "The Associated Press"
+      ],
+      "de": [
+        "AP",
+        "Associated Press",
+        "The Associated Press"
+      ],
+      "fr": [
+        "AP",
+        "Associated Press",
+        "The Associated Press"
+      ]
     },
     "metadata_sources": [
       {
@@ -1011,13 +1444,21 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/Associated_Press"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "strip_short_name",
+      "note": "Omit generic agency classifiers before AP. Keep Associated Press as the official name."
+    }
   },
   {
     "canonical_id": "apa",
     "label": "org.ent.pressagency.apa",
     "display_name": "Austria Presse Agentur",
-    "aliases": ["APA", "Austria Press Agentur", "Austria Presse Agentur"],
+    "aliases": [
+      "APA",
+      "Austria Press Agentur",
+      "Austria Presse Agentur"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Austria_Presse_Agentur",
     "wikidata_url": "https://www.wikidata.org/wiki/Q680662",
     "trainable": true,
@@ -1029,9 +1470,18 @@
       "note": "Modern APA founded in 1946; older Austrian agency lineage is separate context."
     },
     "aliases_by_language": {
-      "en": ["Austria Press Agency", "APA"],
-      "de": ["Austria Presse Agentur", "APA"],
-      "fr": ["Austria Presse Agentur", "APA"]
+      "en": [
+        "Austria Press Agency",
+        "APA"
+      ],
+      "de": [
+        "Austria Presse Agentur",
+        "APA"
+      ],
+      "fr": [
+        "Austria Presse Agentur",
+        "APA"
+      ]
     },
     "metadata_sources": [
       {
@@ -1046,13 +1496,22 @@
         "type": "official_history",
         "url": "https://apa.at/about/geschichte-der-apa-in-jahreszahlen/"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "mixed",
+      "note": "Omit generic agency classifiers before APA. Keep Austria Presse Agentur, Austria-Presse-Agentur, Austria Press Agentur, and Austria Press Agency as proper-name forms."
+    }
   },
   {
     "canonical_id": "ddp-dapd",
     "label": "org.ent.pressagency.ddp-dapd",
     "display_name": "Deutscher Depeschendienst / Deutscher Auslands-Depeschendienst",
-    "aliases": ["DDP", "DAPD", "DDP-DAPD", "Deutscher Depeschendienst"],
+    "aliases": [
+      "DDP",
+      "DAPD",
+      "DDP-DAPD",
+      "Deutscher Depeschendienst"
+    ],
     "wikipedia_url": "https://de.wikipedia.org/wiki/Deutscher_Depeschendienst",
     "wikidata_url": "https://www.wikidata.org/wiki/Q265330",
     "trainable": true,
@@ -1078,7 +1537,11 @@
         "Deutscher Depeschendienst",
         "Deutscher Auslands-Depeschendienst"
       ],
-      "fr": ["DAPD", "Agence DAPD", "Deutscher Auslands-Depeschendienst"]
+      "fr": [
+        "DAPD",
+        "Agence DAPD",
+        "Deutscher Auslands-Depeschendienst"
+      ]
     },
     "metadata_sources": [
       {
@@ -1089,7 +1552,11 @@
         "type": "wikipedia",
         "url": "https://de.wikipedia.org/wiki/Deutscher_Depeschendienst"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Deutscher Depeschendienst, Deutscher Auslands-Depeschendienst, DDP, and DAPD as proper names; strip generic classifiers before DDP/DAPD."
+    }
   },
   {
     "canonical_id": "tass",
@@ -1118,8 +1585,16 @@
         "Telegraph Agency of the Soviet Union",
         "Russian News Agency TASS"
       ],
-      "de": ["TASS", "ITAR-TASS", "Telegraphenagentur der Sowjetunion"],
-      "fr": ["Tass", "Agence Tass", "ITAR-TASS"]
+      "de": [
+        "TASS",
+        "ITAR-TASS",
+        "Telegraphenagentur der Sowjetunion"
+      ],
+      "fr": [
+        "Tass",
+        "Agence Tass",
+        "ITAR-TASS"
+      ]
     },
     "metadata_sources": [
       {
@@ -1134,7 +1609,11 @@
         "type": "wikipedia",
         "url": "https://en.wikipedia.org/wiki/TASS"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official_strip_short",
+      "note": "Keep TASS/Tass, ITAR-TASS, Russian News Agency TASS, and Telegraph Agency of the Soviet Union as proper names; strip generic classifiers before Tass/Itar-Tass."
+    }
   },
   {
     "canonical_id": "st-petersburg-telegraph-agency",
@@ -1213,13 +1692,21 @@
         "type": "related_wikidata_tass_successor",
         "url": "https://www.wikidata.org/wiki/Q223799"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep St. Petersburg/Petrograd Telegraph Agency and historical renderings such as Russische Telegraphen-Agentur or Petersburger Telegraphen-Agentur as proper names; strip generic classifiers before short aliases such as PTA/SPTA."
+    }
   },
   {
     "canonical_id": "europapress",
     "label": "org.ent.pressagency.europapress",
     "display_name": "Europapress",
-    "aliases": ["Europapress", "Europapresz", "Europapr."],
+    "aliases": [
+      "Europapress",
+      "Europapresz",
+      "Europapr."
+    ],
     "wikipedia_url": "https://de.wikipedia.org/wiki/Europapress",
     "wikidata_url": "https://www.wikidata.org/wiki/Q3060712",
     "trainable": true,
@@ -1231,9 +1718,18 @@
       "note": "Founded in 1953; still active."
     },
     "aliases_by_language": {
-      "en": ["Europa Press", "Europapress"],
-      "de": ["Europa Press", "Europapress"],
-      "fr": ["Europa Press", "Europapress"]
+      "en": [
+        "Europa Press",
+        "Europapress"
+      ],
+      "de": [
+        "Europa Press",
+        "Europapress"
+      ],
+      "fr": [
+        "Europa Press",
+        "Europapress"
+      ]
     },
     "metadata_sources": [
       {
@@ -1244,7 +1740,11 @@
         "type": "wikipedia",
         "url": "https://de.wikipedia.org/wiki/Europapress"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "mixed",
+      "note": "Keep Europapress as the proper name; strip generic classifiers before it."
+    }
   },
   {
     "canonical_id": "spk-smp",
@@ -1268,14 +1768,22 @@
       "note": "Historical Swiss correspondence/news service label combining SPK and SMP evidence."
     },
     "aliases_by_language": {
-      "en": ["Swiss Political Correspondence", "SPK", "SMP"],
+      "en": [
+        "Swiss Political Correspondence",
+        "SPK",
+        "SMP"
+      ],
       "de": [
         "Schweizerische Politische Korrespondenz",
         "Schweizer Mittelpresse",
         "SPK",
         "SMP"
       ],
-      "fr": ["Schweizerische Politische Korrespondenz", "SPK", "SMP"]
+      "fr": [
+        "Schweizerische Politische Korrespondenz",
+        "SPK",
+        "SMP"
+      ]
     },
     "metadata_sources": [
       {
@@ -1286,7 +1794,11 @@
         "type": "wikipedia",
         "url": "https://de.wikipedia.org/wiki/Schweizerische_Politische_Korrespondenz"
       }
-    ]
+    ],
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Schweizerische Politische Korrespondenz and Schweizer Mittelpresse as proper names; strip generic classifiers before SPK/SMP."
+    }
   },
   {
     "canonical_id": "tanjug",
@@ -1312,8 +1824,17 @@
       "note": "Founded in 1943 as Yugoslavia's official news agency; the Serbian state-owned agency officially ceased in 2021, while the Tanjug brand continued under a private company."
     },
     "aliases_by_language": {
-      "en": ["Tanjug", "TANJUG", "Telegraphic Agency of New Yugoslavia"],
-      "de": ["Tanjug", "TANJUG", "Tan Jug", "Tan-Jug"],
+      "en": [
+        "Tanjug",
+        "TANJUG",
+        "Telegraphic Agency of New Yugoslavia"
+      ],
+      "de": [
+        "Tanjug",
+        "TANJUG",
+        "Tan Jug",
+        "Tan-Jug"
+      ],
       "fr": [
         "Tanjug",
         "TANJUG",
@@ -1334,13 +1855,21 @@
         "url": "https://en.wikipedia.org/wiki/Tanjug"
       }
     ],
-    "annotation_note": "Use for source attributions such as (Tan Jug.) or Belgrade dateline formulas where the context matches a news-agency dispatch. Do not treat Jugoslav place or nationality words alone as agency mentions."
+    "annotation_note": "Use for source attributions such as (Tan Jug.) or Belgrade dateline formulas where the context matches a news-agency dispatch. Do not treat Jugoslav place or nationality words alone as agency mentions.",
+    "agency_word_boundary_policy": {
+      "policy": "keep_official_strip_short",
+      "note": "Keep established full official names when visible; strip generic classifiers before Tanjug or Tan-Jug."
+    }
   },
   {
     "canonical_id": "telegraphen-union",
     "label": "org.ent.pressagency.telegraphen-union",
     "display_name": "Telegraphen-Union",
-    "aliases": ["Telegraphen-Union", "T.U.", "TU"],
+    "aliases": [
+      "Telegraphen-Union",
+      "T.U.",
+      "TU"
+    ],
     "wikipedia_url": "https://de.wikipedia.org/wiki/Telegraphen-Union",
     "wikidata_url": null,
     "trainable": true,
@@ -1352,9 +1881,19 @@
       "note": "Founded in 1913; merged into the Deutsches Nachrichtenbüro in late 1933 / early 1934."
     },
     "aliases_by_language": {
-      "en": ["Telegraphen-Union"],
-      "de": ["Telegraphen-Union", "T.U.", "TU"],
-      "fr": ["Telegraphen-Union", "T.U.", "TU"]
+      "en": [
+        "Telegraphen-Union"
+      ],
+      "de": [
+        "Telegraphen-Union",
+        "T.U.",
+        "TU"
+      ],
+      "fr": [
+        "Telegraphen-Union",
+        "T.U.",
+        "TU"
+      ]
     },
     "contextual_aliases": [
       {
@@ -1378,6 +1917,10 @@
         "url": "https://www.deutsche-digitale-bibliothek.de/item/CRJBOH2SS3GGI4OUJRWYT7DKHNCSETQW"
       }
     ],
-    "annotation_note": "Use for the German news agency in Telegraphen-Union / T.U. references and contextual source formulas such as (UTA) in Weimar-period German political dispatches. Do not map UTA to ATS/SDA. Reject homonymous references to the international telegraph/radiotelegraph organization, especially administrative contexts such as Internationales Bureau der Telegraphen-Union, telecommunications departments, officials, secretaries, appointments, treaties, or member states."
+    "annotation_note": "Use for the German news agency in Telegraphen-Union / T.U. references and contextual source formulas such as (UTA) in Weimar-period German political dispatches. Do not map UTA to ATS/SDA. Reject homonymous references to the international telegraph/radiotelegraph organization, especially administrative contexts such as Internationales Bureau der Telegraphen-Union, telecommunications departments, officials, secretaries, appointments, treaties, or member states.",
+    "agency_word_boundary_policy": {
+      "policy": "keep_official",
+      "note": "Keep Telegraphen-Union as the proper name. Do not include unrelated institutional classifiers such as Internationales Bureau der Telegraphen-Union unless the whole expression is a confirmed agency name in context."
+    }
   }
 ]
