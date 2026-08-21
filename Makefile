@@ -14,7 +14,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization migrate-tokenization semantic-search validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization migrate-tokenization semantic-search validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -70,6 +70,8 @@ help-anno:
 	@echo "  make apply-existing-spans                     Apply existing-span boundary decisions to a patched split"
 	@echo "  make promote-existing-spans                   Promote existing-span patched output into the source split"
 	@echo "  make integrate-existing-spans                 Apply existing-span decisions, then promote the patched split"
+	@echo "  make audit-agency-word-boundaries             Build accepted patches for the agency-word boundary migration"
+	@echo "  make integrate-agency-word-boundaries         Apply and promote agency-word boundary migration patches"
 	@echo "  make review-span-patches                      Review audit-suggested span patches"
 	@echo "  make apply-span-patches                       Apply accepted/corrected span patches to JSONL"
 	@echo "  make span-patch-status                        Compare patched output with the configured promotion target"
@@ -494,6 +496,55 @@ promote-existing-spans:
 integrate-existing-spans: apply-existing-spans promote-existing-spans
 	@echo "Existing-span integration complete."
 
+audit-agency-word-boundaries:
+	@echo "Building accepted agency-word boundary migration patches for $(AGENCY_WORD_SPLIT_KEY)."
+	@test "$(AGENCY_WORD_SPLIT_KEY)" = "train" -o "$(AGENCY_WORD_SPLIT_KEY)" = "validation" -o "$(AGENCY_WORD_SPLIT_KEY)" = "test" || { echo "AGENCY_WORD_SPLIT must be train, validation/dev, or test"; exit 1; }
+	@test -n "$(REVIEWER)" || { echo "REVIEWER is required, e.g. REVIEWER=\"$$USER\""; exit 1; }
+	$(PYTHON) -m lib.audit_agency_word_boundaries --input-jsonl "$(AGENCY_WORD_SOURCE_JSONL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --audit-id "$(AGENCY_WORD_AUDIT_ID)" --split "$(AGENCY_WORD_SPLIT_KEY)" --reviewer "$(REVIEWER)" --candidates-jsonl "$(AGENCY_WORD_CANDIDATES)" --decisions-jsonl "$(AGENCY_WORD_DECISIONS)" --changes-jsonl "$(AGENCY_WORD_PREVIEW_JSONL)" --changes-tsv "$(AGENCY_WORD_PREVIEW_TSV)" --summary-json "$(AGENCY_WORD_SUMMARY_JSON)" $(ARGS)
+	@echo "Next step:"
+	@echo "  # Inspect proposed boundary changes before applying."
+	@echo "  less $(AGENCY_WORD_PREVIEW_TSV)"
+	@echo "  # Apply accepted migration patches to a patched split."
+	@echo "  make apply-agency-word-boundaries AGENCY_WORD_SPLIT=$(AGENCY_WORD_SPLIT_KEY)"
+
+apply-agency-word-boundaries:
+	@echo "Applying agency-word boundary migration patches to $(AGENCY_WORD_SPLIT_KEY)."
+	@test "$(AGENCY_WORD_SPLIT_KEY)" = "train" -o "$(AGENCY_WORD_SPLIT_KEY)" = "validation" -o "$(AGENCY_WORD_SPLIT_KEY)" = "test" || { echo "AGENCY_WORD_SPLIT must be train, validation/dev, or test"; exit 1; }
+	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(AGENCY_WORD_SOURCE_JSONL)" --output-jsonl "$(AGENCY_WORD_OUTPUT_JSONL)" --candidates "$(AGENCY_WORD_CANDIDATES)" --decisions "$(AGENCY_WORD_DECISIONS)" --audit-id "$(AGENCY_WORD_AUDIT_ID)" --target-label "" --changes-jsonl "$(AGENCY_WORD_CHANGES_JSONL)" --changes-tsv "$(AGENCY_WORD_CHANGES_TSV)" --summary-json "$(AGENCY_WORD_APPLY_SUMMARY_JSON)" --replace-overlaps $(ARGS)
+	@echo "Next step:"
+	@echo "  # Check whether the patched split is ready for promotion."
+	@echo "  make agency-word-boundary-status AGENCY_WORD_SPLIT=$(AGENCY_WORD_SPLIT_KEY)"
+
+agency-word-boundary-status:
+	@echo "Checking whether agency-word boundary migration output is ready for promotion."
+	@test "$(AGENCY_WORD_SPLIT_KEY)" = "train" -o "$(AGENCY_WORD_SPLIT_KEY)" = "validation" -o "$(AGENCY_WORD_SPLIT_KEY)" = "test" || { echo "AGENCY_WORD_SPLIT must be train, validation/dev, or test"; exit 1; }
+	@echo "audit id:        $(AGENCY_WORD_AUDIT_ID)"
+	@echo "split:           $(AGENCY_WORD_SPLIT_KEY)"
+	@echo "source split:    $(AGENCY_WORD_SOURCE_JSONL)"
+	@echo "patched output:  $(AGENCY_WORD_OUTPUT_JSONL)"
+	@echo "promote target:  $(AGENCY_WORD_PROMOTE_JSONL)"
+	@test -f "$(AGENCY_WORD_OUTPUT_JSONL)" || { echo "patched output:  missing; run make apply-agency-word-boundaries first"; exit 1; }
+	@test -f "$(AGENCY_WORD_PROMOTE_JSONL)" || { echo "promote target:  missing"; exit 1; }
+	@if cmp -s "$(AGENCY_WORD_OUTPUT_JSONL)" "$(AGENCY_WORD_PROMOTE_JSONL)"; then \
+		echo "state:           promoted target is up to date"; \
+	else \
+		echo "state:           patched output differs from promote target"; \
+		echo "Next step:"; \
+		echo "  # Promote the patched split."; \
+		echo "  make promote-agency-word-boundaries AGENCY_WORD_SPLIT=$(AGENCY_WORD_SPLIT_KEY)"; \
+	fi
+
+promote-agency-word-boundaries:
+	@echo "Promoting agency-word boundary migration output into $(AGENCY_WORD_SPLIT_KEY)."
+	@test "$(AGENCY_WORD_SPLIT_KEY)" = "train" -o "$(AGENCY_WORD_SPLIT_KEY)" = "validation" -o "$(AGENCY_WORD_SPLIT_KEY)" = "test" || { echo "AGENCY_WORD_SPLIT must be train, validation/dev, or test"; exit 1; }
+	@test -f "$(AGENCY_WORD_OUTPUT_JSONL)" || { echo "Missing patched output: $(AGENCY_WORD_OUTPUT_JSONL). Run make apply-agency-word-boundaries first."; exit 1; }
+	@echo "Promoting $(AGENCY_WORD_OUTPUT_JSONL) -> $(AGENCY_WORD_PROMOTE_JSONL)"
+	cp "$(AGENCY_WORD_OUTPUT_JSONL)" "$(AGENCY_WORD_PROMOTE_JSONL)"
+	$(MAKE) validate-dataset-splits
+
+integrate-agency-word-boundaries: apply-agency-word-boundaries promote-agency-word-boundaries
+	@echo "Agency-word boundary migration complete for $(AGENCY_WORD_SPLIT_KEY)."
+
 review-span-patches:
 	@echo "Reviewing audit-suggested span patches and writing append-only decisions."
 	$(PYTHON) -m lib.span_patch_review --candidates "$(SPAN_PATCH_CANDIDATES)" --decisions "$(SPAN_PATCH_DECISIONS)" --audit-id "$(SPAN_PATCH_AUDIT_ID)" --reviewer "$(REVIEWER)" --target-label "$(SPAN_PATCH_TARGET_LABEL)" --limit "$(REVIEW_MAX_ITEMS)" --summary-json "$(SPAN_PATCH_SUMMARY_JSON)" --queue-jsonl "$(SPAN_PATCH_QUEUE_JSONL)" $(ARGS)
@@ -533,9 +584,9 @@ search-tsv: materialize-dataset-tsv-quiet
 ifeq ($(strip $(TSV_PATCH_SPLIT)),)
 	@for split in $(TSV_PATCH_SPLITS); do $(MAKE) $@ TSV_PATCH_SPLIT=$$split || exit $$?; done
 else
-	@echo "Searching TOKEN/NERTAG TSV for $(TSV_SEARCH) in $(TSV_SEARCH_TSV)."
-	@test -n "$(TSV_SEARCH)" || { echo "TSV_SEARCH is required, e.g. TSV_SEARCH=tan or TSV_SEARCH=\"Radio London\""; exit 1; }
-	$(PYTHON) -m lib.tsv_hit_pager "$(TSV_SEARCH_TSV)" $(TSV_SEARCH) --context "$(TSV_SEARCH_CONTEXT)" --source-jsonl "$(TSV_PATCH_SOURCE_JSONL)" $(if $(filter true,$(TSV_SEARCH_ONLY_O)),--only-O,) $(if $(filter true,$(TSV_SEARCH_NO_PAGER)),--no-pager,) $(if $(filter true,$(TSV_SEARCH_INCLUDE_AUDITED)),--include-audited,)
+	@echo "Searching TOKEN/NERTAG TSV for $(if $(strip $(TSV_SEARCH_TAG)),tag $(TSV_SEARCH_TAG),$(TSV_SEARCH)) in $(TSV_SEARCH_TSV)."
+	@test -n "$(TSV_SEARCH)$(TSV_SEARCH_TAG)" || { echo "TSV_SEARCH or TSV_SEARCH_TAG is required, e.g. TSV_SEARCH=tan, TSV_SEARCH=\"Radio London\", or TSV_SEARCH_TAG=org.ent.radiostation.deutsche-welle"; exit 1; }
+	@set -- "$(TSV_SEARCH)"; $(PYTHON) -m lib.tsv_hit_pager "$(TSV_SEARCH_TSV)" "$$@" $(if $(strip $(TSV_SEARCH_TAG)),--tag "$(TSV_SEARCH_TAG)",) --context "$(TSV_SEARCH_CONTEXT)" --source-jsonl "$(TSV_PATCH_SOURCE_JSONL)" $(if $(filter true,$(TSV_SEARCH_ONLY_O)),--only-O,) $(if $(filter true,$(TSV_SEARCH_NO_PAGER)),--no-pager,) $(if $(filter true,$(TSV_SEARCH_INCLUDE_AUDITED)),--include-audited,)
 endif
 
 review-tsv-search: materialize-dataset-tsv-quiet

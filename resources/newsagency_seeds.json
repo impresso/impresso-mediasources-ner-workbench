@@ -58,7 +58,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Agence/Agentur when it is part of the proper name Agence Radio, Agence Télégraphique Radio, Radio-Agence télégraphique, or Radio-Agentur."
+      "note": "Keep Agence/Agentur when it is part of the proper name Agence Radio, Agence Télégraphique Radio, Radio-Agence télégraphique, or Radio-Agentur.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -131,7 +132,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official_strip_short",
-      "note": "Keep Agence Kampuchea Presse/Press as the official AKP name; strip generic classifiers before SPK/AKP, for example agence cambodgienne SPK -> SPK."
+      "note": "Keep Agence Kampuchea Presse/Press as the official AKP name; strip generic classifiers before SPK/AKP, for example agence cambodgienne SPK -> SPK.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -198,7 +200,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official_strip_short",
-      "note": "Keep established full official-language names such as Albanian Telegraphic Agency, Agjencia Telegrafike Shqiptare, or Agence télégraphique albanaise; strip generic classifiers before ATA/ATSH."
+      "note": "Keep established full official-language names such as Albanian Telegraphic Agency, Agjencia Telegrafike Shqiptare, or Agence télégraphique albanaise; strip generic classifiers before ATA/ATSH.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -273,7 +276,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Centre d’information de presse as part of the full proper name. For Agentur CIP, Agence CIP, or agence de presse CIP, strip the classifier and annotate CIP."
+      "note": "Keep Centre d’information de presse as part of the full proper name. For Agentur CIP, Agence CIP, or agence de presse CIP, strip the classifier and annotate CIP.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -323,7 +327,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "strip_short_name",
-      "note": "Omit Agence/Agentur/agency classifiers when followed by the proper short name Reuter or Reuters. Annotate Reuter/Reuters in Agence Reuter, Agentur Reuter, or agence Reuters."
+      "note": "Omit Agence/Agentur/agency classifiers when followed by the proper short name Reuter or Reuters. Annotate Reuter/Reuters in Agence Reuter, Agentur Reuter, or agence Reuters.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -370,7 +375,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "strip_short_name",
-      "note": "Omit Agence/agency classifiers when followed by the proper short name Stefani. Annotate Stefani in Agence Stefani or agence Stefani."
+      "note": "Omit Agence/agency classifiers when followed by the proper short name Stefani. Annotate Stefani in Agence Stefani or agence Stefani.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -420,7 +426,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "mixed",
-      "note": "Keep Exchange Telegraph Company as the full official name. Strip generic classifiers in Agence Extel/agency Extel unless the source clearly uses that exact form as a proper name."
+      "note": "Keep Exchange Telegraph Company as the full official name. Strip generic classifiers in Agence Extel/agency Extel unless the source clearly uses that exact form as a proper name.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -467,7 +474,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "strip_short_name",
-      "note": "Omit Agence/Agentur when followed by the proper short name Havas. Annotate Havas in Agence Havas, agence de presse Havas, or Agentur Havas."
+      "note": "Omit Agence/Agentur when followed by the proper short name Havas. Annotate Havas in Agence Havas, agence de presse Havas, or Agentur Havas.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -519,7 +527,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official_strip_short",
-      "note": "Keep Xinhua News Agency, New China News Agency, Chine Nouvelle, and Agence Chine nouvelle as established names; strip generic classifiers before Xinhua."
+      "note": "Keep Xinhua News Agency, New China News Agency, Chine Nouvelle, and Agence Chine nouvelle as established names; strip generic classifiers before Xinhua.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -571,7 +580,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "mixed",
-      "note": "Keep Domei News Agency when visible as an English proper-name form; strip generic classifiers before Domei."
+      "note": "Keep Domei News Agency when visible as an English proper-name form; strip generic classifiers before Domei.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -618,7 +628,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "strip_short_name",
-      "note": "Omit Agence/agency classifiers when followed by the proper short name Belga. Annotate Belga in Agence Belga or agence Belga."
+      "note": "Omit Agence/agency classifiers when followed by the proper short name Belga. Annotate Belga in Agence Belga or agence Belga.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -689,7 +700,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official_strip_short",
-      "note": "Keep Czech News Agency and established full names such as Československá tisková kancelář; strip generic classifiers before CTK/ČTK/Ceteka."
+      "note": "Keep Czech News Agency and established full names such as Československá tisková kancelář; strip generic classifiers before CTK/ČTK/Ceteka.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -763,7 +775,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Palach Press and Palach Press Agency as proper names; strip descriptive classifiers such as agence dissidente before the proper name."
+      "note": "Keep Palach Press and Palach Press Agency as proper names; strip descriptive classifiers such as agence dissidente before the proper name.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -809,7 +822,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Agenzia Nazionale Stampa Associata as the official Italian name; strip generic classifiers in agence de presse italienne ANSA or italienische Nachrichtenagentur ANSA and annotate ANSA."
+      "note": "Keep Agenzia Nazionale Stampa Associata as the official Italian name; strip generic classifiers in agence de presse italienne ANSA or italienische Nachrichtenagentur ANSA and annotate ANSA.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -857,7 +871,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Deutsches Nachrichtenbüro and Deutsches Nachrichtenbuero as official names; strip generic classifiers before DNB."
+      "note": "Keep Deutsches Nachrichtenbüro and Deutsches Nachrichtenbuero as official names; strip generic classifiers before DNB.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -928,7 +943,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "strip_short_name",
-      "note": "Omit Agence/Agentur/agency classifiers when followed by the proper short name Wolff or WTB. Keep lexicalized bureau/company names such as Wolffs Telegraphisches Bureau and Continental-Telegraphen-Compagnie."
+      "note": "Omit Agence/Agentur/agency classifiers when followed by the proper short name Wolff or WTB. Keep lexicalized bureau/company names such as Wolffs Telegraphisches Bureau and Continental-Telegraphen-Compagnie.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -980,7 +996,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Agence France-Presse / Agence France Presse as the official name; strip generic classifiers before AFP."
+      "note": "Keep Agence France-Presse / Agence France Presse as the official name; strip generic classifiers before AFP.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -1035,7 +1052,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep United Press and United Press International as proper names; strip generic classifiers before UP/UPI."
+      "note": "Keep United Press and United Press International as proper names; strip generic classifiers before UP/UPI.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -1090,7 +1108,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Agence télégraphique suisse and Schweizerische Depeschenagentur as established official names; strip generic classifiers before ATS/SDA/Keystone-SDA."
+      "note": "Keep Agence télégraphique suisse and Schweizerische Depeschenagentur as established official names; strip generic classifiers before ATS/SDA/Keystone-SDA.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -1176,7 +1195,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "mixed",
-      "note": "Keep Keystone photo agency when the full proper-name phrase is visible; strip generic classifiers before Keystone."
+      "note": "Keep Keystone photo agency when the full proper-name phrase is visible; strip generic classifiers before Keystone.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1257,7 +1277,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "mixed",
-      "note": "Keep Kyodo News and Kyodo News Service as proper names; strip generic classifiers before Kyodo/KNS."
+      "note": "Keep Kyodo News and Kyodo News Service as proper names; strip generic classifiers before Kyodo/KNS.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1307,7 +1328,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Deutsche Presse-Agentur and Deutsche Presse Agentur as official names; strip generic classifiers before DPA/dpa."
+      "note": "Keep Deutsche Presse-Agentur and Deutsche Presse Agentur as official names; strip generic classifiers before DPA/dpa.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1357,7 +1379,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Katholische Internationale Presseagentur and Agence de presse internationale catholique as established full names; strip generic classifiers before KIPA."
+      "note": "Keep Katholische Internationale Presseagentur and Agence de presse internationale catholique as established full names; do not strip these full forms to APIC/KIPA automatically.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -1395,7 +1418,8 @@
     "metadata_sources": [],
     "agency_word_boundary_policy": {
       "policy": "strip_generic",
-      "note": "Do not use generic agency words as a name. This label is only for unresolved formulaic agency markers when explicitly allowed by the curation policy."
+      "note": "Do not use generic agency words as a name. This label is only for unresolved formulaic agency markers when explicitly allowed by the curation policy.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -1447,7 +1471,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "strip_short_name",
-      "note": "Omit generic agency classifiers before AP. Keep Associated Press as the official name."
+      "note": "Omit generic agency classifiers before AP. Keep Associated Press as the official name.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1499,7 +1524,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "mixed",
-      "note": "Omit generic agency classifiers before APA. Keep Austria Presse Agentur, Austria-Presse-Agentur, Austria Press Agentur, and Austria Press Agency as proper-name forms."
+      "note": "Omit generic agency classifiers before APA. Keep Austria Presse Agentur, Austria-Presse-Agentur, Austria Press Agentur, and Austria Press Agency as proper-name forms.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1555,7 +1581,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Deutscher Depeschendienst, Deutscher Auslands-Depeschendienst, DDP, and DAPD as proper names; strip generic classifiers before DDP/DAPD."
+      "note": "Keep Deutscher Depeschendienst, Deutscher Auslands-Depeschendienst, DDP, and DAPD as proper names; strip generic classifiers before DDP/DAPD.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1612,7 +1639,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official_strip_short",
-      "note": "Keep TASS/Tass, ITAR-TASS, Russian News Agency TASS, and Telegraph Agency of the Soviet Union as proper names; strip generic classifiers before Tass/Itar-Tass."
+      "note": "Keep TASS/Tass, ITAR-TASS, Russian News Agency TASS, and Telegraph Agency of the Soviet Union as proper names; strip generic classifiers before Tass/Itar-Tass.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1695,7 +1723,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep St. Petersburg/Petrograd Telegraph Agency and historical renderings such as Russische Telegraphen-Agentur or Petersburger Telegraphen-Agentur as proper names; strip generic classifiers before short aliases such as PTA/SPTA."
+      "note": "Keep St. Petersburg/Petrograd Telegraph Agency and historical renderings such as Russische Telegraphen-Agentur or Petersburger Telegraphen-Agentur as proper names; strip generic classifiers before short aliases such as PTA/SPTA.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -1743,7 +1772,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "mixed",
-      "note": "Keep Europapress as the proper name; strip generic classifiers before it."
+      "note": "Keep Europapress as the proper name; strip generic classifiers before it.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1797,7 +1827,8 @@
     ],
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Schweizerische Politische Korrespondenz and Schweizer Mittelpresse as proper names; strip generic classifiers before SPK/SMP."
+      "note": "Keep Schweizerische Politische Korrespondenz and Schweizer Mittelpresse as proper names; strip generic classifiers before SPK/SMP.",
+      "migrate_strip_agency_words": false
     }
   },
   {
@@ -1858,7 +1889,8 @@
     "annotation_note": "Use for source attributions such as (Tan Jug.) or Belgrade dateline formulas where the context matches a news-agency dispatch. Do not treat Jugoslav place or nationality words alone as agency mentions.",
     "agency_word_boundary_policy": {
       "policy": "keep_official_strip_short",
-      "note": "Keep established full official names when visible; strip generic classifiers before Tanjug or Tan-Jug."
+      "note": "Keep established full official names when visible; strip generic classifiers before Tanjug or Tan-Jug.",
+      "migrate_strip_agency_words": true
     }
   },
   {
@@ -1867,6 +1899,7 @@
     "display_name": "Telegraphen-Union",
     "aliases": [
       "Telegraphen-Union",
+      "Tèlegraphen-Union",
       "T.U.",
       "TU"
     ],
@@ -1891,6 +1924,7 @@
       ],
       "fr": [
         "Telegraphen-Union",
+        "Tèlegraphen-Union",
         "T.U.",
         "TU"
       ]
@@ -1920,7 +1954,8 @@
     "annotation_note": "Use for the German news agency in Telegraphen-Union / T.U. references and contextual source formulas such as (UTA) in Weimar-period German political dispatches. Do not map UTA to ATS/SDA. Reject homonymous references to the international telegraph/radiotelegraph organization, especially administrative contexts such as Internationales Bureau der Telegraphen-Union, telecommunications departments, officials, secretaries, appointments, treaties, or member states.",
     "agency_word_boundary_policy": {
       "policy": "keep_official",
-      "note": "Keep Telegraphen-Union as the proper name. Do not include unrelated institutional classifiers such as Internationales Bureau der Telegraphen-Union unless the whole expression is a confirmed agency name in context."
+      "note": "Keep Telegraphen-Union as the proper name; strip generic or descriptive classifiers such as agence, agence télégraphique, Agence semi-officielle, or Nachrichtenagentur before the name. Do not include unrelated institutional classifiers such as Internationales Bureau der Telegraphen-Union unless the whole expression is a confirmed agency name in context.",
+      "migrate_strip_agency_words": true
     }
   }
 ]

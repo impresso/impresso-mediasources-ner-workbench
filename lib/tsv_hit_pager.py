@@ -38,18 +38,34 @@ def token_matches(token: str, query: str, *, ignore_case: bool = True) -> bool:
     return token.casefold() == query.casefold() if ignore_case else token == query
 
 
+def tag_matches(tag: str, query: str, *, ignore_case: bool = True) -> bool:
+    if query.startswith(("B-", "I-")):
+        return tag.casefold() == query.casefold() if ignore_case else tag == query
+    if tag == "O":
+        return query.casefold() == "o" if ignore_case else query == "O"
+    prefix, separator, label = tag.partition("-")
+    if separator and prefix in {"B", "I"}:
+        return label.casefold() == query.casefold() if ignore_case else label == query
+    return tag.casefold() == query.casefold() if ignore_case else tag == query
+
+
 def highlight_token_line(
     line: str,
     query_tokens: Iterable[str],
     *,
+    query_tag: str | None = None,
     ignore_case: bool = True,
     color: bool = True,
 ) -> str:
     parsed = parse_token_line(line)
     if parsed is None:
         return line
-    token, _tag = parsed
+    token, tag = parsed
     rest = line.rstrip("\n").split("\t")[1:]
+    if query_tag is not None and tag_matches(tag, query_tag, ignore_case=ignore_case):
+        if color:
+            token = f"{RED}{token}{RESET}"
+        return "\t".join([token, *rest]) + "\n"
     for query in query_tokens:
         if token_matches(token, query, ignore_case=ignore_case):
             if color:
@@ -60,39 +76,64 @@ def highlight_token_line(
 
 def find_hits(
     lines: list[str],
-    query1: str,
-    query2: str | None = None,
+    query_tokens: list[str],
     *,
     only_o: bool = False,
     ignore_case: bool = True,
 ) -> list[tuple[int, int]]:
+    if not query_tokens:
+        return []
     hits: list[tuple[int, int]] = []
     for index, line in enumerate(lines):
         parsed = parse_token_line(line)
         if parsed is None:
             continue
-        token, tag = parsed
-        if query2 is None:
-            if not token_matches(token, query1, ignore_case=ignore_case):
-                continue
-            if only_o and tag != "O":
-                continue
-            hits.append((index, index + 1))
+        end = index + len(query_tokens)
+        if end > len(lines):
             continue
+        parsed_window = [parse_token_line(lines[position]) for position in range(index, end)]
+        if any(item is None for item in parsed_window):
+            continue
+        window = [item for item in parsed_window if item is not None]
+        if not all(token_matches(token, query, ignore_case=ignore_case) for (token, _tag), query in zip(window, query_tokens)):
+            continue
+        if only_o and any(tag != "O" for _token, tag in window):
+            continue
+        hits.append((index, end))
+    return hits
 
-        if index + 1 >= len(lines):
+
+def find_tag_hits(
+    lines: list[str],
+    query_tag: str,
+    *,
+    ignore_case: bool = True,
+) -> list[tuple[int, int]]:
+    hits: list[tuple[int, int]] = []
+    index = 0
+    while index < len(lines):
+        parsed = parse_token_line(lines[index])
+        if parsed is None:
+            index += 1
             continue
-        parsed_next = parse_token_line(lines[index + 1])
-        if parsed_next is None:
+        _token, tag = parsed
+        if not tag_matches(tag, query_tag, ignore_case=ignore_case):
+            index += 1
             continue
-        token_next, tag_next = parsed_next
-        if not token_matches(token, query1, ignore_case=ignore_case):
+        start = index
+        index += 1
+        if query_tag.startswith(("B-", "I-")) or query_tag.casefold() == "o":
+            hits.append((start, index))
             continue
-        if not token_matches(token_next, query2, ignore_case=ignore_case):
-            continue
-        if only_o and not (tag == "O" and tag_next == "O"):
-            continue
-        hits.append((index, index + 2))
+        while index < len(lines):
+            parsed_next = parse_token_line(lines[index])
+            if parsed_next is None:
+                break
+            _next_token, next_tag = parsed_next
+            if not tag_matches(next_tag, query_tag, ignore_case=ignore_case):
+                break
+            index += 1
+        hits.append((start, index))
     return hits
 
 
@@ -227,6 +268,7 @@ def build_block(
     *,
     context: int,
     query_tokens: list[str],
+    query_tag: str | None = None,
     ignore_case: bool = True,
     color: bool = True,
 ) -> str:
@@ -237,7 +279,7 @@ def build_block(
     out: list[str] = []
     for index in range(block_start, block_end):
         if start <= index < end:
-            out.append(highlight_token_line(lines[index], query_tokens, ignore_case=ignore_case, color=color))
+            out.append(highlight_token_line(lines[index], query_tokens, query_tag=query_tag, ignore_case=ignore_case, color=color))
         else:
             out.append(lines[index])
     return "".join(out)
@@ -284,8 +326,8 @@ def load_lines(path: Path) -> list[str]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Search TSV token/tag files and show one colored hit block per screen.")
     parser.add_argument("file", type=Path, help="TSV file to search.")
-    parser.add_argument("token", help="Token to search for.")
-    parser.add_argument("token2", nargs="?", help="Optional adjacent second token.")
+    parser.add_argument("tokens", nargs="*", help="Adjacent token sequence to search for.")
+    parser.add_argument("--tag", help="NER tag or bare entity label to search for.")
     parser.add_argument("-C", "--context", type=int, default=6, help="Context lines before and after the hit. Default: 6.")
     parser.add_argument("--only-O", action="store_true", help='Only match token lines whose tag is exactly "O".')
     parser.add_argument("--case-sensitive", action="store_true", help="Use case-sensitive matching.")
@@ -299,11 +341,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     ignore_case = not args.case_sensitive
-    query_tokens = [args.token]
-    if args.token2 is not None:
-        query_tokens.append(args.token2)
+    query_tokens = [token for value in args.tokens for token in value.split()]
+    if not query_tokens and not args.tag:
+        raise SystemExit("token sequence or --tag is required")
     lines = load_lines(args.file)
-    hits = find_hits(lines, args.token, args.token2, only_o=args.only_O, ignore_case=ignore_case)
+    if args.tag:
+        hits = find_tag_hits(lines, args.tag, ignore_case=ignore_case)
+    else:
+        hits = find_hits(lines, query_tokens, only_o=args.only_O, ignore_case=ignore_case)
     hits = filter_audited_hits(lines, hits, source_jsonl=args.source_jsonl, include_audited=args.include_audited)
     labels = [hit_label_for_hit(lines, hit) for hit in hits]
     blocks = [
@@ -312,6 +357,7 @@ def main(argv: list[str] | None = None) -> int:
             hit,
             context=args.context,
             query_tokens=query_tokens,
+            query_tag=args.tag,
             ignore_case=ignore_case,
             color=not args.no_color,
         )
@@ -320,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.no_pager:
         if not blocks:
             print("No matches.")
-            return 1
+            return 0
         for index, block in enumerate(blocks):
             if index:
                 print("--")
@@ -328,7 +374,7 @@ def main(argv: list[str] | None = None) -> int:
             print(block, end="")
         return 0
     page_hits(blocks, labels)
-    return 0 if blocks else 1
+    return 0
 
 
 if __name__ == "__main__":
