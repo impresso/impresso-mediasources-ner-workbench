@@ -453,7 +453,7 @@ Restrict hits to tokens currently tagged `O` when you are looking specifically f
 make search-tsv TSV_PATCH_SPLIT=train TSV_SEARCH=tan TSV_SEARCH_ONLY_O=true
 ```
 
-By default, TSV search and TSV review hide hits that overlap verified `audit_marks` in the configured JSONL split. This includes hits that were already accepted as entities and hits marked as true non-entities. To inspect them anyway:
+By default, token TSV search and TSV review hide hits that overlap verified `audit_marks` in the configured JSONL split. This includes hits that were already accepted as entities and hits marked as true non-entities. Tag searches such as `TSV_SEARCH_TAG=org.ent.pressagency.apa` show audited hits by default because they are usually used for inspection and counting. To inspect audited token-search hits anyway:
 
 ```bash
 make search-tsv TSV_SEARCH=tan TSV_SEARCH_INCLUDE_AUDITED=true

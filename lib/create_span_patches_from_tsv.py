@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import select
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -31,6 +33,19 @@ class Match:
 
 
 @dataclass(frozen=True)
+class PatchTarget:
+    label: str
+    relative_start: int
+    relative_stop: int
+
+
+@dataclass(frozen=True)
+class ActionableTarget:
+    match: Match
+    target: PatchTarget
+
+
+@dataclass(frozen=True)
 class SplitSpec:
     name: str
     input_jsonl: Path
@@ -38,6 +53,18 @@ class SplitSpec:
     decisions: Path
     audit_id: str
     summary_json: Path | None = None
+
+
+class NoTokenMatchError(ValueError):
+    pass
+
+
+class OldLabelMismatchError(ValueError):
+    pass
+
+
+class NoActionableTargetError(ValueError):
+    pass
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -107,10 +134,6 @@ def strip_ansi(value: str) -> str:
     return ANSI_ESCAPE_RE.sub("", value)
 
 
-def looks_like_bio_label(value: str) -> bool:
-    return normalize_bio_label(value) == "O" or value.startswith("B-") or value.startswith("I-")
-
-
 def normalize_bio_label(value: str) -> str:
     stripped = value.strip()
     if stripped in {"-", "o", "O"}:
@@ -128,7 +151,7 @@ def parse_tsv_paste(raw: str) -> TokenSequence:
         line = strip_ansi(raw_line.strip("\n"))
         if not line.strip():
             continue
-        if line.strip() == "-" or line.strip().startswith("```"):
+        if line.strip().startswith("```"):
             continue
         if line.startswith("#"):
             key, separator, value = line[1:].strip().partition("=")
@@ -137,8 +160,6 @@ def parse_tsv_paste(raw: str) -> TokenSequence:
             continue
         columns = line.split()
         if columns[:2] == ["TOKEN", "NERTAG"] or columns[:1] == ["TOKEN"]:
-            continue
-        if len(columns) <= 2 and looks_like_bio_label(columns[0].strip()):
             continue
         token = columns[0].strip()
         if token:
@@ -151,6 +172,9 @@ def parse_tsv_paste(raw: str) -> TokenSequence:
                     new,
                 )
             )
+    has_old_column = any(old is not None for _token, old, _new in rows)
+    if has_old_column and any(old is None for _token, old, _new in rows):
+        raise ValueError("pasted TSV must provide an OLD/NERTAG label for every token row, or for no token rows")
     has_new_column = any(new is not None for _token, _old, new in rows)
     for token, old, new in rows:
         tokens.append(token)
@@ -158,7 +182,8 @@ def parse_tsv_paste(raw: str) -> TokenSequence:
             old_labels.append(old)
         if has_new_column:
             if old is None:
-                raise ValueError("three-column TOKEN OLD NEW patches require an OLD label on every token line")
+                raise ValueError("TOKEN OLD [NEW] patches require an OLD label on every token row")
+            # NEW is sparse: when the third column is omitted, effective NEW = OLD.
             new_labels.append(new if new is not None else old)
     if not tokens:
         raise ValueError("no tokens found in pasted TSV")
@@ -203,6 +228,7 @@ def labels_match(actual: list[str], expected: Iterable[str]) -> bool:
 
 
 def label_from_bio(tag: str) -> str:
+    tag = normalize_bio_label(tag)
     if tag == "O":
         return "O"
     prefix, separator, label = tag.partition("-")
@@ -211,7 +237,7 @@ def label_from_bio(tag: str) -> str:
     raise ValueError(f"invalid BIO label in NEW column: {tag!r}")
 
 
-def target_from_new_labels(sequence: TokenSequence, label_metadata: dict[str, dict[str, Any]] | None = None) -> tuple[str, int, int] | None:
+def target_from_new_labels(sequence: TokenSequence, label_metadata: dict[str, dict[str, Any]] | None = None) -> PatchTarget | None:
     targets = targets_from_new_labels(sequence, label_metadata)
     if not targets:
         return None
@@ -220,43 +246,91 @@ def target_from_new_labels(sequence: TokenSequence, label_metadata: dict[str, di
     return targets[0]
 
 
-def targets_from_new_labels(sequence: TokenSequence, label_metadata: dict[str, dict[str, Any]] | None = None) -> list[tuple[str, int, int]]:
+def targets_from_new_labels(sequence: TokenSequence, label_metadata: dict[str, dict[str, Any]] | None = None) -> list[PatchTarget]:
     if not sequence.new_labels:
         return []
-    non_o = [index for index, tag in enumerate(sequence.new_labels) if tag != "O"]
-    if not non_o:
-        old_non_o = [index for index, tag in enumerate(sequence.old_labels) if tag != "O"]
-        if old_non_o:
-            if old_non_o != list(range(old_non_o[0], old_non_o[-1] + 1)):
-                raise ValueError("OLD column must contain one contiguous annotated span when NEW is all O")
-            return [("O", old_non_o[0], old_non_o[-1] + 1)]
-        return [("O", 0, len(sequence.tokens))]
-    targets: list[tuple[str, int, int]] = []
+    if sequence.old_labels and len(sequence.old_labels) != len(sequence.new_labels):
+        raise ValueError("OLD/NERTAG and NEW label counts must match")
+    if sequence.old_labels and sequence.old_labels == sequence.new_labels:
+        return []
+    if sequence.old_labels:
+        return changed_targets_from_old_new(sequence, label_metadata)
+    return dedupe_targets(
+        PatchTarget(resolve_label(label, label_metadata), start, stop)
+        for label, start, stop in bio_entity_spans(sequence.new_labels)
+    )
+
+
+def bio_entity_spans(labels: tuple[str, ...]) -> list[tuple[str, int, int]]:
+    spans: list[tuple[str, int, int]] = []
     index = 0
-    while index < len(sequence.new_labels):
-        tag = sequence.new_labels[index]
+    while index < len(labels):
+        tag = labels[index]
         if tag == "O":
             index += 1
             continue
         if not tag.startswith("B-"):
-            raise ValueError(f"NEW column entity span must start with B- label at token {index}: {tag!r}")
+            raise ValueError(f"entity span must start with B- label at token {index}: {tag!r}")
         label = label_from_bio(tag)
         start = index
         index += 1
-        while index < len(sequence.new_labels) and sequence.new_labels[index] != "O":
-            continuation = sequence.new_labels[index]
+        while index < len(labels) and labels[index] != "O":
+            continuation = labels[index]
             if continuation.startswith("B-"):
                 break
             if not continuation.startswith("I-"):
-                raise ValueError(f"invalid BIO label in NEW column: {continuation!r}")
+                raise ValueError(f"invalid BIO label: {continuation!r}")
             continuation_label = label_from_bio(continuation)
             if continuation_label != label:
-                raise ValueError(
-                    f"NEW column I- label does not match current entity at token {index}: expected I-{label}, got {continuation!r}"
-                )
+                raise ValueError(f"I- label does not match current entity at token {index}: expected I-{label}, got {continuation!r}")
             index += 1
-        targets.append((resolve_label(label, label_metadata), start, index))
-    return targets
+        spans.append((label, start, index))
+    return spans
+
+
+def spans_overlap(left_start: int, left_stop: int, right_start: int, right_stop: int) -> bool:
+    return left_start < right_stop and right_start < left_stop
+
+
+def span_contains_any_position(start: int, stop: int, positions: set[int]) -> bool:
+    return any(start <= position < stop for position in positions)
+
+
+def dedupe_targets(targets: Iterable[PatchTarget]) -> list[PatchTarget]:
+    return sorted(
+        set(targets),
+        key=lambda target: (target.relative_start, target.relative_stop, target.label),
+    )
+
+
+def changed_targets_from_old_new(
+    sequence: TokenSequence, label_metadata: dict[str, dict[str, Any]] | None = None
+) -> list[PatchTarget]:
+    changed_positions = {index for index, (old, new) in enumerate(zip(sequence.old_labels, sequence.new_labels, strict=True)) if old != new}
+    if not changed_positions:
+        return []
+    old_spans = bio_entity_spans(sequence.old_labels)
+    new_spans = bio_entity_spans(sequence.new_labels)
+    changed_old_spans = [
+        (label, start, stop)
+        for label, start, stop in old_spans
+        if span_contains_any_position(start, stop, changed_positions)
+    ]
+    targets: list[PatchTarget] = []
+    for label, start, stop in new_spans:
+        intersects_changed_position = span_contains_any_position(start, stop, changed_positions)
+        overlaps_changed_old_span = any(spans_overlap(start, stop, old_start, old_stop) for _old_label, old_start, old_stop in changed_old_spans)
+        if intersects_changed_position or overlaps_changed_old_span:
+            targets.append(PatchTarget(resolve_label(label, label_metadata), start, stop))
+    for _old_label, old_start, old_stop in changed_old_spans:
+        survives_as_result = any(
+            spans_overlap(old_start, old_stop, target.relative_start, target.relative_stop)
+            for target in targets
+            if target.label != "O"
+        )
+        if not survives_as_result:
+            targets.append(PatchTarget("O", old_start, old_stop))
+    return dedupe_targets(targets)
 
 
 def match_context(match: Match, *, radius: int = 3) -> str:
@@ -269,46 +343,46 @@ def match_context(match: Match, *, radius: int = 3) -> str:
     return f"{prefix}{' '.join(left)} [{' '.join(focus)}] {' '.join(right)}{suffix}".strip()
 
 
-def actionable_matches(matches: Iterable[Match], *, label: str, include_existing: bool = False) -> list[Match]:
+def absolute_target_match(match: Match, target: PatchTarget) -> Match:
+    return Match(
+        row=match.row,
+        token_start=match.token_start + target.relative_start,
+        token_stop=match.token_start + target.relative_stop,
+    )
+
+
+def target_is_actionable(match: Match, target: PatchTarget, *, include_existing: bool = False) -> bool:
     if include_existing:
-        return list(matches)
-    actionable = []
-    for match in matches:
-        labels = current_labels(match)
-        if label == "O":
-            if any(current != "O" for current in labels):
-                actionable.append(match)
-            continue
-        if labels != expected_labels(label, match.token_stop - match.token_start):
-            actionable.append(match)
-    return actionable
+        return True
+    submatch = absolute_target_match(match, target)
+    labels = current_labels(submatch)
+    if target.label == "O":
+        return any(current != "O" for current in labels)
+    return labels != expected_labels(target.label, submatch.token_stop - submatch.token_start) or not exact_entity_exists(submatch, target.label)
 
 
-def actionable_matches_for_target(
+def exact_entity_exists(match: Match, label: str) -> bool:
+    for entity in match.row.get("entities") or []:
+        if (
+            str(entity.get("label") or "") == label
+            and int(entity.get("token_start", -1)) == match.token_start
+            and int(entity.get("token_stop", -1)) == match.token_stop
+        ):
+            return True
+    return False
+
+
+def actionable_target_pairs(
     matches: Iterable[Match],
+    targets: Iterable[PatchTarget],
     *,
-    label: str,
-    relative_start: int,
-    relative_stop: int,
     include_existing: bool = False,
-    old_labels: tuple[str, ...] = (),
-    new_labels: tuple[str, ...] = (),
-) -> list[Match]:
-    if include_existing:
-        return list(matches)
-    actionable = []
+) -> list[ActionableTarget]:
+    actionable: list[ActionableTarget] = []
     for match in matches:
-        if old_labels and new_labels and old_labels != new_labels and current_labels(match) == list(old_labels):
-            actionable.append(match)
-            continue
-        submatch = Match(row=match.row, token_start=match.token_start + relative_start, token_stop=match.token_start + relative_stop)
-        labels = current_labels(submatch)
-        if label == "O":
-            if any(current != "O" for current in labels):
-                actionable.append(match)
-            continue
-        if labels != expected_labels(label, submatch.token_stop - submatch.token_start):
-            actionable.append(match)
+        for target in targets:
+            if target_is_actionable(match, target, include_existing=include_existing):
+                actionable.append(ActionableTarget(match=match, target=target))
     return actionable
 
 
@@ -379,7 +453,7 @@ def build_accepted_patches(
     pasted_tsv: str,
     reviewer: str,
     label_metadata: dict[str, dict[str, Any]] | None = None,
-    selected_matches: list[Match] | None = None,
+    selected_targets: list[ActionableTarget] | None = None,
     include_existing: bool = False,
     target_span: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
@@ -388,41 +462,32 @@ def build_accepted_patches(
     inferred_targets = targets_from_new_labels(sequence, label_metadata)
     if inferred_targets:
         targets = inferred_targets
-        label = targets[0][0]
+        label = targets[0].label
     else:
         label = resolve_label(label, label_metadata)
         relative_start, relative_stop = target_span or (0, len(sequence.tokens))
-        targets = [(label, relative_start, relative_stop)]
-    raw_matches = find_token_matches(rows, sequence)
-    if sequence.old_labels:
-        raw_matches = [match for match in raw_matches if labels_match(current_labels(match), sequence.old_labels)]
-    if selected_matches is not None:
-        matches = selected_matches
+        targets = [PatchTarget(label, relative_start, relative_stop)]
+    token_matches = find_token_matches(rows, sequence)
+    raw_matches = filter_matches_by_old_labels(token_matches, sequence)
+    if not raw_matches:
+        raise_no_match_error(sequence, token_matches)
+    if selected_targets is not None:
+        actionable = selected_targets
     else:
-        matches_by_key: dict[tuple[str, int, int], Match] = {}
-        for target_label, relative_start, relative_stop in targets:
-            target_matches = actionable_matches_for_target(
-                raw_matches,
-                label=target_label,
-                relative_start=relative_start,
-                relative_stop=relative_stop,
-                include_existing=include_existing,
-                old_labels=sequence.old_labels,
-                new_labels=sequence.new_labels,
-            )
-            for match in target_matches:
-                matches_by_key[(row_id(match.row), match.token_start, match.token_stop)] = match
-        matches = [matches_by_key[key] for key in sorted(matches_by_key)]
-    if not matches:
-        raise ValueError(f"no matches found for token sequence: {' '.join(sequence.tokens)}")
-
+        actionable = actionable_target_pairs(raw_matches, targets, include_existing=include_existing)
+    if not actionable:
+        target_description = ", ".join(f"{target.label} tokens={target.relative_start}:{target.relative_stop}" for target in targets)
+        raise NoActionableTargetError(f"no actionable targets found: {target_description}")
+    unique_match_keys = {
+        (row_id(pair.match.row), pair.match.token_start, pair.match.token_stop)
+        for pair in actionable
+    }
     target_matches = [
         (
-            target_label,
-            Match(row=match.row, token_start=match.token_start + relative_start, token_stop=match.token_start + relative_stop),
+            pair.target.label,
+            absolute_target_match(pair.match, pair.target),
         )
-        for match in matches
-        for target_label, relative_start, relative_stop in targets
+        for pair in actionable
     ]
     new_candidates = [candidate_for_match(match, audit_id=audit_id, label=target_label) for target_label, match in target_matches]
     new_keys = {candidate_key(candidate) for candidate in new_candidates}
@@ -430,7 +495,7 @@ def build_accepted_patches(
     all_candidates = merge_candidates(existing_candidates, new_candidates)
     write_jsonl(candidates_path, all_candidates)
 
-    target_labels = {target_label for target_label, _start, _stop in targets}
+    target_labels = {target.label for target in targets}
     patches = [
         patch
         for patch in load_span_patches(candidates_path, audit_id=audit_id)
@@ -459,8 +524,8 @@ def build_accepted_patches(
         "decisions": str(decisions_path),
         "label": label if len(target_labels) == 1 else "",
         "labels": sorted(target_labels),
-        "matches": len(matches),
-        "mentions": len(target_matches),
+        "matches": len(unique_match_keys),
+        "mentions": len(actionable),
         "new_candidates": len(new_candidates),
         "new_decisions": len(new_decisions),
         "existing_decisions": len(existing_current_decisions),
@@ -478,18 +543,83 @@ def resolve_label(raw_label: str, label_metadata: dict[str, dict[str, Any]] | No
     return label
 
 
-def read_pasted_block() -> str:
-    print("Paste TSV token lines. Use TOKEN NERTAG or TOKEN OLD NEW columns. Finish with an empty line.")
-    lines = []
+def filter_matches_by_old_labels(matches: list[Match], sequence: TokenSequence) -> list[Match]:
+    if not sequence.old_labels:
+        return matches
+    if len(sequence.old_labels) != len(sequence.tokens):
+        raise ValueError(
+            f"OLD/NERTAG label count ({len(sequence.old_labels)}) does not match token count ({len(sequence.tokens)})"
+        )
+    return [match for match in matches if labels_match(current_labels(match), sequence.old_labels)]
+
+
+def raise_no_match_error(sequence: TokenSequence, token_matches: list[Match]) -> None:
+    if token_matches and sequence.old_labels:
+        example = token_matches[0]
+        raise OldLabelMismatchError(
+            "token sequence found, but OLD/NERTAG labels did not match current dataset labels; "
+            f"first token match is {row_id(example.row)} tokens={example.token_start}:{example.token_stop}; "
+            f"expected OLD={' '.join(sequence.old_labels)}, current={' '.join(current_labels(example))}"
+        )
+    raise NoTokenMatchError(f"no matches found for token sequence: {' '.join(sequence.tokens)}")
+
+
+def split_pasted_blocks(raw: str) -> list[str]:
+    blocks: list[str] = []
+    lines: list[str] = []
+    for line in raw.splitlines():
+        if line.strip():
+            lines.append(line)
+            continue
+        if lines:
+            blocks.append("\n".join(lines))
+            lines = []
+    if lines:
+        blocks.append("\n".join(lines))
+    return blocks
+
+
+def stdin_has_buffered_line() -> bool:
+    if not sys.stdin.isatty():
+        return True
+    try:
+        readable, _writable, _errors = select.select([sys.stdin], [], [], 0.05)
+    except (OSError, ValueError):
+        return False
+    return bool(readable)
+
+
+def read_pasted_blocks(*, allow_multiple: bool = False) -> list[str]:
+    if allow_multiple:
+        print(
+            "Paste TSV token lines. Use TOKEN OLD, optionally adding NEW only on rows whose label changes. "
+            "Separate multiple patches with one or more empty lines."
+        )
+    else:
+        print("Paste TSV token lines. Use TOKEN OLD, optionally adding NEW only on rows whose label changes. Finish with an empty line.")
+    blocks: list[str] = []
+    lines: list[str] = []
     while True:
         try:
             line = input()
         except EOFError:
             break
         if line == "":
+            if lines:
+                blocks.append("\n".join(lines))
+                lines = []
+            if allow_multiple and stdin_has_buffered_line():
+                continue
             break
         lines.append(line)
-    return "\n".join(lines)
+    if lines:
+        blocks.append("\n".join(lines))
+    return blocks
+
+
+def read_pasted_block() -> str:
+    blocks = read_pasted_blocks()
+    return blocks[0] if blocks else ""
 
 
 def print_matches(matches: list[Match], label: str) -> None:
@@ -517,20 +647,20 @@ def infer_or_prompt_label(
         print(exc)
         return 1
     if non_o_target_only:
-        return 0 if inferred_targets and any(target[0] != "O" for target in inferred_targets) else 1
+        return 0 if inferred_targets and any(target.label != "O" for target in inferred_targets) else 1
     if target_only:
         return 0 if inferred_targets else 1
     if inferred_targets:
-        labels = sorted({target[0] for target in inferred_targets})
-        spans = ", ".join(f"{label} tokens={start}:{stop}" for label, start, stop in inferred_targets)
+        labels = sorted({target.label for target in inferred_targets})
+        spans = ", ".join(f"{target.label} tokens={target.relative_start}:{target.relative_stop}" for target in inferred_targets)
         label = labels[0]
-        relative_start, relative_stop = inferred_targets[0][1], inferred_targets[0][2]
+        relative_start, relative_stop = inferred_targets[0].relative_start, inferred_targets[0].relative_stop
         print(f"targets from NEW column: {len(inferred_targets)} mention(s): {spans}")
         return label, (relative_start, relative_stop)
     try:
         raw_label = raw_label or input("Entity label: ").strip()
     except EOFError:
-        print("entity label is required for two-column TSV patches; pass --label or use TOKEN OLD NEW columns")
+        print("entity label is required for two-column TSV patches; pass --label or add sparse NEW labels as TOKEN OLD [NEW]")
         return 1
     if not raw_label:
         print("entity label is required")
@@ -594,8 +724,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--include-existing", action="store_true")
     parser.add_argument("--allow-no-matches", action="store_true")
-    parser.add_argument("--detect-target-only", action="store_true", help="Read pasted TSV and exit 0 if TOKEN OLD NEW defines a target.")
-    parser.add_argument("--detect-non-o-target-only", action="store_true", help="Read pasted TSV and exit 0 if TOKEN OLD NEW defines a non-O target.")
+    parser.add_argument("--loop", action="store_true", help="Interactively accept multiple pasted TSV patch blocks.")
+    parser.add_argument("--detect-target-only", action="store_true", help="Read pasted TSV and exit 0 if TOKEN OLD [NEW] defines a target.")
+    parser.add_argument("--detect-non-o-target-only", action="store_true", help="Read pasted TSV and exit 0 if TOKEN OLD [NEW] defines a non-O target.")
     parser.add_argument("--split-input-jsonl", action="append", default=[], metavar="SPLIT=PATH")
     parser.add_argument("--split-candidates", action="append", default=[], metavar="SPLIT=PATH")
     parser.add_argument("--split-decisions", action="append", default=[], metavar="SPLIT=PATH")
@@ -604,11 +735,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
-    pasted_tsv = read_pasted_block()
-    sequence = parse_tsv_paste(pasted_tsv)
-    label_metadata = review_ui.load_label_metadata(args.label_metadata or DEFAULT_LABEL_METADATA)
+def prompt_continue() -> bool:
+    try:
+        raw = input("Add another TSV patch? [y/N] ")
+    except EOFError:
+        return False
+    return raw.strip().lower() in {"y", "yes"}
+
+
+def process_pasted_tsv(args: argparse.Namespace, pasted_tsv: str, label_metadata: dict[str, dict[str, Any]]) -> int:
+    try:
+        sequence = parse_tsv_paste(pasted_tsv)
+    except ValueError as exc:
+        print(exc)
+        return 1
     inferred = infer_or_prompt_label(
         sequence=sequence,
         label_metadata=label_metadata,
@@ -649,26 +789,31 @@ def main(argv: list[str] | None = None) -> int:
                     include_existing=args.include_existing,
                     target_span=target_span,
                 )
-            except ValueError as exc:
-                if args.allow_no_matches and str(exc).startswith("no matches found"):
-                    print(exc)
-                    target_labels = sorted({target[0] for target in targets_from_new_labels(sequence, label_metadata)} or {label})
-                    summary = {
-                        "audit_id": spec.audit_id,
-                        "candidates": str(spec.candidates),
-                        "decisions": str(spec.decisions),
-                        "label": label,
-                        "labels": target_labels,
-                        "matches": 0,
-                        "mentions": 0,
-                        "new_candidates": 0,
-                        "new_decisions": 0,
-                        "existing_decisions": 0,
-                        "tokens": list(sequence.tokens),
-                    }
-                else:
+            except NoTokenMatchError as exc:
+                if not args.allow_no_matches:
                     print(exc)
                     return 1
+                print(exc)
+                target_labels = sorted({target.label for target in targets_from_new_labels(sequence, label_metadata)} or {label})
+                summary = {
+                    "audit_id": spec.audit_id,
+                    "candidates": str(spec.candidates),
+                    "decisions": str(spec.decisions),
+                    "label": label,
+                    "labels": target_labels,
+                    "matches": 0,
+                    "mentions": 0,
+                    "new_candidates": 0,
+                    "new_decisions": 0,
+                    "existing_decisions": 0,
+                    "tokens": list(sequence.tokens),
+                }
+            except OldLabelMismatchError as exc:
+                print(exc)
+                return 1
+            except ValueError as exc:
+                print(exc)
+                return 1
             if spec.summary_json:
                 write_json(spec.summary_json, summary)
             print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
@@ -680,34 +825,55 @@ def main(argv: list[str] | None = None) -> int:
             summaries[spec.name] = summary
         if args.summary_json:
             write_json(args.summary_json, summaries)
+        if args.allow_no_matches and not any(int(summary.get("matches") or 0) for summary in summaries.values()):
+            print("no matches found in any configured split; check the pasted token column and OLD/NERTAG labels")
+            return 1
         return 0
     rows = load_jsonl(args.input_jsonl)
-    raw_matches = find_token_matches(rows, sequence)
-    if sequence.old_labels:
-        raw_matches = [match for match in raw_matches if labels_match(current_labels(match), sequence.old_labels)]
+    token_matches = find_token_matches(rows, sequence)
+    raw_matches = filter_matches_by_old_labels(token_matches, sequence)
     if not raw_matches:
-        print(f"no matches found for token sequence: {' '.join(sequence.tokens)}")
-        return 0 if args.allow_no_matches else 1
-    relative_start, relative_stop = target_span or (0, len(sequence.tokens))
-    matches = actionable_matches_for_target(
-        raw_matches,
-        label=label,
-        relative_start=relative_start,
-        relative_stop=relative_stop,
-        include_existing=args.include_existing,
-        old_labels=sequence.old_labels,
-        new_labels=sequence.new_labels,
-    )
+        try:
+            raise_no_match_error(sequence, token_matches)
+        except OldLabelMismatchError as exc:
+            print(exc)
+            return 1
+        except NoTokenMatchError as exc:
+            print(exc)
+            return 0 if args.allow_no_matches else 1
+    inferred_targets = targets_from_new_labels(sequence, label_metadata)
+    if inferred_targets:
+        targets = inferred_targets
+    else:
+        relative_start, relative_stop = target_span or (0, len(sequence.tokens))
+        targets = [PatchTarget(label, relative_start, relative_stop)]
+    actionable_pairs = actionable_target_pairs(raw_matches, targets, include_existing=args.include_existing)
+    matches_by_key: dict[tuple[str, int, int], Match] = {}
+    for pair in actionable_pairs:
+        match = pair.match
+        matches_by_key[(row_id(match.row), match.token_start, match.token_stop)] = match
+    matches = [matches_by_key[key] for key in sorted(matches_by_key)]
     skipped = len(raw_matches) - len(matches)
     if skipped:
-        print(f"skipped {skipped} already-correct/non-actionable match(es); pass --include-existing to show them")
+        print(f"skipped {skipped} already-correct/non-actionable token-sequence match(es); pass --include-existing to show them")
     if not matches:
-        print(f"no actionable matches found for label {label}")
+        target_description = ", ".join(f"{target.label} tokens={target.relative_start}:{target.relative_stop}" for target in targets)
+        print(f"no actionable matches found for target(s): {target_description}")
         return 0 if args.allow_no_matches else 1
-    selected_matches = matches if args.yes else select_matches(matches, label)
+    selection_label = label if len({target.label for target in targets}) == 1 else "multiple labels"
+    selected_matches = matches if args.yes else select_matches(matches, selection_label)
     if not selected_matches:
         print("aborted")
         return 1
+    selected_keys = {
+        (row_id(match.row), match.token_start, match.token_stop)
+        for match in selected_matches
+    }
+    selected_targets = [
+        pair
+        for pair in actionable_pairs
+        if (row_id(pair.match.row), pair.match.token_start, pair.match.token_stop) in selected_keys
+    ]
     summary = build_accepted_patches(
         input_jsonl=args.input_jsonl,
         candidates_path=args.candidates,
@@ -717,7 +883,7 @@ def main(argv: list[str] | None = None) -> int:
         pasted_tsv=pasted_tsv,
         reviewer=args.reviewer,
         label_metadata=label_metadata,
-        selected_matches=selected_matches,
+        selected_targets=selected_targets,
         include_existing=args.include_existing,
         target_span=target_span,
     )
@@ -730,6 +896,24 @@ def main(argv: list[str] | None = None) -> int:
         f"{summary['mentions']} matching mention candidate(s)"
     )
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    label_metadata = review_ui.load_label_metadata(args.label_metadata or DEFAULT_LABEL_METADATA)
+    while True:
+        pasted_blocks = read_pasted_blocks(allow_multiple=args.loop)
+        if not pasted_blocks:
+            print("no tokens found in pasted TSV")
+            return 1
+        for index, pasted_tsv in enumerate(pasted_blocks, start=1):
+            if len(pasted_blocks) > 1:
+                print(f"=== pasted TSV patch {index}/{len(pasted_blocks)} ===")
+            result = process_pasted_tsv(args, pasted_tsv, label_metadata)
+            if result:
+                return result
+        if not args.loop or not prompt_continue():
+            return 0
 
 
 if __name__ == "__main__":

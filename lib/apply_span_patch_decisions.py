@@ -116,6 +116,13 @@ def latest_decision_per_source_span(decisions: dict[str, dict[str, Any]], patche
     return keep_ids
 
 
+def decision_apply_order(decisions: dict[str, dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
+    return sorted(
+        decisions.items(),
+        key=lambda item: (str(item[1].get("reviewed_at") or ""), str(item[0])),
+    )
+
+
 def audit_mark(decision: dict[str, Any]) -> dict[str, Any]:
     source = decision.get("source") if isinstance(decision.get("source"), dict) else {}
     span = decision.get("span") if isinstance(decision.get("span"), dict) else {}
@@ -348,7 +355,7 @@ def apply_span_patches(
     changed_ids: set[str] = set()
     audit_marks_written = 0
 
-    for review_id, decision in sorted(decisions.items()):
+    for review_id, decision in decision_apply_order(decisions):
         if review_id not in active_decision_ids or review_id not in patches or not verified_decision(decision):
             continue
         doc_id = str(decision["document_id"])
