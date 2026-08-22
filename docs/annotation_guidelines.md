@@ -301,8 +301,10 @@ Co-occurring source formulas:
 
 - If a source formula contains several specific canonical agencies, annotate all valid agency mentions in the formula.
 - Exclude separators such as `/`, commas, parentheses, brackets, and dashes unless they are part of the abbreviation itself.
-- When a full agency name and an acronym occur together, annotate both as separate spans if both are visible and tokenizable.
-- Use the same canonical label for both mentions when they refer to the same organization.
+- When a long form and an acronym occur together, annotate them as separate spans if both are visible and tokenizable.
+- Use the same canonical label for the long form and acronym when they refer to the same organization.
+- Do not annotate the whole explanatory construction with parentheses as one span. The punctuation stays outside unless it is abbreviation-internal punctuation.
+- If the visible form is a lexicalized combined alias such as `KIPA-APIC` or `Kipa/Apic`, annotate that combined alias as one span.
 
 Examples:
 
@@ -311,6 +313,9 @@ Examples:
 | `(sda / apa / dpa)`               | `sda`, `apa`, `dpa`                | `org.ent.pressagency.ats-sda`, `org.ent.pressagency.apa`, `org.ent.pressagency.dpa` |
 | `Austria Presse-Agentur (APA)`    | `Austria Presse-Agentur`, `APA`    | `org.ent.pressagency.apa`                                                           |
 | `Deutscher Depeschendienst (ddp)` | `Deutscher Depeschendienst`, `ddp` | `org.ent.pressagency.ddp-dapd`                                                      |
+| `Katholische Internationale Presseagentur (Kipa)` | `Katholische Internationale Presseagentur`, `Kipa` | `org.ent.pressagency.kipa` |
+| `Agence de presse internationale catholique (APIC)` | `Agence de presse internationale catholique`, `APIC` | `org.ent.pressagency.kipa` |
+| `agence KIPA-APIC`                | `KIPA-APIC`                        | `org.ent.pressagency.kipa`                                                          |
 
 News-agency names with `Agence`:
 

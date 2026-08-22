@@ -605,11 +605,13 @@ endif
 
 create-tsv-span-patches:
 ifeq ($(strip $(TSV_PATCH_SPLIT)),)
-	@echo "Creating accepted manual span patches from pasted TOKEN/NERTAG TSV lines."
-	@echo "TSV_PATCH_SPLIT is required for paste-based TSV patches; use review-tsv-search to iterate all splits."
-	@false
+	@echo "Creating accepted manual span patches across $(TSV_PATCH_SPLITS) from one pasted TSV block."
+	$(PYTHON) -m lib.create_span_patches_from_tsv --input-jsonl "$(TRAIN_JSONL)" --candidates "audit.d/manual-tsv/manual-tsv-detect/candidates.jsonl" --decisions "data/curated/span-patches/manual-tsv-detect/decisions.jsonl" --audit-id "manual-tsv-detect" --label "$(TSV_PATCH_LABEL)" --reviewer "$(REVIEWER)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --label-metadata "$(NEWSPAPER_LABEL_METADATA)" --allow-no-matches --split-input-jsonl train="$(TRAIN_JSONL)" --split-input-jsonl validation="$(VALIDATION_JSONL)" --split-input-jsonl test="$(TEST_JSONL)" --split-candidates train="audit.d/manual-tsv/manual-tsv-train/candidates.jsonl" --split-candidates validation="audit.d/manual-tsv/manual-tsv-validation/candidates.jsonl" --split-candidates test="audit.d/manual-tsv/manual-tsv-test/candidates.jsonl" --split-decisions train="data/curated/span-patches/manual-tsv-train/decisions.jsonl" --split-decisions validation="data/curated/span-patches/manual-tsv-validation/decisions.jsonl" --split-decisions test="data/curated/span-patches/manual-tsv-test/decisions.jsonl" --split-audit-id train="manual-tsv-train" --split-audit-id validation="manual-tsv-validation" --split-audit-id test="manual-tsv-test" --split-summary-json train="audit.d/manual-tsv/manual-tsv-train/summary.json" --split-summary-json validation="audit.d/manual-tsv/manual-tsv-validation/summary.json" --split-summary-json test="audit.d/manual-tsv/manual-tsv-test/summary.json" $(ARGS)
+	@echo "Next step:"
+	@echo "  # Apply accepted TSV-derived span patches."
+	@echo "  make apply-tsv-span-patches"
 else
-	@echo "Creating accepted manual span patches from pasted TOKEN/NERTAG TSV lines."
+	@echo "Creating accepted manual span patches from pasted TOKEN/NERTAG or TOKEN OLD NEW TSV lines."
 	$(PYTHON) -m lib.create_span_patches_from_tsv --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --label "$(TSV_PATCH_LABEL)" --reviewer "$(REVIEWER)" --summary-json "$(TSV_PATCH_SUMMARY_JSON)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Apply accepted TSV-derived span patches."
@@ -621,7 +623,7 @@ ifeq ($(strip $(TSV_PATCH_SPLIT)),)
 	@for split in $(TSV_PATCH_SPLITS); do $(MAKE) $@ TSV_PATCH_SPLIT=$$split || exit $$?; done
 else
 	@echo "Applying accepted TSV-derived span patches to the configured split."
-	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --output-jsonl "$(TSV_PATCH_OUTPUT_JSONL)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --target-label "$(TSV_PATCH_LABEL)" --changes-jsonl "$(TSV_PATCH_CHANGES_JSONL)" --changes-tsv "$(TSV_PATCH_CHANGES_TSV)" --summary-json "$(TSV_PATCH_APPLY_SUMMARY_JSON)" --replace-overlaps $(ARGS)
+	$(PYTHON) -m lib.apply_span_patch_decisions --input-jsonl "$(TSV_PATCH_SOURCE_JSONL)" --output-jsonl "$(TSV_PATCH_OUTPUT_JSONL)" --candidates "$(TSV_PATCH_CANDIDATES)" --decisions "$(TSV_PATCH_DECISIONS)" --audit-id "$(TSV_PATCH_AUDIT_ID)" --target-label "$(TSV_PATCH_LABEL)" --changes-jsonl "$(TSV_PATCH_CHANGES_JSONL)" --changes-tsv "$(TSV_PATCH_CHANGES_TSV)" --summary-json "$(TSV_PATCH_APPLY_SUMMARY_JSON)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Check whether the patched split is ready for promotion."
 	@echo "  make tsv-span-patch-status TSV_PATCH_SPLIT=$(TSV_PATCH_SPLIT)"

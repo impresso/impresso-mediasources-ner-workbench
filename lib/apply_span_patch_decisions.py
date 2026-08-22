@@ -76,8 +76,44 @@ def removal_patch(patch: dict[str, Any]) -> bool:
     return patch.get("audit_mode") == "manual-tsv-remove"
 
 
+def manual_tsv_patch(patch: dict[str, Any]) -> bool:
+    return str(patch.get("audit_mode") or "").startswith("manual-tsv-")
+
+
 def verified_decision(decision: dict[str, Any]) -> bool:
     return decision.get("audit_status") == "verified" or decision.get("status") == "done"
+
+
+def decision_source_key(decision: dict[str, Any]) -> tuple[str, str, int, int] | None:
+    source = decision.get("source") if isinstance(decision.get("source"), dict) else {}
+    if source.get("start") is None or source.get("stop") is None:
+        return None
+    return (
+        str(decision.get("audit_id") or ""),
+        str(decision.get("document_id") or ""),
+        int(source["start"]),
+        int(source["stop"]),
+    )
+
+
+def latest_decision_per_source_span(decisions: dict[str, dict[str, Any]], patches: dict[str, dict[str, Any]]) -> set[str]:
+    latest: dict[tuple[str, str, int, int], tuple[str, int, str]] = {}
+    keep_ids: set[str] = set()
+    for order, (review_id, decision) in enumerate(decisions.items()):
+        patch = patches.get(review_id)
+        if not patch or not manual_tsv_patch(patch):
+            keep_ids.add(review_id)
+            continue
+        key = decision_source_key(decision)
+        if key is None:
+            keep_ids.add(review_id)
+            continue
+        reviewed_at = str(decision.get("reviewed_at") or "")
+        current = latest.get(key)
+        if current is None or (reviewed_at, order, review_id) > current:
+            latest[key] = (reviewed_at, order, review_id)
+    keep_ids.update(review_id for _reviewed_at, _order, review_id in latest.values())
+    return keep_ids
 
 
 def audit_mark(decision: dict[str, Any]) -> dict[str, Any]:
@@ -307,12 +343,13 @@ def apply_span_patches(
     rows_by_id = {row_id(row): row for row in rows}
     patches = {patch["review_id"]: patch for patch in load_span_patches(candidates_path, audit_id=audit_id, target_label=target_label)}
     decisions = latest_decisions(decisions_path)
+    active_decision_ids = latest_decision_per_source_span(decisions, patches)
     changes: list[dict[str, Any]] = []
     changed_ids: set[str] = set()
     audit_marks_written = 0
 
     for review_id, decision in sorted(decisions.items()):
-        if review_id not in patches or not verified_decision(decision):
+        if review_id not in active_decision_ids or review_id not in patches or not verified_decision(decision):
             continue
         doc_id = str(decision["document_id"])
         if doc_id not in rows_by_id:
@@ -360,7 +397,7 @@ def apply_span_patches(
         rows_by_id[doc_id], change = add_or_replace_entity(
             rows_by_id[doc_id],
             decision,
-            replace_overlaps=replace_overlaps or existing_boundary_patch(patch),
+            replace_overlaps=replace_overlaps or existing_boundary_patch(patch) or manual_tsv_patch(patch),
         )
         if change is not None:
             change.update(
@@ -430,6 +467,7 @@ def main(argv: list[str] | None = None) -> int:
         replace_overlaps=args.replace_overlaps,
     )
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
+    print(f"accepted TSV decisions applied: {summary['applied']} change(s) in {summary['documents_changed']} document(s)")
     return 0
 
 
