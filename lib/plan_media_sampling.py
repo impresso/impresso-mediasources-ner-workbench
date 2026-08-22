@@ -161,13 +161,15 @@ def alias_entries(seed: dict[str, Any], languages: list[str]) -> list[dict[str, 
         entries.append({"query": alias, "language": language})
 
     search_aliases = seed.get("search_aliases") or []
-    base_aliases = search_aliases if search_aliases else seed.get("aliases") or []
+    search_aliases_by_language = seed.get("search_aliases_by_language") or {}
+    has_search_aliases = bool(search_aliases or search_aliases_by_language)
+    base_aliases = search_aliases if has_search_aliases else seed.get("aliases") or []
     for alias in base_aliases:
         if isinstance(alias, str):
             for language in languages:
                 add(alias, language)
 
-    by_language = seed.get("search_aliases_by_language") if search_aliases else seed.get("aliases_by_language")
+    by_language = search_aliases_by_language or ({} if has_search_aliases else seed.get("aliases_by_language"))
     if isinstance(by_language, dict):
         for language in languages:
             for alias in by_language.get(language) or []:
@@ -175,7 +177,7 @@ def alias_entries(seed: dict[str, Any], languages: list[str]) -> list[dict[str, 
                     add(alias, language)
 
     display_name = seed.get("display_name")
-    if not search_aliases and isinstance(display_name, str):
+    if not has_search_aliases and isinstance(display_name, str):
         for language in languages:
             add(display_name, language)
     return entries

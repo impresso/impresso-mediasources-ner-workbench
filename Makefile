@@ -14,7 +14,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization migrate-tokenization semantic-search validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization migrate-tokenization semantic-search validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -104,7 +104,7 @@ help-anno:
 	@echo "                                             Sample labels below validation/test positive-count targets"
 	@echo "  make sample-media-snippets MEDIA_FAMILY=pressagency"
 	@echo "                                             Focused sample press-agency label/language/surface gaps"
-	@echo "  make sample-media-snippets MEDIA_FAMILY=radiostation ARGS=\"--labels org.ent.radiostation.rtl\""
+	@echo "  make sample-media-snippets MEDIA_FAMILY=radiostation MEDIA_LABELS=org.ent.radiostation.rtl"
 	@echo "                                             Sample one radio-station label below target"
 	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=pressagency"
 	@echo "                                             Suggest spans: model plus known entity metadata matchers"
@@ -120,7 +120,7 @@ help-anno:
 	@echo ""
 	@echo "Useful overrides:"
 	@echo "  MEDIA_FAMILY=pressagency|radiostation, REVIEWER=$$USER, SNIPPET_REVIEW_MAX_ITEMS=0 (all), MEDIA_SNIPPETS=..."
-	@echo "  MEDIA_SAMPLE_LABELS='org.ent.pressagency.reuters', MEDIA_SAMPLE_MODE=focused|coverage|surface"
+	@echo "  MEDIA_LABELS='org.ent.pressagency.reuters', MEDIA_SAMPLE_MODE=focused|coverage|surface"
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=false (set true for coverage-only review)"
 	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
 	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
@@ -198,6 +198,7 @@ help-finetune:
 	@echo "Use this group for training and evaluating the token-classification NER model with the configured v2 dataset splits."
 	@echo ""
 	@echo "  make train CFG=...                         Train via training submodule"
+	@echo "  make train-fresh CFG=...                   Remove the configured MODEL directory, then train from the base model"
 	@echo "    LABEL_ALL_TOKENS=true                    B: all subtokens supervised; continuation B-X becomes I-X (v2 default)"
 	@echo "    LABEL_ALL_TOKENS=false                   A: first subtoken supervised; continuations use -100"
 	@echo "  make stamp-model-inference-metadata       Stamp tokenization/training/decoding policy into config.json"
@@ -690,7 +691,7 @@ integrate-tsv-span-patches: apply-tsv-span-patches promote-tsv-span-patches mate
 
 plan-media-sampling:
 	@echo "Planning focused $(MEDIA_FAMILY) sampling from coverage, pending work, and mention surfaces."
-	$(PYTHON) -m lib.plan_media_sampling --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --coverage-json "$(ANNOTATION_STATS_JSON)" --profiles-json "$(MENTION_PROFILE_JSON)" --json-output "$(MEDIA_SAMPLING_PLAN_JSON)" --tsv-output "$(MEDIA_SAMPLING_PLAN_TSV)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-bucket "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-bucket "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --min-missing "$(MEDIA_SAMPLE_MIN_MISSING)" --surface-saturation "$(MEDIA_SAMPLE_SURFACE_SATURATION)" $(if $(MEDIA_SAMPLE_LABELS),--labels "$(MEDIA_SAMPLE_LABELS)",) --pending-jsonl "$(MEDIA_SNIPPETS)" --pending-jsonl "$(MEDIA_SCORED_SNIPPETS)" --pending-jsonl "$(MEDIA_REVIEWED_SNIPPETS)" --pending-jsonl "$(MEDIA_SNIPPET_TRAIN_JSONL)" --pending-jsonl "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --pending-jsonl "$(MEDIA_SNIPPET_TEST_JSONL)"
+	$(PYTHON) -m lib.plan_media_sampling --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --coverage-json "$(ANNOTATION_STATS_JSON)" --profiles-json "$(MENTION_PROFILE_JSON)" --json-output "$(MEDIA_SAMPLING_PLAN_JSON)" --tsv-output "$(MEDIA_SAMPLING_PLAN_TSV)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-bucket "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-bucket "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --min-missing "$(MEDIA_SAMPLE_MIN_MISSING)" --surface-saturation "$(MEDIA_SAMPLE_SURFACE_SATURATION)" $(if $(MEDIA_SAMPLE_EFFECTIVE_LABELS),--labels "$(MEDIA_SAMPLE_EFFECTIVE_LABELS)",) --pending-jsonl "$(MEDIA_SNIPPETS)" --pending-jsonl "$(MEDIA_SCORED_SNIPPETS)" --pending-jsonl "$(MEDIA_REVIEWED_SNIPPETS)" --pending-jsonl "$(MEDIA_SNIPPET_TRAIN_JSONL)" --pending-jsonl "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --pending-jsonl "$(MEDIA_SNIPPET_TEST_JSONL)"
 	@echo "Next step:"
 	@echo "  # Sample only the planned focused gaps."
 	@echo "  make sample-media-snippets MEDIA_FAMILY=$(MEDIA_FAMILY)"
@@ -715,7 +716,7 @@ sample-freely-media-snippets:
 sample-media-snippets:
 	@echo "Sampling $(MEDIA_FAMILY) snippets for focused label/language/surface gaps."
 	@if [ -n "$(MEDIA_SAMPLE_PLAN)" ]; then $(MAKE) annotation-stats ARGS=""; $(MAKE) mention-profiles ARGS=""; $(MAKE) plan-media-sampling MEDIA_FAMILY="$(MEDIA_FAMILY)"; fi
-	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --pool-factor "$(MEDIA_SAMPLE_POOL_FACTOR)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(if $(MEDIA_SAMPLE_PLAN),--sampling-plan "$(MEDIA_SAMPLE_PLAN)",) $(if $(MEDIA_SAMPLE_LABELS),--labels "$(MEDIA_SAMPLE_LABELS)",) $(ARGS)
+	$(PYTHON) -m lib.sample_media_snippets --family "$(MEDIA_FAMILY)" --seeds "$(MEDIA_LABEL_METADATA)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(MEDIA_SNIPPET_SUMMARY)" --languages $(MEDIA_SAMPLE_LANGS) --target-per-query-lang "$(MEDIA_SAMPLE_TARGET_PER_QUERY_LANG)" --pool-factor "$(MEDIA_SAMPLE_POOL_FACTOR)" --max-per-label "$(MEDIA_SAMPLE_MAX_PER_LABEL)" --max-queries-per-label "$(MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL)" --year-start "$(MEDIA_SAMPLE_YEAR_START)" --year-end "$(MEDIA_SAMPLE_YEAR_END)" --context-source "$(MEDIA_SAMPLE_CONTEXT_SOURCE)" --context-chars "$(MEDIA_SAMPLE_CONTEXT_CHARS)" --sample-registry "$(SAMPLE_ENTITY_REGISTRY)" --existing-issue-jsonl "$(TRAIN_JSONL)" --existing-issue-jsonl "$(VALIDATION_JSONL)" --existing-issue-jsonl "$(TEST_JSONL)" --coverage-json "$(ANNOTATION_STATS_JSON)" --only-under-target $(if $(MEDIA_SAMPLE_PLAN),--sampling-plan "$(MEDIA_SAMPLE_PLAN)",) $(if $(MEDIA_SAMPLE_EFFECTIVE_LABELS),--labels "$(MEDIA_SAMPLE_EFFECTIVE_LABELS)",) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Suggest spans for sampled media-source snippets."
 	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY)"
@@ -761,6 +762,14 @@ train: sync-label-map
 	@echo "Fine-tuning the token-classification NER model on the configured train/validation splits."
 	$(PYTHON) -m py_compile training/newsagency-radiostation-modernbert-classifier/src/mediaagency_modernbert/*.py
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-train --model-name-or-path "$(BASE_MODEL)" $(if $(CHECKPOINT),--checkpoint "$(CHECKPOINT)",) --train-jsonl "$(TRAIN_JSONL)" --validation-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)" --epochs "$(EPOCHS)" --train-batch-size "$(BATCH)" --eval-batch-size "$(EVAL_BATCH)" --gradient-accumulation-steps "$(GRADIENT_ACCUMULATION_STEPS)" $(if $(filter true,$(GRADIENT_CHECKPOINTING)),--gradient-checkpointing,--no-gradient-checkpointing) $(if $(filter true,$(LABEL_ALL_TOKENS)),--label-all-tokens,--no-label-all-tokens) $(if $(filter true,$(FREEZE_BASE_MODEL)),--freeze-base-model,--no-freeze-base-model) --unfreeze-top-layers "$(UNFREEZE_TOP_LAYERS)" --optimizer "$(OPTIMIZER)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --learning-rate "$(LEARNING_RATE)" --weight-decay "$(WEIGHT_DECAY)" --warmup-steps "$(WARMUP_STEPS)" --logging-steps "$(LOGGING_STEPS)" --early-stopping-patience "$(EARLY_STOPPING_PATIENCE)" --early-stopping-metric "$(EARLY_STOPPING_METRIC)" --early-stopping-mode "$(EARLY_STOPPING_MODE)" --early-stopping-min-delta "$(EARLY_STOPPING_MIN_DELTA)" --seed "$(SEED)" --device "$(DEVICE)" $(ARGS)
+
+train-fresh:
+	@echo "Removing the configured model output directory before fresh training."
+	@test -n "$(MODEL)" || { echo "MODEL is empty; refusing to remove anything"; exit 1; }
+	@case "$(MODEL)" in models.d/*) ;; *) echo "MODEL must be under models.d/ for train-fresh: $(MODEL)"; exit 1;; esac
+	@test "$(MODEL)" != "models.d" -a "$(MODEL)" != "models.d/" -a "$(MODEL)" != "." -a "$(MODEL)" != "/" || { echo "Unsafe MODEL value: $(MODEL)"; exit 1; }
+	rm -rf "$(MODEL)"
+	$(MAKE) train
 
 stamp-model-inference-metadata:
 	@echo "Stamping annotation tokenization and subtoken policies into the trained model config."
