@@ -202,7 +202,7 @@
       "Katholische Presseagentur CIP"
     ],
     "search_aliases_by_language": {
-      "de": [
+      "de": [ "CIP",
         "CIP Brüssel",
         "CIP Belgien",
         "CIP katholisch",
@@ -211,7 +211,7 @@
         "katholische Presseagentur CIP",
         "Centre d'Information de Presse Brüssel"
       ],
-      "fr": [
+      "fr": [ "CIP",
         "Centre d'Information de Presse",
         "CIP Bruxelles",
         "CIP Belgique",
