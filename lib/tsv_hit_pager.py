@@ -76,26 +76,29 @@ def highlight_token_line(
 
 def find_hits(
     lines: list[str],
-    query_tokens: list[str],
-    *,
+    *query_tokens: str | list[str],
     only_o: bool = False,
     ignore_case: bool = True,
 ) -> list[tuple[int, int]]:
-    if not query_tokens:
+    if len(query_tokens) == 1 and isinstance(query_tokens[0], list):
+        tokens = query_tokens[0]
+    else:
+        tokens = [str(token) for token in query_tokens if token is not None and str(token)]
+    if not tokens:
         return []
     hits: list[tuple[int, int]] = []
     for index, line in enumerate(lines):
         parsed = parse_token_line(line)
         if parsed is None:
             continue
-        end = index + len(query_tokens)
+        end = index + len(tokens)
         if end > len(lines):
             continue
         parsed_window = [parse_token_line(lines[position]) for position in range(index, end)]
         if any(item is None for item in parsed_window):
             continue
         window = [item for item in parsed_window if item is not None]
-        if not all(token_matches(token, query, ignore_case=ignore_case) for (token, _tag), query in zip(window, query_tokens)):
+        if not all(token_matches(token, query, ignore_case=ignore_case) for (token, _tag), query in zip(window, tokens)):
             continue
         if only_o and any(tag != "O" for _token, tag in window):
             continue

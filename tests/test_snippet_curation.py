@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import lib.sample_newsagencies as sample_newsagencies
+import lib.sample_radiostations as sample_radiostations
 from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
 from lib.export_snippet_training_data import apply_holdout_deficit_assignments, apply_split_assignments, canonical_label, deduplicate_exported_rows, export_rows, write_split_outputs
@@ -601,8 +602,8 @@ def test_sample_newsagencies_can_shuffle_alias_choice_by_seed(tmp_path: Path) ->
     second = load_seed_queries(seeds, languages=["fr"], labels=None, max_queries_per_label=2, rng=random.Random(2))
 
     assert [query["query"] for query in first] != [query["query"] for query in second]
-    assert len(first) == 2
-    assert len(second) == 2
+    assert len(first) == 4
+    assert len(second) == 4
 
 
 def test_sample_newsagencies_default_alias_shuffle_is_not_seeded() -> None:
@@ -842,6 +843,321 @@ def test_sample_main_writes_completed_pools_after_keyboard_interrupt(tmp_path: P
     assert data["interrupted"] is True
     assert data["completed_pool_buckets"] == 1
     assert data["interrupted_at"] == "org.ent.pressagency.reuters || Reuters || fr"
+
+
+def test_sample_newsagencies_empty_alias_does_not_consume_query_cap(tmp_path: Path, monkeypatch) -> None:
+    seeds = tmp_path / "seeds.json"
+    out = tmp_path / "out.jsonl"
+    summary = tmp_path / "summary.json"
+    registry = tmp_path / "registry.jsonl"
+    seeds.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "cip",
+                    "label": "org.ent.pressagency.cip",
+                    "display_name": "CIP",
+                    "search_aliases": ["dead alias", "CIP Belgien", "unused alias"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    attempted = []
+
+    def fake_import_runtime():
+        return object, lambda: object()
+
+    def fake_collect_pool_for_bucket(**kwargs):
+        query = kwargs["query"]
+        attempted.append(query["query"])
+        if query["query"] == "dead alias":
+            return [], kwargs["client"]
+        return [
+            {
+                "id": "doc-1#match-0",
+                "candidate_label": query["label"],
+                "query": query["query"],
+                "search_language": kwargs["search_language"],
+                "sample_issue_id": "doc-1",
+                "source": {"document_id": "doc-1-i0001"},
+            }
+        ], kwargs["client"]
+
+    monkeypatch.setattr(sample_newsagencies, "import_runtime", fake_import_runtime)
+    monkeypatch.setattr(sample_newsagencies, "collect_pool_for_bucket", fake_collect_pool_for_bucket)
+
+    exit_code = sample_newsagencies.main(
+        [
+            "--seeds",
+            str(seeds),
+            "--out",
+            str(out),
+            "--summary-out",
+            str(summary),
+            "--sample-registry",
+            str(registry),
+            "--languages",
+            "de",
+            "--target-per-query-lang",
+            "1",
+            "--pool-factor",
+            "1",
+            "--max-per-label",
+            "1",
+            "--max-queries-per-label",
+            "1",
+            "--no-shuffle-aliases",
+        ]
+    )
+
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    data = json.loads(summary.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert attempted == ["dead alias", "CIP Belgien"]
+    assert [row["query"] for row in rows] == ["CIP Belgien"]
+    assert data["successful_aliases_by_label_language"] == {"org.ent.pressagency.cip || de": 1}
+
+
+def test_sample_newsagencies_sampling_plan_empty_aliases_do_not_consume_query_cap(
+    tmp_path: Path, monkeypatch
+) -> None:
+    seeds = tmp_path / "seeds.json"
+    plan = tmp_path / "plan.json"
+    out = tmp_path / "out.jsonl"
+    summary = tmp_path / "summary.json"
+    registry = tmp_path / "registry.jsonl"
+    label = "org.ent.pressagency.akp"
+    aliases = ["A", "B", "C", "D", "E"]
+    seeds.write_text("[]\n", encoding="utf-8")
+    plan.write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "family": "pressagency",
+                        "label": label,
+                        "canonical_id": "akp",
+                        "display_name": "AKP",
+                        "query": alias,
+                        "language": "de",
+                        "planned_new": 1,
+                    }
+                    for alias in aliases
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    attempted = []
+
+    def fake_import_runtime():
+        return object, lambda: object()
+
+    def fake_collect_pool_for_bucket(**kwargs):
+        query = kwargs["query"]
+        attempted.append(query["query"])
+        if query["query"] in {"C", "E"}:
+            return [
+                {
+                    "id": f"doc-{query['query']}#match-0",
+                    "candidate_label": query["label"],
+                    "query": query["query"],
+                    "search_language": kwargs["search_language"],
+                    "sample_issue_id": f"doc-{query['query']}",
+                    "source": {"document_id": f"doc-{query['query']}-i0001"},
+                }
+            ], kwargs["client"]
+        return [], kwargs["client"]
+
+    monkeypatch.setattr(sample_newsagencies, "import_runtime", fake_import_runtime)
+    monkeypatch.setattr(sample_newsagencies, "collect_pool_for_bucket", fake_collect_pool_for_bucket)
+
+    exit_code = sample_newsagencies.main(
+        [
+            "--seeds",
+            str(seeds),
+            "--sampling-plan",
+            str(plan),
+            "--out",
+            str(out),
+            "--summary-out",
+            str(summary),
+            "--sample-registry",
+            str(registry),
+            "--languages",
+            "de",
+            "--target-per-query-lang",
+            "1",
+            "--pool-factor",
+            "1",
+            "--max-per-label",
+            "10",
+            "--max-queries-per-label",
+            "2",
+            "--no-shuffle-aliases",
+        ]
+    )
+
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    data = json.loads(summary.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert attempted == aliases
+    assert [row["query"] for row in rows] == ["C", "E"]
+    assert data["successful_aliases_by_label_language"] == {f"{label} || de": 2}
+
+
+def test_sample_newsagencies_sampling_plan_attempts_all_aliases_when_all_empty(
+    tmp_path: Path, monkeypatch
+) -> None:
+    seeds = tmp_path / "seeds.json"
+    plan = tmp_path / "plan.json"
+    out = tmp_path / "out.jsonl"
+    summary = tmp_path / "summary.json"
+    registry = tmp_path / "registry.jsonl"
+    label = "org.ent.pressagency.cip"
+    aliases = ["A", "B", "C"]
+    seeds.write_text("[]\n", encoding="utf-8")
+    plan.write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "family": "pressagency",
+                        "label": label,
+                        "canonical_id": "cip",
+                        "display_name": "CIP",
+                        "query": alias,
+                        "language": "de",
+                        "planned_new": 1,
+                    }
+                    for alias in aliases
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    attempted = []
+
+    def fake_import_runtime():
+        return object, lambda: object()
+
+    def fake_collect_pool_for_bucket(**kwargs):
+        attempted.append(kwargs["query"]["query"])
+        return [], kwargs["client"]
+
+    monkeypatch.setattr(sample_newsagencies, "import_runtime", fake_import_runtime)
+    monkeypatch.setattr(sample_newsagencies, "collect_pool_for_bucket", fake_collect_pool_for_bucket)
+
+    exit_code = sample_newsagencies.main(
+        [
+            "--seeds",
+            str(seeds),
+            "--sampling-plan",
+            str(plan),
+            "--out",
+            str(out),
+            "--summary-out",
+            str(summary),
+            "--sample-registry",
+            str(registry),
+            "--languages",
+            "de",
+            "--target-per-query-lang",
+            "1",
+            "--pool-factor",
+            "1",
+            "--max-per-label",
+            "10",
+            "--max-queries-per-label",
+            "2",
+            "--no-shuffle-aliases",
+        ]
+    )
+
+    assert exit_code == 0
+    assert attempted == aliases
+    assert out.read_text(encoding="utf-8") == ""
+
+
+def test_sample_radiostations_uses_shared_empty_alias_fallback(tmp_path: Path, monkeypatch) -> None:
+    seeds = tmp_path / "seeds.json"
+    out = tmp_path / "out.jsonl"
+    summary = tmp_path / "summary.json"
+    registry = tmp_path / "registry.jsonl"
+    seeds.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "bbc",
+                    "label": "org.ent.radiostation.bbc",
+                    "display_name": "BBC",
+                    "search_aliases": ["dead alias", "BBC"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    attempted = []
+
+    def fake_import_runtime():
+        return object, lambda: object()
+
+    def fake_collect_pool_for_bucket(**kwargs):
+        query = kwargs["query"]
+        attempted.append(query["query"])
+        if query["query"] == "dead alias":
+            return [], kwargs["client"]
+        return [
+            {
+                "id": "doc-1#match-0",
+                "candidate_label": query["label"],
+                "label": query["label"],
+                "agency": query["canonical_id"],
+                "agency_name": query["display_name"],
+                "query": query["query"],
+                "search_language": kwargs["search_language"],
+                "sample_issue_id": "doc-1",
+                "source": {"document_id": "doc-1-i0001"},
+            }
+        ], kwargs["client"]
+
+    monkeypatch.setattr(sample_newsagencies, "import_runtime", fake_import_runtime)
+    monkeypatch.setattr(sample_newsagencies, "collect_pool_for_bucket", fake_collect_pool_for_bucket)
+
+    exit_code = sample_radiostations.main(
+        [
+            "--seeds",
+            str(seeds),
+            "--out",
+            str(out),
+            "--summary-out",
+            str(summary),
+            "--sample-registry",
+            str(registry),
+            "--languages",
+            "de",
+            "--target-per-query-lang",
+            "1",
+            "--pool-factor",
+            "1",
+            "--max-per-label",
+            "1",
+            "--max-queries-per-label",
+            "1",
+            "--no-shuffle-aliases",
+        ]
+    )
+
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    assert exit_code == 0
+    assert attempted == ["dead alias", "BBC"]
+    assert rows[0]["station"] == "bbc"
+    assert "agency" not in rows[0]
 
 
 def test_sample_registry_and_selection_use_issue_entity_pairs(tmp_path: Path) -> None:
@@ -1114,8 +1430,8 @@ def test_sample_radiostations_can_shuffle_alias_choice_by_seed(tmp_path: Path) -
     second = load_radiostation_seed_queries(seeds, languages=["de", "fr"], labels=None, max_queries_per_label=2, rng=random.Random(2))
 
     assert [query["query"] for query in first] != [query["query"] for query in second]
-    assert len(first) == 2
-    assert len(second) == 2
+    assert len(first) == 4
+    assert len(second) == 4
 
 
 def test_sample_radiostations_default_alias_shuffle_is_not_seeded() -> None:

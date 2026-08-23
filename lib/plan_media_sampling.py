@@ -204,7 +204,6 @@ def planned_rows(
     pending = count_pending(pending_paths, family=family)
     rows: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
-    planned_by_label: Counter[str] = Counter()
 
     for seed in seeds:
         if not isinstance(seed, dict) or seed.get("trainable") is False:
@@ -229,17 +228,6 @@ def planned_rows(
                         "label": label,
                         "language": language,
                         "reason": "pending_work_fills_gap",
-                        "missing": bucket["missing"],
-                        "pending": pending_count,
-                    }
-                )
-                continue
-            if max_per_label > 0 and planned_by_label[label] >= max_per_label:
-                skipped.append(
-                    {
-                        "label": label,
-                        "language": language,
-                        "reason": "max_per_label_already_planned",
                         "missing": bucket["missing"],
                         "pending": pending_count,
                     }
@@ -273,7 +261,7 @@ def planned_rows(
                 )
             ranked.sort(key=lambda item: (-int(item["priority"]), int(item["surface_count"]), item["query"].casefold()))
             useful = [item for item in ranked if not item["generic_risk"]]
-            selected = useful[:max_queries_per_bucket] if useful else ranked[:max_queries_per_bucket]
+            selected = useful if useful else ranked
             if not selected:
                 skipped.append(
                     {
@@ -286,12 +274,9 @@ def planned_rows(
                 )
                 continue
             for item in selected:
-                if max_per_label > 0 and planned_by_label[label] >= max_per_label:
-                    break
-                planned_new = min(target_per_bucket, missing_after_pending, max_per_label - planned_by_label[label] if max_per_label > 0 else target_per_bucket)
+                planned_new = min(target_per_bucket, missing_after_pending)
                 if planned_new <= 0:
                     break
-                planned_by_label[label] += planned_new
                 rows.append(
                     {
                         "family": family,
@@ -309,6 +294,7 @@ def planned_rows(
                         "surface_count": int(item["surface_count"]),
                         "priority": int(item["priority"]),
                         "reason": item["reason"],
+                        "non_empty_alias_limit": int(max_queries_per_bucket),
                     }
                 )
     rows.sort(key=lambda item: (-int(item["priority"]), item["label"], item["language"], item["query"].casefold()))
@@ -351,7 +337,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--languages", nargs="+", required=True)
     parser.add_argument("--labels", default="")
     parser.add_argument("--pending-jsonl", type=Path, action="append", default=[])
-    parser.add_argument("--max-queries-per-bucket", type=int, default=1)
+    parser.add_argument(
+        "--max-queries-per-bucket",
+        type=int,
+        default=1,
+        help="Runtime cap for non-empty alias searches per label/language; the plan keeps fallback aliases available.",
+    )
     parser.add_argument("--target-per-bucket", type=int, default=2)
     parser.add_argument("--max-per-label", type=int, default=5)
     parser.add_argument("--min-missing", type=int, default=1)

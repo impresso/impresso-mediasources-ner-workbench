@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from lib import review_ui
-from lib.create_span_patches_from_tsv import Match, build_accepted_patches, load_jsonl, row_id, strip_ansi
+from lib.create_span_patches_from_tsv import ActionableTarget, Match, PatchTarget, build_accepted_patches, load_jsonl, resolve_label, row_id, strip_ansi
 from lib.tsv_hit_pager import build_block, document_bounds, filter_audited_hits, find_hits, hit_label_for_hit, hit_title, load_lines, parse_token_line
 
 
@@ -235,17 +235,22 @@ def review_hits(
                     continue
                 break
             raw_label = input(f"label [{label}]: ").strip() or label
+            resolved_label = resolve_label(raw_label, label_metadata)
             match = Match(row=row, token_start=token_start, token_stop=token_stop)
+            selected_target = ActionableTarget(
+                match=match,
+                target=PatchTarget(resolved_label, 0, token_stop - token_start),
+            )
             summary = build_accepted_patches(
                 input_jsonl=input_jsonl,
                 candidates_path=candidates_path,
                 decisions_path=decisions_path,
                 audit_id=audit_id,
-                label=raw_label,
+                label=resolved_label,
                 pasted_tsv=pasted_tsv_for_match(row, token_start, token_stop),
                 reviewer=reviewer,
                 label_metadata=label_metadata,
-                selected_matches=[match],
+                selected_targets=[selected_target],
                 include_existing=True,
             )
             accepted += int(summary["new_decisions"])
@@ -254,6 +259,10 @@ def review_hits(
         elif command in {"v", "verify", "verified"}:
             token_start, token_stop, verified_label = verified_span_for_hit(row, current)
             match = Match(row=row, token_start=token_start, token_stop=token_stop)
+            selected_target = ActionableTarget(
+                match=match,
+                target=PatchTarget(verified_label, 0, token_stop - token_start),
+            )
             summary = build_accepted_patches(
                 input_jsonl=input_jsonl,
                 candidates_path=candidates_path,
@@ -263,7 +272,7 @@ def review_hits(
                 pasted_tsv=pasted_tsv_for_match(row, token_start, token_stop),
                 reviewer=reviewer,
                 label_metadata=label_metadata,
-                selected_matches=[match],
+                selected_targets=[selected_target],
                 include_existing=True,
             )
             accepted += int(summary["new_decisions"])

@@ -83,12 +83,14 @@ def test_planner_subtracts_pending_work_and_prefers_underrepresented_surface(tmp
     )
 
     assert skipped == []
-    assert len(rows) == 1
+    assert len(rows) == 2
     assert rows[0]["query"] == "Agence Havas"
     assert rows[0]["missing"] == 4
     assert rows[0]["pending"] == 1
     assert rows[0]["planned_new"] == 2
     assert rows[0]["reason"] == "underrepresented_surface"
+    assert rows[1]["query"] == "Havas"
+    assert rows[1]["non_empty_alias_limit"] == 1
 
 
 def test_planner_skips_bucket_when_pending_work_fills_gap(tmp_path: Path) -> None:

@@ -435,7 +435,10 @@
       "CRI",
       "Radio Peking",
       "Radio-Peking",
+      "Peking Radio",
+      "Peking-Radio",
       "Radio Beijing",
+      "Radio-Beijing",
       "Radio Pékin",
       "Radio-Pékin",
       "Radio Pekin",
@@ -444,20 +447,55 @@
       "Rádio Internacional da China",
       "中国国际广播电台"
     ],
-    "search_aliases": ["Radio Peking", "Radio-Pékin", "Radio Beijing", "China Radio International"],
+    "search_aliases_by_language": {
+      "de": [
+        "Radio Peking",
+        "Radio-Peking",
+        "Peking Radio",
+        "Peking-Radio",
+        "Radio Beijing",
+        "Radio-Beijing",
+        "Pekinger Rundfunk",
+        "Pekinger Radio",
+        "Sender Peking",
+        "Rundfunk Peking",
+        "China Radio International"
+      ],
+      "fr": [
+        "Radio Pékin",
+        "Radio-Pékin",
+        "Radio Pekin",
+        "Radio-Pekin",
+        "Radio Peking",
+        "Radio-Peking",
+        "Radio Beijing",
+        "Radio-Beijing",
+        "Radio Chine Internationale",
+        "China Radio International"
+      ],
+      "en": [
+        "Radio Peking",
+        "Radio-Peking",
+        "Peking Radio",
+        "Peking-Radio",
+        "Radio Beijing",
+        "Radio-Beijing",
+        "China Radio International"
+      ]
+    },
     "wikipedia_url": "https://en.wikipedia.org/wiki/China_Radio_International",
     "wikidata_url": "https://www.wikidata.org/wiki/Q375117",
-    "description": "Chinese state international broadcaster founded in 1941. Its international service used the name Radio Peking from 1950, Radio Beijing from 1983, and China Radio International from 1993. It is now part of China Media Group.",
-    "annotation_note": "Use one canonical label across the broadcaster's historical names: Radio Peking/Radio-Pékin, Radio Beijing, and China Radio International/CRI. Preserve the printed historical surface. Do not confuse this international broadcaster with the separate local Radio Beijing International service.",
+    "description": "Chinese state international broadcaster founded in 1941. Its international service used the name Radio Peking from 1950, Radio Beijing from 1983, and China Radio International from 1993. Radio Peking remains useful for late-1970s and early-1980s historical search because older external-service naming continued in use for some time. It is now part of China Media Group.",
+    "annotation_note": "Use one canonical label across the broadcaster's historical names: Radio Peking/Radio-Pékin, Peking Radio, Radio Beijing, and China Radio International/CRI. Preserve the printed historical surface. Do not confuse this international broadcaster with the separate local Radio Beijing International service. German search variants such as Pekinger Rundfunk, Pekinger Radio, Sender Peking, and Rundfunk Peking are exploratory search forms; annotate them only when the context identifies the Chinese international broadcaster.",
     "active_period": {
       "start": "1941",
       "end": null,
       "note": "Founded in 1941; named Radio Peking from 1950, Radio Beijing from 1983, and China Radio International from 1993; still active."
     },
     "aliases_by_language": {
-      "de": ["Radio Peking", "Radio-Peking", "Radio Beijing", "China Radio International", "CRI"],
+      "de": ["Radio Peking", "Radio-Peking", "Peking Radio", "Peking-Radio", "Radio Beijing", "Radio-Beijing", "China Radio International", "CRI"],
       "fr": ["Radio Pékin", "Radio-Pékin", "Radio Pekin", "Radio-Pekin", "Radio Beijing", "Radio Chine Internationale", "CRI"],
-      "en": ["Radio Peking", "Radio Beijing", "China Radio International", "CRI"],
+      "en": ["Radio Peking", "Radio-Peking", "Peking Radio", "Peking-Radio", "Radio Beijing", "Radio-Beijing", "China Radio International", "CRI"],
       "es": ["Radio Pekín", "Radio Internacional de China", "CRI"],
       "pt": ["Rádio Pequim", "Rádio Internacional da China", "CRI"],
       "zh": ["中国国际广播电台", "中国国际广播电台（CRI）"]

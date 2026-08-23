@@ -7,6 +7,8 @@ from typing import Any
 
 
 SPLITS = ("validation", "test")
+COVERAGE_LEVELS = {"insufficient": 0, "limited": 1, "adequate": 2}
+COVERAGE_NAMES = {value: key for key, value in COVERAGE_LEVELS.items()}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -54,6 +56,10 @@ def coverage_level(gold: int) -> str:
     return "insufficient"
 
 
+def combined_coverage(*levels: str) -> str:
+    return COVERAGE_NAMES[min(COVERAGE_LEVELS[level] for level in levels)]
+
+
 def training_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
     by_label: dict[str, int] = {}
     mentions = 0
@@ -91,14 +97,57 @@ def render_report(results: dict[str, dict[str, Any]], *, release: str, model: st
             f"{metrics['entity_precision']:.3f} | {metrics['entity_recall']:.3f} | {metrics['entity_f1']:.3f} |"
         )
 
+    test_labels = set(results["test"]["metrics"].get("entity_by_label", {}))
+    coverage_rows = []
+    for label in sorted(test_labels):
+        train_gold = int(train["by_label"].get(label, 0))
+        test_gold = int(results["test"]["metrics"].get("entity_by_label", {}).get(label, {}).get("gold", 0))
+        train_coverage = coverage_level(train_gold)
+        test_coverage = coverage_level(test_gold)
+        coverage_rows.append(
+            {
+                "label": label,
+                "train_gold": train_gold,
+                "train_coverage": train_coverage,
+                "test_gold": test_gold,
+                "test_coverage": test_coverage,
+                "combined_coverage": combined_coverage(train_coverage, test_coverage),
+            }
+        )
+    coverage_summary = {level: 0 for level in ("adequate", "limited", "insufficient")}
+    for row in coverage_rows:
+        coverage_summary[row["combined_coverage"]] += 1
+    lines.extend(
+        [
+            "",
+            "## Entity Coverage",
+            "",
+            "Entity coverage assesses whether labels in the test split have enough gold occurrences to support both training and evaluation. Validation does not contribute to coverage. Overall coverage is the weaker of train and test coverage.",
+            "",
+            "| Overall coverage | Labels |",
+            "|---|---:|",
+            f"| adequate | {coverage_summary['adequate']} |",
+            f"| limited | {coverage_summary['limited']} |",
+            f"| insufficient | {coverage_summary['insufficient']} |",
+            "",
+            "| Entity label | Train occurrences | Train coverage | Test occurrences | Test coverage | Overall coverage |",
+            "|---|---:|---|---:|---|---|",
+        ]
+    )
+    for row in coverage_rows:
+        lines.append(
+            f"| `{row['label']}` | {row['train_gold']} | {row['train_coverage']} | "
+            f"{row['test_gold']} | {row['test_coverage']} | **{row['combined_coverage']}** |"
+        )
+
     labels = sorted({*train["by_label"], *(label for split in SPLITS for label in results[split]["metrics"].get("entity_by_label", {}))})
     lines.extend(
         [
             "",
             "## Quality by Entity",
             "",
-            "| Entity label | Train gold | Val gold | Val F1 | Test gold | Test precision | Test recall | Test F1 | Test coverage |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---|",
+            "| Entity label | Train gold | Val gold | Val F1 | Test gold | Test precision | Test recall | Test F1 |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for label in labels:
@@ -108,7 +157,7 @@ def render_report(results: dict[str, dict[str, Any]], *, release: str, model: st
         lines.append(
             f"| `{label}` | {int(train['by_label'].get(label, 0))} | {int(val.get('gold', 0))} | {float(val.get('f1', 0)):.3f} | "
             f"{test_gold} | {float(test.get('precision', 0)):.3f} | {float(test.get('recall', 0)):.3f} | "
-            f"{float(test.get('f1', 0)):.3f} | {coverage_level(test_gold)} |"
+            f"{float(test.get('f1', 0)):.3f} |"
         )
     return "\n".join(lines) + "\n"
 

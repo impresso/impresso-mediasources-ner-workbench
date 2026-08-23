@@ -62,6 +62,9 @@
     "aliases": [
       "Agence Kampuchea Presse",
       "Agence Kampuchea Press",
+      "Agence Kampuchea",
+      "Kampuchea Presse",
+      "Kampuchea Press",
       "AKP",
       "Sarpordamean Kampuchea",
       "Sapordamean Kampuchea",
@@ -69,12 +72,46 @@
       "Kampuchea News Agency",
       "agence cambodgienne SPK"
     ],
-    "search_aliases": [
-      "SPK",
-      "Agence Kampuchea Presse",
-      "Agence Kampuchea Press",
-      "Sarpordamean Kampuchea"
-    ],
+    "search_aliases_by_language": {
+      "de": [
+        "Agence Kampuchea Presse",
+        "Agence Kampuchea Press",
+        "Agence Kampuchea",
+        "Kampuchea Presse",
+        "Kampuchea Press",
+        "AKP Phnom Penh",
+        "Kampuchea-Presse",
+        "Kampuchea Presseagentur",
+        "Kampucheas Presseagentur",
+        "Nachrichtenagentur Kampuchea",
+        "Nachrichtenagentur Kambodscha",
+        "kambodschanische Nachrichtenagentur",
+        "Sarpordamean Kampuchea",
+        "SPK"
+      ],
+      "fr": [
+        "Agence Kampuchea Presse",
+        "Agence Kampuchea Press",
+        "Agence Kampuchea",
+        "Kampuchea Presse",
+        "Kampuchea Press",
+        "AKP Phnom Penh",
+        "AKP",
+        "Sarpordamean Kampuchea",
+        "SPK"
+      ],
+      "en": [
+        "Agence Kampuchea Presse",
+        "Agence Kampuchea Press",
+        "Agence Kampuchea",
+        "Kampuchea Presse",
+        "Kampuchea Press",
+        "AKP Phnom Penh",
+        "AKP",
+        "Sarpordamean Kampuchea",
+        "SPK"
+      ]
+    },
     "wikipedia_url": "https://en.wikipedia.org/wiki/Agence_Kampuchea_Press",
     "wikidata_url": null,
     "trainable": true,
@@ -88,6 +125,9 @@
     "aliases_by_language": {
       "en": [
         "Agence Kampuchea Press",
+        "Agence Kampuchea",
+        "Kampuchea Presse",
+        "Kampuchea Press",
         "AKP",
         "Sarpordamean Kampuchea",
         "Cambodian News Agency",
@@ -96,10 +136,19 @@
       "de": [
         "Kambodschanische Nachrichtenagentur SPK",
         "Nachrichtenagentur SPK",
+        "Agence Kampuchea Presse",
+        "Agence Kampuchea Press",
+        "Agence Kampuchea",
+        "Kampuchea Presse",
+        "Kampuchea Press",
         "AKP"
       ],
       "fr": [
         "Agence Kampuchea Presse",
+        "Agence Kampuchea Press",
+        "Agence Kampuchea",
+        "Kampuchea Presse",
+        "Kampuchea Press",
         "agence cambodgienne SPK",
         "agence de presse cambodgienne SPK",
         "AKP"
@@ -112,7 +161,7 @@
         "note": "Normalize SPK to AKP when Cambodian, Kampuchean, or Phnom Penh context identifies the state news agency, especially in 1978-1993 reporting. Do not confuse it with the Swiss SPK/SMP agency."
       }
     ],
-    "annotation_note": "Use org.ent.pressagency.akp for Cambodian/Kampuchean SPK and modern AKP. In phrases such as l'agence cambodgienne SPK, the classifier resolves the acronym but stays outside the span; annotate SPK. Swiss SPK references belong to org.ent.pressagency.spk-smp.",
+    "annotation_note": "Use org.ent.pressagency.akp for Cambodian/Kampuchean SPK and modern AKP. In phrases such as l'agence cambodgienne SPK, the classifier resolves the acronym but stays outside the span; annotate SPK. AKP alone is ambiguous and requires Cambodia, Kampuchea, Phnom Penh, or explicit news-agency context; AKP Phnom Penh is strong positive evidence. German descriptive searches such as Nachrichtenagentur Kambodscha or kambodschanische Nachrichtenagentur are discovery queries, not standalone aliases to annotate unless the context identifies AKP/SPK. Swiss SPK references belong to org.ent.pressagency.spk-smp.",
     "metadata_sources": [
       {
         "type": "wikipedia",

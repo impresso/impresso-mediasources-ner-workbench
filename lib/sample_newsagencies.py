@@ -260,8 +260,6 @@ def load_seed_queries(
         if rng is not None:
             aliases = list(aliases)
             rng.shuffle(aliases)
-        if max_queries_per_label > 0:
-            aliases = aliases[:max_queries_per_label]
         canonical_id = str(row.get("canonical_id") or label.rsplit(".", 1)[-1])
         for alias in aliases:
             queries.append(
@@ -311,6 +309,16 @@ def load_sampling_plan_queries(path: Path, *, family: str = "pressagency", label
     queries = list(grouped.values())
     queries.sort(key=lambda item: (str(item["label"]), str(item["query"]).casefold()))
     return queries, bucket_targets
+
+
+def successful_alias_limit_reached(
+    successful_aliases: Counter[tuple[str, str]],
+    *,
+    label: str,
+    language: str,
+    max_queries_per_label: int,
+) -> bool:
+    return max_queries_per_label > 0 and successful_aliases[(label, language)] >= max_queries_per_label
 
 
 def extract_candidate(
@@ -839,7 +847,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sampling-plan", type=Path, help="Focused sampling plan JSON from make plan-media-sampling.")
     parser.add_argument("--only-under-target", action="store_true", help="Only sample labels still below the target in --coverage-json.")
     parser.add_argument("--min-missing", type=int, default=1, help="Minimum missing_to_target needed when --only-under-target is set.")
-    parser.add_argument("--max-queries-per-label", type=int, default=3)
+    parser.add_argument(
+        "--max-queries-per-label",
+        type=int,
+        default=3,
+        help="Maximum non-empty alias searches to keep per label/language; empty-result aliases do not consume this limit. Use 0 for no limit.",
+    )
     parser.add_argument("--year-start", type=int, default=DEFAULT_YEAR_START)
     parser.add_argument("--year-end", type=int, default=DEFAULT_YEAR_END)
     parser.add_argument("--target-per-query-lang", type=int, default=DEFAULT_TARGET_PER_QUERY_LANG)
@@ -852,7 +865,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rate-limit-cooldown", type=float, default=30.0, help="Seconds to sleep immediately after an HTTP 429/rate-limit response.")
     parser.add_argument("--rate-limit-pause", type=float, default=3.0, help="Seconds to sleep before each later request after the first 429/rate-limit response.")
     parser.add_argument("--random-seed", type=int, default=None, help="Optional seed for reproducible alias shuffling and context windows.")
-    parser.add_argument("--shuffle-aliases", action=argparse.BooleanOptionalAction, default=True, help="Shuffle aliases before applying --max-queries-per-label; enabled by default.")
+    parser.add_argument("--shuffle-aliases", action=argparse.BooleanOptionalAction, default=True, help="Shuffle alias search order; enabled by default.")
     parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default=DEFAULT_CONTEXT_SOURCE)
     parser.add_argument(
         "--context-chars",
@@ -885,173 +898,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
-    languages = [language.strip() for language in args.languages if language.strip()]
-    labels = parse_labels(args.labels)
-    undercovered_buckets: set[tuple[str, str]] = set()
-    undercovered_missing: dict[tuple[str, str], int] = {}
-    if args.only_under_target:
-        if not args.coverage_json:
-            raise SystemExit("--only-under-target requires --coverage-json")
-        undercovered_missing = load_undercovered_bucket_missing(args.coverage_json, min_missing=args.min_missing)
-        undercovered_buckets = set(undercovered_missing)
-        undercovered = {label for label, _language in undercovered_buckets}
-        labels = undercovered if labels is None else labels & undercovered
-    reported_undercovered_buckets = filter_buckets_for_labels(undercovered_buckets, labels)
-    rng = random.Random(args.random_seed) if args.random_seed is not None else random.Random()
-    alias_rng = (random.Random(args.random_seed) if args.random_seed is not None else random.Random()) if args.shuffle_aliases else None
-    sampling_plan_targets: dict[tuple[str, str, str], int] = {}
-    if args.sampling_plan:
-        queries, sampling_plan_targets = load_sampling_plan_queries(args.sampling_plan, family="pressagency", labels=labels)
-    else:
-        queries = load_seed_queries(
-            args.seeds,
-            languages=languages,
-            labels=labels,
-            max_queries_per_label=args.max_queries_per_label,
-            rng=alias_rng,
-        )
-    print("Seed file:", args.seeds)
-    print("Queries:", len(queries))
-    print("Languages:", languages)
-    if args.only_under_target:
-        print("Under-target labels:", len(labels or []))
-        print("Under-target label-language buckets:", len(reported_undercovered_buckets))
-    print("Output:", args.out)
-    if args.sampling_plan:
-        print("Sampling plan:", args.sampling_plan)
-    print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
-    existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
-    existing_sample_pairs = load_sample_pairs(existing_sample_paths)
-    existing_sample_issues = load_sample_issues(args.existing_issue_jsonl)
-    print("Existing issue/entity pairs:", len(existing_sample_pairs))
-    print("Existing newspaper-date issues:", len(existing_sample_issues))
-    if args.dry_run:
-        for query in queries[:50]:
-            print(f"  {query['label']} || {query['query']}")
-        if len(queries) > 50:
-            print(f"  ... {len(queries) - 50} more")
-        return 0
+    from .sample_media_snippets import run_family_sampler
 
-    date_range_cls, connect_fn = import_runtime()
-    client = connect_fn()
-    throttle = RateLimitThrottle(cooldown_seconds=args.rate_limit_cooldown, steady_pause_seconds=args.rate_limit_pause)
-    require_matches = not args.allow_snippet_only
-    pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
-    bucket_targets: dict[tuple[str, str, str], int] = {}
-    interrupted = False
-    interrupted_at = ""
-    try:
-        for query in queries:
-            print(f"\n=== QUERY: {query['query']} [{query['label']}] ===")
-            for language in languages:
-                if args.sampling_plan:
-                    planned_languages = query.get("planned_languages") or {}
-                    if language not in planned_languages:
-                        continue
-                if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
-                    continue
-                bucket = (query["label"], query["query"], language)
-                if args.sampling_plan:
-                    bucket_target = sampling_plan_targets[bucket]
-                else:
-                    missing = missing_for_bucket(query["label"], language, undercovered_missing) if args.only_under_target else None
-                    bucket_target = min(args.target_per_query_lang, missing) if missing is not None else args.target_per_query_lang
-                bucket_targets[bucket] = bucket_target
-                target_pool_size = bucket_target * args.pool_factor
-                interrupted_at = f"{query['label']} || {query['query']} || {language}"
-                pool, client = collect_pool_for_bucket(
-                    client=client,
-                    date_range_cls=date_range_cls,
-                    connect_fn=connect_fn,
-                    query=query,
-                    search_language=language,
-                    target_pool_size=target_pool_size,
-                    page_size=args.page_size,
-                    max_pages=args.max_pages,
-                    max_empty_pages=args.max_empty_pages,
-                    pause=args.pause,
-                    year_start=args.year_start,
-                    year_end=args.year_end,
-                    max_retries=args.max_retries,
-                    require_matches=require_matches,
-                    context_source=args.context_source,
-                    context_chars=args.context_chars,
-                    existing_sample_pairs=existing_sample_pairs,
-                    existing_sample_issues=existing_sample_issues,
-                    rng=rng,
-                    throttle=throttle,
-                )
-                pools[bucket] = pool
-                print(f"  collected pool: {len(pool)}")
-                interrupted_at = ""
-    except KeyboardInterrupt:
-        interrupted = True
-        print("\nInterrupted by user; writing output from completed sampling buckets.", file=sys.stderr)
-
-    selected, summary = balanced_select(
-        pools,
-        target_per_bucket=args.target_per_query_lang,
-        target_per_bucket_by_key=bucket_targets,
-        rng=rng,
-        max_per_label=args.max_per_label,
-        existing_sample_pairs=existing_sample_pairs,
-        existing_sample_issues=existing_sample_issues,
-    )
-    write_jsonl(args.out, selected)
-    registry_written = write_sample_registry(args.sample_registry, selected, existing_sample_pairs)
-    summary["counts_by_label"] = dict(sorted(Counter(row["candidate_label"] for row in selected).items()))
-    summary["counts_by_label_language"] = dict(
-        sorted(Counter(f"{row.get('candidate_label')} || {row.get('search_language')}" for row in selected).items())
-    )
-    summary["counts_by_query"] = dict(sorted(Counter(row["query"] for row in selected).items()))
-    summary["counts_by_search_language"] = dict(sorted(Counter(row["search_language"] for row in selected).items()))
-    summary["settings"] = {
-        "seeds": str(args.seeds),
-        "languages": languages,
-        "labels": sorted(parse_labels(args.labels) or []),
-        "coverage_json": str(args.coverage_json) if args.coverage_json else "",
-        "sampling_plan": str(args.sampling_plan) if args.sampling_plan else "",
-        "only_under_target": args.only_under_target,
-        "undercovered_label_languages": [f"{label} || {language}" for label, language in sorted(reported_undercovered_buckets)],
-        "min_missing": args.min_missing,
-        "max_queries_per_label": args.max_queries_per_label,
-        "year_start": args.year_start,
-        "year_end": args.year_end,
-        "target_per_query_lang": args.target_per_query_lang,
-        "target_per_query_lang_coverage_aware": args.only_under_target,
-        "pool_factor": args.pool_factor,
-        "page_size": args.page_size,
-        "max_pages": args.max_pages,
-        "max_empty_pages": args.max_empty_pages,
-        "pause": args.pause,
-        "random_seed": args.random_seed,
-        "shuffle_aliases": args.shuffle_aliases,
-        "require_matches": require_matches,
-        "context_source": args.context_source,
-        "context_chars": args.context_chars,
-        "max_per_label": args.max_per_label,
-        "sample_registry": str(args.sample_registry),
-        "existing_sample_jsonl": [str(path) for path in args.existing_sample_jsonl],
-        "existing_issue_jsonl": [str(path) for path in args.existing_issue_jsonl],
-        "existing_issue_entity_pairs": len(existing_sample_pairs) - registry_written,
-        "existing_newspaper_date_issues": len(existing_sample_issues),
-        "registry_pairs_added": registry_written,
-        "deduplication": "global_by_existing_dataset_issue_id_then_issue_id_and_candidate_label",
-    }
-    summary["interrupted"] = interrupted
-    summary["interrupted_at"] = interrupted_at
-    summary["completed_pool_buckets"] = len(pools)
-    args.summary_out.parent.mkdir(parents=True, exist_ok=True)
-    args.summary_out.write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(
-        json.dumps(
-            {"rows": len(selected), "output": str(args.out), "summary": str(args.summary_out), "registry_pairs_added": registry_written},
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-    )
-    return 0
+    return run_family_sampler(parse_args(argv), family="pressagency", load_seed_queries=load_seed_queries)
 
 
 if __name__ == "__main__":
