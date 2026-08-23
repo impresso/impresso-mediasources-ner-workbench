@@ -1,0 +1,110 @@
+# Show annotation workflow targets and useful overrides.
+make help-anno
+
+# Show dataset validation/statistics/export targets.
+make help-data
+
+# Show model training/evaluation targets.
+make help-finetune
+
+# Refresh annotation checks, coverage, profiles, and curation state.
+make anno-housekeeping
+
+# Refresh dataset integrity checks, TSV views, statistics, and quality reports.
+make data-housekeeping
+
+# One-shot TSV patch cleanup cycle: create patches, integrate them, refresh TSVs, and refresh annotation state.
+make create-tsv-span-patches integrate-tsv-span-patches materialize-dataset-tsv anno-housekeeping
+
+# Basic one-label press-agency snippet cycle: sample, suggest, then review.
+make sample-media-snippets MEDIA_FAMILY=pressagency MEDIA_LABELS=org.ent.pressagency.cip
+make suggest-media-snippet-spans MEDIA_FAMILY=pressagency
+make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
+
+# Split reviewed press-agency snippets with default holdout policy still active.
+make split-media-snippets MEDIA_FAMILY=pressagency SNIPPET_VALIDATION_FRACTION=0.0 SNIPPET_TEST_FRACTION=0.0
+make integrate-snippets
+
+# Split reviewed press-agency snippets with everything forced into train, including disabling holdout minimum.
+make split-media-snippets MEDIA_FAMILY=pressagency \
+  SNIPPET_VALIDATION_FRACTION=0.0 \
+  SNIPPET_TEST_FRACTION=0.0 \
+  HOLDOUT_MIN_PER_LABEL=0
+
+# Sample one press-agency label freely and try every configured search alias.
+make sample-freely-media-snippets MEDIA_FAMILY=pressagency MEDIA_LABELS=org.ent.pressagency.cip MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=0
+
+# Focused sample under-target press-agency snippets for one label.
+make sample-media-snippets MEDIA_FAMILY=pressagency MEDIA_LABELS=org.ent.pressagency.cip MEDIA_SAMPLE_MAX_PER_LABEL=30 MEDIA_SAMPLE_TARGET_PER_QUERY_LANG=10
+
+# Force sampling to try every configured search alias for an under-target label.
+make sample-all-aliases-media-snippets MEDIA_FAMILY=pressagency MEDIA_LABELS=org.ent.pressagency.cip MEDIA_SAMPLE_MAX_PER_LABEL=30 MEDIA_SAMPLE_TARGET_PER_QUERY_LANG=10
+
+# Sample one label freely, without the under-target coverage restriction.
+make sample-freely-media-snippets MEDIA_FAMILY=pressagency MEDIA_LABELS=org.ent.pressagency.cip MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=0
+
+# Suggest spans in sampled press-agency snippets with model plus metadata matchers.
+make suggest-media-snippet-spans MEDIA_FAMILY=pressagency
+
+# Review suggested press-agency snippet spans interactively.
+make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
+
+# Split reviewed press-agency snippets with all new rows forced into train.
+make split-media-snippets MEDIA_FAMILY=pressagency SNIPPET_VALIDATION_FRACTION=0.0 SNIPPET_TEST_FRACTION=0.0 HOLDOUT_MIN_PER_LABEL=0
+
+# Split reviewed snippets, preview promotion, then promote them into the dataset.
+make integrate-snippets
+
+# Search human-readable TOKEN/NERTAG TSV views for a token sequence.
+make search-tsv TSV_SEARCH="Radio London"
+
+# Search human-readable TOKEN/NERTAG TSV views for an entity tag.
+make search-tsv TSV_SEARCH_TAG=org.ent.pressagency.apa
+
+# Create one accepted TSV-derived span patch from one pasted TSV block.
+make create-tsv-span-patch
+
+# Create accepted TSV-derived span patches from one or more pasted TSV blocks.
+make create-tsv-span-patches
+
+# Apply accepted TSV-derived span patches to patched split files.
+make apply-tsv-span-patches
+
+# Check whether TSV-derived patched split files differ from promoted dataset splits.
+make tsv-span-patch-status
+
+# Promote TSV-derived patched split files into the configured dataset splits.
+make promote-tsv-span-patches
+
+# Apply, promote, and refresh TSV views after TSV-derived span patches.
+make integrate-tsv-span-patches
+
+# Regenerate ignored TOKEN/NERTAG TSV views for train/validation/test inspection.
+make materialize-dataset-tsv
+
+# Score train/validation/test and build gold-vs-prediction disagreement queues.
+make suggest-eval-disagreements
+
+# Score only the test split and build gold-vs-prediction disagreement inputs.
+make suggest-eval-disagreements-test
+
+# Review pending gold-vs-prediction disagreements interactively.
+make review-curation REVIEWER="$USER"
+
+# Validate that all gold-vs-prediction disagreements have completed decisions.
+make validate-curation
+
+# Apply validated disagreement decisions into train/validation/test JSONL.
+make apply-curation
+
+# Summarize current evaluation-disagreement curation state.
+make eval-disagreement-state
+
+# Remove the configured model directory and train a fresh model from the base model.
+make train-fresh
+
+# Train into a separate clean experiment directory.
+make train-fresh MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0-cip-check
+
+# Evaluate the configured model on validation and test with official metrics.
+make test-official
