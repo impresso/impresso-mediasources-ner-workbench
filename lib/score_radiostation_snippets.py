@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
 from .score_newsagency_snippets import (
     all_generic_alias_spans,
     attach_surfaces,
@@ -22,6 +21,8 @@ from .score_newsagency_snippets import (
     suppress_overlapping_spans,
     validate_model_inference_metadata,
 )
+from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
+from .temporal_verification import verify_entity_start_year
 
 
 def normalize_station_id(value: Any) -> str:
@@ -366,6 +367,11 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     press_metadata = load_pressagency_metadata(Path(getattr(args, "newsagencies", "resources/newsagency_seeds.json")))
     newspapers_path = Path(getattr(args, "newspapers", "resources/newspaper_seeds.json"))
     newspaper_metadata = load_generic_label_metadata(newspapers_path, expected_prefix="org.ent.newspaper.")
+    label_metadata = {
+        str(seed.get("label")): seed
+        for seed in [*metadata.values(), *press_metadata.values()]
+        if str(seed.get("label") or "").startswith("org.ent.")
+    }
     alias_index = build_alias_index(metadata)
     model_runtime = load_model_runtime(args)
     rows = []
@@ -422,6 +428,8 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
             + (["token_classifier"] if model_runtime is not None else []),
             "predicted_spans": spans,
         }
+        temporal_verification = verify_entity_start_year(row=row, label=label or None, label_metadata=label_metadata)
+        out["temporal_verification"] = temporal_verification
         reasons = []
         if not label:
             reasons.append("unresolved_radiostation_label")
@@ -429,6 +437,8 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
             reasons.append("no_alias_span_match")
         if model_runtime is not None and model_spans:
             reasons.append("model_predicted_mediaagency_span")
+        if temporal_verification["status"] == "suspicious_before_start":
+            reasons.append("suspicious_before_entity_start")
         out["curation"] = {
             "status": "needs_review",
             "label": out["candidate_label"],

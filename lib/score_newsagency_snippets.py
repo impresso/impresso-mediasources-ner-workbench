@@ -7,6 +7,15 @@ from typing import Any
 
 from .env import load_dotenv_if_available
 from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
+from .temporal_verification import verify_entity_start_year
+
+try:
+    from mediaagency_modernbert.decoding import DECODER_FIRST_SUBTOKEN, DECODER_FIRST_SUBTOKEN_VITERBI, compile_bio_schema, decode_document
+except ImportError:
+    DECODER_FIRST_SUBTOKEN = "first_subtoken"
+    DECODER_FIRST_SUBTOKEN_VITERBI = "first_subtoken_viterbi"
+    compile_bio_schema = None
+    decode_document = None
 
 DEFAULT_SEARCH_SNIPPETS = Path("data/candidates/newsagency_search_snippets.jsonl")
 DEFAULT_LEGACY_SNIPPETS = Path("data/candidates/newsagency_legacy_snippets.jsonl")
@@ -136,17 +145,26 @@ def score_tokens(
     model_inputs = {key: value.to(device) for key, value in encoding.items()}
     with torch.no_grad():
         logits = model(**model_inputs).logits[0]
+        log_probs = torch.log_softmax(logits, dim=-1).detach().cpu()
         probs = torch.softmax(logits, dim=-1).detach().cpu()
 
     id2label = model.config.id2label
+    label2id = model.config.label2id
+    decoder = str(getattr(model.config, "subtoken_decoding", DECODER_FIRST_SUBTOKEN))
     labels = ["O"] * len(tokens)
     confidences = [0.0] * len(tokens)
     margins = [0.0] * len(tokens)
+    word_subtoken_log_probs: list[list[list[float]]] = [[] for _token in tokens]
+    first_subtoken_index_by_word: dict[int, int] = {}
     seen_words: set[int] = set()
     for token_index, word_id in enumerate(word_ids):
-        if word_id is None or word_id in seen_words or word_id >= len(tokens):
+        if word_id is None or word_id >= len(tokens):
+            continue
+        word_subtoken_log_probs[word_id].append(log_probs[token_index].tolist())
+        if word_id in seen_words:
             continue
         seen_words.add(word_id)
+        first_subtoken_index_by_word[word_id] = token_index
         probability_values = [float(value) for value in probs[token_index].tolist()]
         label, confidence, margin = select_suggested_label(
             probability_values, id2label, non_o_min_confidence
@@ -154,6 +172,26 @@ def score_tokens(
         labels[word_id] = label
         confidences[word_id] = confidence
         margins[word_id] = margin
+    if decoder == DECODER_FIRST_SUBTOKEN_VITERBI and decode_document is not None and compile_bio_schema is not None:
+        normalized_id2label = {int(index): str(label) for index, label in id2label.items()}
+        normalized_label2id = {str(label): int(index) for label, index in label2id.items()}
+        decoder_schema = compile_bio_schema(normalized_id2label)
+        decoded_ids = decode_document(
+            [subtokens or [[0.0] + [-1.0e9 for _label in range(len(normalized_id2label) - 1)]] for subtokens in word_subtoken_log_probs],
+            decoder=decoder,
+            schema=decoder_schema,
+        )
+        for word_id, decoded_id in enumerate(decoded_ids):
+            label = normalized_id2label[int(decoded_id)]
+            labels[word_id] = label
+            first_subtoken_index = first_subtoken_index_by_word.get(word_id)
+            if first_subtoken_index is None:
+                continue
+            probability_values = [float(value) for value in probs[first_subtoken_index].tolist()]
+            confidence_id = normalized_label2id.get(label, 0)
+            competitor = max((index for index in range(len(probability_values)) if index != confidence_id), key=lambda index: probability_values[index])
+            confidences[word_id] = probability_values[confidence_id]
+            margins[word_id] = probability_values[confidence_id] - probability_values[competitor]
     return labels, confidences, margins
 
 
@@ -382,7 +420,8 @@ def validate_model_inference_metadata(config: Any, model_name: str) -> None:
             f"model {model_name!r} lacks inference metadata: {', '.join(missing)}; "
             "run `make stamp-model-inference-metadata` for a local checkpoint"
         )
-    if str(config.subtoken_decoding) != "first_subtoken":
+    supported_decoders = {DECODER_FIRST_SUBTOKEN, DECODER_FIRST_SUBTOKEN_VITERBI}
+    if str(config.subtoken_decoding) not in supported_decoders:
         raise ValueError(f"model {model_name!r} uses unsupported subtoken decoding: {config.subtoken_decoding!r}")
 
 
@@ -462,6 +501,11 @@ def all_generic_alias_spans(tokens: list[str], metadata: dict[str, dict[str, Any
 def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     input_path = Path(args.input)
     rows_in = load_input_rows(input_path)
+    newsagencies_path = Path(getattr(args, "newsagencies", "resources/newsagency_seeds.json"))
+    radiostations_path = Path(getattr(args, "radiostations", "resources/radiostation_seeds.json"))
+    label_metadata = {}
+    label_metadata.update(load_generic_label_metadata(newsagencies_path, expected_prefix="org.ent.pressagency."))
+    label_metadata.update(load_generic_label_metadata(radiostations_path, expected_prefix="org.ent.radiostation."))
 
     model_runtime = load_model_runtime(args)
 
@@ -493,6 +537,8 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         spans = merge_adjacent_same_label_spans(
             suppress_overlapping_spans(alias_spans + model_spans), text
         )
+        label = candidate_label(row) or None
+        temporal_verification = verify_entity_start_year(row=row, label=label, label_metadata=label_metadata)
         status, reasons = curation_status(
             row,
             spans,
@@ -501,6 +547,9 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
             multiple_min_confidence=args.auto_accept_multiple_min_confidence,
             auto_accept=bool(getattr(args, "auto_accept", True)),
         )
+        if temporal_verification["status"] == "suspicious_before_start":
+            reasons.append("suspicious_before_entity_start")
+            status = "needs_review"
         out = dict(row)
         out["id"] = candidate_id(row, index)
         out["text"] = text
@@ -513,9 +562,10 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
             "scorers": known_entity_scorers(args) + (["token_classifier"] if model_runtime is not None else []),
             "predicted_spans": spans,
         }
+        out["temporal_verification"] = temporal_verification
         out["curation"] = {
             "status": status,
-            "label": candidate_label(row) or None,
+            "label": label,
             "reasons": reasons,
             "reviewer": None,
             "reviewed_at": None,

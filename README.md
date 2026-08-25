@@ -242,6 +242,42 @@ make push-model MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continu
 
 See [docs/curation.md](docs/curation.md) for full curation workflows, path selection, and command assumptions.
 
+## Task Cheat Sheet
+
+| If you want to... | Call this target | `CFG=...`? |
+| --- | --- | --- |
+| See the main help and target groups. | `make` | Not needed. |
+| Refresh annotation checks, coverage, profiles, and curation state. | `make anno-housekeeping` | Yes, to choose another dataset/model config. |
+| Refresh dataset checks, TSV views, statistics, label map, and quality reports. | `make data-housekeeping` | Yes, to choose another dataset/model config. |
+| Check current annotation, snippet, and dataset progress. | `make curation-state` | Yes, to inspect another configured prerelease/model. |
+| Validate token offsets, BIO labels, entities, and minimal JSONL fields. | `make validate-jsonl-format` | Yes, if validating another configured dataset. |
+| Validate one patched JSONL before copying it into a split. | `make validate-jsonl-format JSONL_FORMAT_JSONL=data/curated/tsv-segment-replacements/train/patched.jsonl` | Yes, if the patch belongs to another configured dataset. |
+| Generate the BIO-complete dataset label map from train/validation/test plus seed metadata. | `make sync-label-map` | Yes, if the target dataset comes from another config. |
+| Generate release dataset statistics. | `make dataset-statistics` | Yes, if the target dataset comes from another config. |
+| Generate validation/test model quality and coverage reports. | `make dataset-quality-analysis` | Yes, to evaluate/report with another configured model. |
+| Materialize TOKEN/NERTAG TSV files for inspection and manual patching. | `make materialize-dataset-tsv` | Yes, if the target dataset comes from another config. |
+| Search the materialized TSV by token text. | `make search-tsv TSV_SEARCH="Radio London"` | Yes, if searching TSVs for another config. |
+| Search the materialized TSV by entity tag. | `make search-tsv TSV_SEARCH_TAG="org.ent.pressagency.apa"` | Yes, if searching TSVs for another config. |
+| Create TSV-derived span patches from pasted TOKEN OLD \[NEW\] lines across train/validation/test. | `make create-tsv-span-patches` | Yes, if patching another configured dataset. |
+| Replace an exact TOKEN/NERTAG segment with a clean TOKEN/NERTAG block. | `make replace-tsv-segment TSV_SEGMENT_SPLIT=train TSV_SEGMENT_OLD=/tmp/old.tsv TSV_SEGMENT_NEW=/tmp/new.tsv` | Yes, if patching another configured dataset. |
+| Apply and promote TSV-derived span patches, then refresh TSV and annotation reports. | `make create-tsv-span-patches integrate-tsv-span-patches materialize-dataset-tsv anno-housekeeping` | Yes, keep the same `CFG=...` across the whole chain. |
+| Sample focused press-agency snippets for under-covered labels. | `make sample-media-snippets MEDIA_FAMILY=pressagency` | Yes, coverage and outputs follow the config. |
+| Sample focused radio-station snippets for under-covered labels. | `make sample-media-snippets MEDIA_FAMILY=radiostation` | Yes, coverage and outputs follow the config. |
+| Force sampling for one press-agency label. | `make sample-freely-media-snippets MEDIA_FAMILY=pressagency MEDIA_LABELS=org.ent.pressagency.cip MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=0` | Yes, outputs and existing-data filters follow the config. |
+| Suggest model/metadata spans for sampled snippets. | `make suggest-media-snippet-spans MEDIA_FAMILY=pressagency` | Yes, to use the configured scorer model. |
+| Review sampled snippet spans. | `make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"` | Usually yes, to read/write the matching configured snippet files. |
+| Put accepted/rejected reviewed snippets into train only. | `make split-media-snippets MEDIA_FAMILY=pressagency SNIPPET_VALIDATION_FRACTION=0.0 SNIPPET_TEST_FRACTION=0.0 HOLDOUT_MIN_PER_LABEL=0` | Yes, split outputs and holdout sources follow the config. |
+| Promote split snippets into the configured dataset. | `make integrate-snippets` | Yes, because it changes the configured dataset splits. |
+| Evaluate the configured model into model-local diagnostics. | `make test EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
+| Evaluate the official test split into model-local diagnostics. | `make test-official EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
+| Evaluate train/validation/test into shared curation disagreement inputs. | `make curation-eval` | Yes, to choose the curation checker model/dataset. |
+| Build and review gold-vs-prediction disagreements. | `make suggest-eval-disagreements` | Yes, to use the configured curation eval paths. |
+| Audit illegal BIO transitions in prediction diagnostics. | `make audit-predicted-iob PREDICTED_IOB_SPLIT=validation` | Yes, if diagnostics were generated under another config. |
+| Audit subtoken prediction consistency in diagnostics. | `make audit-subtokens SUBTOKEN_AUDIT_SPLIT=validation` | Yes, if diagnostics were generated under another config. |
+| Train the default v2 model. | `make train` | Yes, use `CFG=...` to train a model variant. |
+| Remove the configured model directory and train from scratch. | `make train-fresh` | Yes, use `CFG=...` to choose which model directory is cleaned and trained. |
+| Train the v2 variant that adapts the final 4 ModernBERT layers. | `make train-fresh CFG=configs/model-v2.0.0-4layers.mk` | Already supplied. |
+
 ## Common Commands
 
 ```bash

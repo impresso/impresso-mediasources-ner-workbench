@@ -103,6 +103,7 @@ def run_family_sampler(
     pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     bucket_targets: dict[tuple[str, str, str], int] = {}
     successful_aliases: Counter[tuple[str, str]] = Counter()
+    candidate_pool_by_label_language: Counter[tuple[str, str]] = Counter()
     interrupted = False
     interrupted_at = ""
     try:
@@ -174,9 +175,21 @@ def run_family_sampler(
                     throttle=throttle,
                 )
                 pools[bucket] = [normalize_row(row) for row in pool]
+                candidate_pool_by_label_language[(query["label"], language)] += len(pool)
                 if pool:
                     successful_aliases[(query["label"], language)] += 1
-                print(f"  collected pool: {len(pool)}")
+                cumulative_pool = candidate_pool_by_label_language[(query["label"], language)]
+                successful = successful_aliases[(query["label"], language)]
+                success_limit = args.max_queries_per_label if args.max_queries_per_label > 0 else "unlimited"
+                print(
+                    f"  collected candidates for this alias/language: {len(pool)}/{target_pool_size} "
+                    f"(selection target={bucket_target})"
+                )
+                print(
+                    f"  cumulative for {query['label']} lang={language}: "
+                    f"candidate_pool={cumulative_pool}, non_empty_aliases={successful}/{success_limit}; "
+                    f"final selection target per alias/language={bucket_target}"
+                )
                 interrupted_at = ""
     except KeyboardInterrupt:
         interrupted = True
@@ -201,6 +214,9 @@ def run_family_sampler(
     summary["counts_by_search_language"] = dict(sorted(Counter(row["search_language"] for row in selected).items()))
     summary["successful_aliases_by_label_language"] = {
         f"{label} || {language}": count for (label, language), count in sorted(successful_aliases.items())
+    }
+    summary["candidate_pool_by_label_language"] = {
+        f"{label} || {language}": count for (label, language), count in sorted(candidate_pool_by_label_language.items())
     }
     summary["settings"] = {
         "seeds": str(args.seeds),

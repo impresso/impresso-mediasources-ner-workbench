@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+DEFAULT_SUBTOKEN_DECODING = "first_subtoken_viterbi"
+
 
 def dataset_profile(path: Path) -> str:
     profiles = set()
@@ -27,7 +29,7 @@ def stamp_config(path: Path, *, profile: str, label_all_tokens: bool) -> dict[st
     config["annotation_tokenization"] = profile
     config["label_all_tokens"] = bool(label_all_tokens)
     config["subtoken_labeling"] = "all_subtokens_b_to_i" if label_all_tokens else "first_subtoken_only"
-    config["subtoken_decoding"] = "first_subtoken"
+    config["subtoken_decoding"] = DEFAULT_SUBTOKEN_DECODING
     path.write_text(json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return {
         "config": str(path),

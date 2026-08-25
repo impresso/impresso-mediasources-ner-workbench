@@ -14,7 +14,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization migrate-tokenization semantic-search validate-labels validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -86,6 +86,8 @@ help-anno:
 	@echo "                                             Tag searches show audited hits; token searches hide them unless TSV_SEARCH_INCLUDE_AUDITED=true"
 	@echo "  make review-tsv-search TSV_SEARCH=tan TSV_PATCH_LABEL=org.ent.pressagency.tanjug REVIEWER=\"$$USER\""
 	@echo "                                             Page through TSV hits; annotate with TSV lines or verify the current hit"
+	@echo "  make replace-tsv-segment TSV_SEGMENT_SPLIT=train TSV_SEGMENT_OLD=/tmp/old.tsv TSV_SEGMENT_NEW=/tmp/new.tsv"
+	@echo "                                             Replace an exact TOKEN/NERTAG segment with a clean TOKEN/NERTAG block"
 	@echo "  make integrate-tsv-span-patches               Apply and promote accepted TSV-derived patches in all splits unless TSV_PATCH_SPLIT is set"
 	@echo ""
 	@echo "Evaluation disagreement annotation:"
@@ -144,12 +146,15 @@ help-data:
 	@echo "  make data-housekeeping                     Run all dataset checks and refresh inspection reports"
 	@echo ""
 	@echo "  make validate-labels                       Validate canonical label metadata"
+	@echo "  make validate-jsonl-format                 Validate token/offset/BIO/entity consistency"
 	@echo "  make validate-dataset-splits               Check train/validation/test split integrity"
 	@echo "  make audit-tokenization                    Verify canonical punctuation tokenization and boundaries"
 	@echo "  make migrate-tokenization                  Stage canonicalized train/validation/test JSONL"
 	@echo "  make sync-label-map                        Derive label_map.json from minimal train/validation/test"
 	@echo "  make dataset-statistics                    Generate the release Markdown statistics report"
 	@echo "  make dataset-quality-analysis              Refresh validation/test evaluation and quality report"
+	@echo "  make audit-predicted-iob                   Audit illegal BIO transitions in predicted token tags"
+	@echo "  make audit-subtokens                       Audit subtoken prediction consistency within words"
 	@echo "  make dataset-subword-stats                 Measure tokenizer expansion and window coverage"
 	@echo "  make materialize-dataset-tsv               Write ignored TOKEN/NERTAG TSV views for diffing"
 	@echo "  make dataset-state                         Summarize staging and configured published dataset state"
@@ -243,6 +248,7 @@ migrate-tokenization:
 data-housekeeping:
 	@echo "Running complete housekeeping for the configured dataset and checker model."
 	$(MAKE) audit-tokenization
+	$(MAKE) validate-jsonl-format
 	$(MAKE) sync-label-map
 	$(MAKE) validate-labels
 	$(MAKE) validate-dataset-splits
@@ -263,9 +269,14 @@ validate-dataset-splits:
 	@echo "Checking train/validation/test split integrity, including promoted snippet rows."
 	$(PYTHON) -m lib.validate_dataset_splits --train "$(TRAIN_JSONL)" --validation "$(VALIDATION_JSONL)" --test "$(TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" $(ARGS)
 
+validate-jsonl-format:
+	@echo "Validating JSONL token, offset, BIO, and entity consistency."
+	$(PYTHON) -m lib.validate_jsonl_format $(if $(strip $(JSONL_FORMAT_JSONL)),$(foreach input,$(JSONL_FORMAT_JSONL),--jsonl "$(input)"),--jsonl "$(TRAIN_JSONL)" --jsonl "$(VALIDATION_JSONL)" --jsonl "$(TEST_JSONL)") --summary-json "$(JSONL_FORMAT_SUMMARY_JSON)" $(if $(filter true,$(JSONL_FORMAT_ALLOW_TOKEN_LABEL_IDS)),--allow-token-label-ids,) $(ARGS)
+	@echo "Summary: $(JSONL_FORMAT_SUMMARY_JSON)"
+
 sync-label-map:
 	@echo "Deriving label_map.json from minimal train/validation/test token_labels."
-	$(PYTHON) -m lib.sync_label_map --input-jsonl "$(TRAIN_JSONL)" --input-jsonl "$(VALIDATION_JSONL)" --input-jsonl "$(TEST_JSONL)" --output "$(LABEL_MAP)" $(ARGS)
+	$(PYTHON) -m lib.sync_label_map --input-jsonl "$(TRAIN_JSONL)" --input-jsonl "$(VALIDATION_JSONL)" --input-jsonl "$(TEST_JSONL)" --output "$(LABEL_MAP)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --label-metadata "$(NEWSPAPER_LABEL_METADATA)" $(ARGS)
 
 dataset-statistics:
 	@echo "Generating the Markdown dataset statistics report from train/validation/test."
@@ -274,8 +285,23 @@ dataset-statistics:
 
 dataset-quality-analysis: dataset-statistics curation-eval-validation curation-eval-test
 	@echo "Analyzing current validation/test quality and per-entity test coverage."
-	$(PYTHON) -m lib.dataset_quality_report --train "$(TRAIN_JSONL)" --validation "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --validation-metrics "$(CURATION_OUTPUT_DIR)/eval/validation_metrics.json" --test "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --test-metrics "$(CURATION_OUTPUT_DIR)/eval/test_metrics.json" --output "$(DATASET_QUALITY_MD)" --release "$(DATASET_REVISION)" --model "$(CURATION_MODEL)" $(ARGS)
+	$(PYTHON) -m lib.dataset_quality_report --train "$(TRAIN_JSONL)" --validation "$(VALIDATION_JSONL)" --validation-predictions "$(CURATION_OUTPUT_DIR)/eval/validation_predictions.jsonl" --validation-metrics "$(CURATION_OUTPUT_DIR)/eval/validation_metrics.json" --test "$(TEST_JSONL)" --test-predictions "$(CURATION_OUTPUT_DIR)/eval/test_predictions.jsonl" --test-metrics "$(CURATION_OUTPUT_DIR)/eval/test_metrics.json" --output "$(DATASET_QUALITY_MD)" --test-entity-predictions-tsv "$(DATASET_ENTITY_PREDICTIONS_TSV)" --release "$(DATASET_REVISION)" --model "$(CURATION_MODEL)" $(ARGS)
 	@echo "Report: $(DATASET_QUALITY_MD)"
+	@echo "Detailed test entity predictions: $(DATASET_ENTITY_PREDICTIONS_TSV)"
+
+audit-predicted-iob:
+	@echo "Auditing illegal BIO transitions in $(PREDICTED_IOB_SPLIT) word-level predictions."
+	@test -f "$(PREDICTED_IOB_TOKEN_PREDICTIONS)" || { echo "Missing token prediction TSV: $(PREDICTED_IOB_TOKEN_PREDICTIONS)"; echo "Next step:"; echo "  # Generate token diagnostics for this split."; echo "  make curation-eval-$(PREDICTED_IOB_SPLIT)"; exit 1; }
+	$(PYTHON) -m lib.audit_predicted_iob --token-predictions "$(PREDICTED_IOB_TOKEN_PREDICTIONS)" --summary-json "$(PREDICTED_IOB_SUMMARY_JSON)" --violations-tsv "$(PREDICTED_IOB_VIOLATIONS_TSV)" $(ARGS)
+	@echo "Summary: $(PREDICTED_IOB_SUMMARY_JSON)"
+	@echo "Violations: $(PREDICTED_IOB_VIOLATIONS_TSV)"
+
+audit-subtokens:
+	@echo "Auditing subtoken prediction consistency in $(SUBTOKEN_AUDIT_SPLIT) diagnostics."
+	@test -f "$(SUBTOKEN_AUDIT_PREDICTIONS)" || { echo "Missing subtoken prediction TSV: $(SUBTOKEN_AUDIT_PREDICTIONS)"; echo "Next step:"; echo "  # Generate subtoken diagnostics for this split."; echo "  make curation-eval-$(SUBTOKEN_AUDIT_SPLIT)"; exit 1; }
+	$(PYTHON) -m lib.audit_subtoken_predictions --subtoken-predictions "$(SUBTOKEN_AUDIT_PREDICTIONS)" --summary-json "$(SUBTOKEN_AUDIT_SUMMARY_JSON)" --details-tsv "$(SUBTOKEN_AUDIT_DETAILS_TSV)" $(ARGS)
+	@echo "Summary: $(SUBTOKEN_AUDIT_SUMMARY_JSON)"
+	@echo "Details: $(SUBTOKEN_AUDIT_DETAILS_TSV)"
 
 dataset-subword-stats:
 	@echo "Collecting tokenizer subword and fixed-window coverage statistics for train/validation/test."
@@ -313,6 +339,9 @@ annotation-stats:
 mention-profiles:
 	@echo "Building empirical mention-surface profiles for canonical entity labels."
 	$(PYTHON) -m lib.entity_mention_profiles $(foreach input,$(MENTION_PROFILE_JSONL),--input-jsonl "$(input)") --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --top-n "$(MENTION_PROFILE_TOP_N)" --json-output "$(MENTION_PROFILE_JSON)" --tsv-output "$(MENTION_PROFILE_TSV)" --md-output "$(MENTION_PROFILE_MD)" $(ARGS)
+	$(PYTHON) -m lib.entity_mention_profiles --input-jsonl "train=$(TRAIN_JSONL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --top-n "$(MENTION_PROFILE_TOP_N)" --md-output "$(MENTION_PROFILE_TRAIN_MD)" $(ARGS)
+	$(PYTHON) -m lib.entity_mention_profiles --input-jsonl "validation=$(VALIDATION_JSONL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --top-n "$(MENTION_PROFILE_TOP_N)" --md-output "$(MENTION_PROFILE_VALIDATION_MD)" $(ARGS)
+	$(PYTHON) -m lib.entity_mention_profiles --input-jsonl "test=$(TEST_JSONL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --top-n "$(MENTION_PROFILE_TOP_N)" --md-output "$(MENTION_PROFILE_TEST_MD)" $(ARGS)
 
 entity-surface-frequencies:
 	@test -n "$(ENTITY_LABEL)" || { echo "ENTITY_LABEL is required, e.g. ENTITY_LABEL=org.ent.pressagency.havas"; exit 1; }
@@ -344,6 +373,9 @@ anno-housekeeping:
 	@echo "  $(ANNOTATION_STATS_JSON)"
 	@echo "  $(ANNOTATION_STATS_TSV)"
 	@echo "  $(MENTION_PROFILE_MD)"
+	@echo "  $(MENTION_PROFILE_TRAIN_MD)"
+	@echo "  $(MENTION_PROFILE_VALIDATION_MD)"
+	@echo "  $(MENTION_PROFILE_TEST_MD)"
 	@echo "  $(MENTION_PROFILE_JSON)"
 	@echo "  $(MENTION_PROFILE_TSV)"
 	@echo "  $(CURATION_STATE_JSON)"
@@ -380,7 +412,7 @@ audit-empty-training-docs:
 audit-empty-docs-split:
 	@echo "Auditing empty-gold $(EMPTY_DOC_SPLIT) documents for suspicious missed media-source mentions."
 	$(PYTHON) -m lib.audit_empty_training_docs prepare --input-jsonl "$(EMPTY_DOC_SOURCE_JSONL)" --label-map "$(EMPTY_DOC_LABEL_MAP)" --output-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval_input.jsonl" --summary-json "$(EMPTY_DOC_AUDIT_DIR)/prepare_summary.json"
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(EMPTY_DOC_MODEL)" --use-checkpoint-label-map --eval-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval_input.jsonl" --label-map "$(EMPTY_DOC_LABEL_MAP)" --output-dir "$(EMPTY_DOC_AUDIT_DIR)/eval" --split-name empty_docs --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(EMPTY_DOC_MODEL)" --use-checkpoint-label-map --eval-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval_input.jsonl" --label-map "$(EMPTY_DOC_LABEL_MAP)" --output-dir "$(EMPTY_DOC_AUDIT_DIR)/eval" --split-name empty_docs --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	$(PYTHON) -m lib.audit_empty_training_docs summarize --source-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval_input.jsonl" --predictions-jsonl "$(EMPTY_DOC_AUDIT_DIR)/eval/empty_docs_predictions.jsonl" --candidates-jsonl "$(EMPTY_DOC_AUDIT_DIR)/prediction_candidates.jsonl" --candidates-tsv "$(EMPTY_DOC_AUDIT_DIR)/prediction_candidates.tsv" --summary-json "$(EMPTY_DOC_AUDIT_DIR)/prediction_summary.json"
 
 audit-missing-spans:
@@ -608,6 +640,15 @@ else
 	@echo "  make -n integrate-tsv-span-patches"
 endif
 
+replace-tsv-segment:
+	@echo "Replacing an exact TOKEN/NERTAG segment in $(TSV_SEGMENT_SPLIT) JSONL."
+	@test -n "$(TSV_SEGMENT_OLD)" || { echo "TSV_SEGMENT_OLD is required, e.g. TSV_SEGMENT_OLD=/tmp/old.tsv"; exit 1; }
+	@test -n "$(TSV_SEGMENT_NEW)" || { echo "TSV_SEGMENT_NEW is required, e.g. TSV_SEGMENT_NEW=/tmp/new.tsv"; exit 1; }
+	$(PYTHON) -m lib.replace_tsv_segment --input-jsonl "$(TSV_SEGMENT_SOURCE_JSONL)" --output-jsonl "$(TSV_SEGMENT_OUTPUT_JSONL)" --old-tsv "$(TSV_SEGMENT_OLD)" --new-tsv "$(TSV_SEGMENT_NEW)" $(if $(strip $(TSV_SEGMENT_MATCH_INDEX)),--match-index "$(TSV_SEGMENT_MATCH_INDEX)",) $(if $(filter true,$(TSV_SEGMENT_ALL_MATCHES)),--all-matches,) $(ARGS)
+	@echo "Patched output: $(TSV_SEGMENT_OUTPUT_JSONL)"
+	@echo "Inspect with:"
+	@echo "  git diff --no-index $(TSV_SEGMENT_SOURCE_JSONL) $(TSV_SEGMENT_OUTPUT_JSONL)"
+
 create-tsv-span-patch:
 ifeq ($(strip $(TSV_PATCH_SPLIT)),)
 	@echo "Creating accepted manual span patches across $(TSV_PATCH_SPLITS) from one pasted TSV block."
@@ -783,41 +824,41 @@ stamp-model-inference-metadata:
 
 test: sync-label-map
 	@echo "Evaluating the configured model on the validation split."
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 
 test-official: sync-label-map
 	@echo "Evaluating the configured model on the test split for official metrics."
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(LABEL_MAP)" --output-dir "$(MODEL)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 
 check-curation-checker:
 	@test -f "$(CURATION_LABEL_MAP)" || { echo "Missing curation checker label map: $(CURATION_LABEL_MAP)"; echo "Next step:"; echo "  # Train the configured model and write its label_map.json."; echo "  make train"; echo "Or pass both CURATION_MODEL=... and CURATION_LABEL_MAP=... for another checker."; exit 1; }
 
 curation-eval: check-curation-checker
 	@echo "Evaluating train/validation/test to build gold-vs-prediction disagreement inputs."
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TRAIN_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TRAIN_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Build the train/validation/test disagreement review queue."
 	@echo "  make curation-review"
 
 curation-eval-train: check-curation-checker
 	@echo "Evaluating train to build gold-vs-prediction disagreement inputs."
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TRAIN_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TRAIN_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Build the train disagreement review queue."
 	@echo "  make curation-review-train"
 
 curation-eval-validation: check-curation-checker
 	@echo "Evaluating validation to build gold-vs-prediction disagreement inputs."
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Build the validation disagreement review queue."
 	@echo "  make curation-review-validation"
 
 curation-eval-test: check-curation-checker
 	@echo "Evaluating test to build gold-vs-prediction disagreement inputs."
-	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(ARGS)
+	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Build the test disagreement review queue."
 	@echo "  make curation-review-test"
@@ -909,6 +950,12 @@ promote-snippets:
 	@echo "Promoting split snippet rows into the configured dataset splits."
 	$(PYTHON) -m lib.promote_snippet_splits --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 	$(MAKE) validate-dataset-splits
+	@echo "Next step:"
+	@echo "  # Refresh annotation state after promotion."
+	@echo "  make anno-housekeeping"
+	@echo "Shortcut for next time:"
+	@echo "  # Split, preview, and promote snippets in one command."
+	@echo "  make integrate-snippets"
 
 integrate-snippets:
 	@echo "Integrating reviewed snippets: split press-agency and radio-station decisions, preview promotion, then promote."

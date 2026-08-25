@@ -542,7 +542,10 @@ def collect_pool_for_bucket(
     pages_seen = 0
     empty_pages = 0
     while len(pool) < target_pool_size and pages_seen < max_pages and empty_pages < max_empty_pages:
-        print(f"  search query={query['query']!r} lang={search_language} offset={offset} pool={len(pool)}/{target_pool_size}")
+        print(
+            f"  search query={query['query']!r} lang={search_language} "
+            f"offset={offset} candidate_pool={len(pool)}/{target_pool_size}"
+        )
         result, client = safe_search(
             client=client,
             date_range_cls=date_range_cls,

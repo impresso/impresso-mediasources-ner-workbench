@@ -6,8 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-
-Entity = tuple[int, int, str]
+from .entity_alignment import Entity, entity_record, labels_to_entities, natural_text, overlap_components, render_tokens
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -43,84 +42,6 @@ def load_decisions(path: Path | None) -> dict[str, dict[str, Any]]:
     return decisions
 
 
-def strip_bio(label: str) -> str:
-    if label == "O":
-        return "O"
-    if label.startswith(("B-", "I-")):
-        return label[2:]
-    return label
-
-
-def labels_to_entities(labels: list[str], *, merge_adjacent_same_label: bool = False) -> set[Entity]:
-    entities: set[Entity] = set()
-    start: int | None = None
-    active = ""
-
-    def close(stop: int) -> None:
-        nonlocal start, active
-        if start is not None:
-            entities.add((start, stop, active))
-        start = None
-        active = ""
-
-    for index, label in enumerate(labels):
-        if label == "O":
-            close(index)
-            continue
-        prefix = label[:1] if label.startswith(("B-", "I-")) else "B"
-        base = strip_bio(label)
-        if start is None or active != base or (prefix == "B" and not merge_adjacent_same_label):
-            close(index)
-            start = index
-            active = base
-    close(len(labels))
-    return entities
-
-
-def entity_record(entity: Entity | None, row: dict[str, Any]) -> dict[str, Any] | None:
-    if entity is None:
-        return None
-    start, stop, label = entity
-    token_start_offsets = row.get("token_start_offsets", [])
-    token_end_offsets = row.get("token_end_offsets", [])
-    char_start = token_start_offsets[start] if start < len(token_start_offsets) else None
-    char_stop = token_end_offsets[stop - 1] if stop - 1 < len(token_end_offsets) else None
-    surface = natural_text(row, start, stop)
-    return {
-        "label": label,
-        "token_start": start,
-        "token_stop": stop,
-        "surface": surface,
-        "char_start": char_start,
-        "char_stop": char_stop,
-    }
-
-
-def natural_text(row: dict[str, Any], start: int, stop: int) -> str:
-    token_start_offsets = row.get("token_start_offsets", [])
-    token_end_offsets = row.get("token_end_offsets", [])
-    text = row.get("text")
-    if (
-        isinstance(text, str)
-        and start < len(token_start_offsets)
-        and stop > start
-        and stop - 1 < len(token_end_offsets)
-    ):
-        return text[token_start_offsets[start] : token_end_offsets[stop - 1]]
-    return render_tokens(row["tokens"][start:stop], row.get("token_render", [])[start:stop])
-
-
-def render_tokens(tokens: list[str], token_render: list[str] | None = None) -> str:
-    token_render = token_render or [""] * len(tokens)
-    parts = []
-    for index, token in enumerate(tokens):
-        parts.append(token)
-        render = token_render[index] if index < len(token_render) else ""
-        if "NoSpaceAfter" not in render and index != len(tokens) - 1:
-            parts.append(" ")
-    return "".join(parts)
-
-
 def context(row: dict[str, Any], entities: list[Entity], radius: int) -> dict[str, Any]:
     tokens = row["tokens"]
     if entities:
@@ -136,41 +57,6 @@ def context(row: dict[str, Any], entities: list[Entity], radius: int) -> dict[st
         "token_render": row.get("token_render", [])[start:stop],
         "text": natural_text(row, start, stop),
     }
-
-
-def overlap(left: Entity, right: Entity) -> bool:
-    return left[0] < right[1] and right[0] < left[1]
-
-
-def overlap_components(gold_entities: set[Entity], pred_entities: set[Entity]) -> list[tuple[list[Entity], list[Entity]]]:
-    remaining_gold = set(gold_entities)
-    remaining_pred = set(pred_entities)
-    components: list[tuple[list[Entity], list[Entity]]] = []
-    while remaining_gold or remaining_pred:
-        if remaining_gold:
-            component_gold = {min(remaining_gold)}
-            component_pred: set[Entity] = set()
-        else:
-            component_gold = set()
-            component_pred = {min(remaining_pred)}
-        changed = True
-        while changed:
-            changed = False
-            for pred in list(remaining_pred - component_pred):
-                if any(overlap(gold, pred) for gold in component_gold):
-                    component_pred.add(pred)
-                    changed = True
-            for gold in list(remaining_gold - component_gold):
-                if any(overlap(gold, pred) for pred in component_pred):
-                    component_gold.add(gold)
-                    changed = True
-        remaining_gold -= component_gold
-        remaining_pred -= component_pred
-        components.append((sorted(component_gold), sorted(component_pred)))
-    return sorted(
-        components,
-        key=lambda component: min([entity[0] for entity in [*component[0], *component[1]]]),
-    )
 
 
 def build_disagreements(

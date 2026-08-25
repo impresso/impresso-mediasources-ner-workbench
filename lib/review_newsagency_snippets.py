@@ -213,6 +213,15 @@ def print_review_item(row: dict[str, Any], index: int, total: int, *, review_pre
     print(f"query: {row.get('query', '')}")
     print(f"candidate label: {row.get('candidate_label') or row.get('curation', {}).get('label') or ''}")
     print(f"reasons: {', '.join(row.get('curation', {}).get('reasons', []))}")
+    temporal = row.get("temporal_verification")
+    if isinstance(temporal, dict) and temporal.get("status") == "suspicious_before_start":
+        print("TEMPORAL WARNING: document predates canonical entity start")
+        print(f"  document year: {temporal.get('document_year')}")
+        print(f"  entity start year: {temporal.get('start_year')}")
+        if temporal.get("delta_years") is not None:
+            print(f"  delta years: {temporal.get('delta_years')}")
+        if temporal.get("active_period_note"):
+            print(f"  active-period note: {temporal.get('active_period_note')}")
     print("-" * 88)
     print(row.get("text", ""))
     print("-" * 88)

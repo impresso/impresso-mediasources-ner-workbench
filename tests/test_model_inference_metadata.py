@@ -18,7 +18,7 @@ sys.path.insert(0, str(TRAINING_SRC))
 from mediaagency_modernbert.train import configure_inference_metadata
 
 
-def test_training_config_records_mode_b_and_first_subtoken_decoding() -> None:
+def test_training_config_records_mode_b_and_default_viterbi_decoding() -> None:
     model = SimpleNamespace(config=SimpleNamespace())
 
     configure_inference_metadata(
@@ -30,7 +30,7 @@ def test_training_config_records_mode_b_and_first_subtoken_decoding() -> None:
     assert model.config.annotation_tokenization == "unicode-word-punctuation-v1"
     assert model.config.label_all_tokens is True
     assert model.config.subtoken_labeling == "all_subtokens_b_to_i"
-    assert model.config.subtoken_decoding == "first_subtoken"
+    assert model.config.subtoken_decoding == "first_subtoken_viterbi"
 
 
 def test_stamp_config_supports_already_running_mode_a_training(tmp_path: Path) -> None:
@@ -42,7 +42,7 @@ def test_stamp_config_supports_already_running_mode_a_training(tmp_path: Path) -
 
     assert result["subtoken_labeling"] == "first_subtoken_only"
     assert config["label_all_tokens"] is False
-    assert config["subtoken_decoding"] == "first_subtoken"
+    assert config["subtoken_decoding"] == "first_subtoken_viterbi"
 
 
 def test_dataset_profile_requires_one_declared_profile(tmp_path: Path) -> None:

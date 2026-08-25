@@ -14,6 +14,7 @@ from lib.review_newsagency_snippets import (
     confirm_annotation_finished,
     coverage_priority,
     parse_manual_span,
+    print_review_item,
     prompt_manual_spans,
     prompt_prediction_spans,
     review_loop,
@@ -349,6 +350,100 @@ def test_newsagency_scoring_matches_radio_and_pressagency_aliases(tmp_path: Path
     assert any(span["surface"] == "BBC" and span["label"] == "org.ent.radiostation.bbc" for span in spans)
     assert "radiostation_alias_matcher" in scored["model"]["scorers"]
     assert "pressagency_alias_matcher" in scored["model"]["scorers"]
+
+
+def test_newsagency_scoring_warns_when_document_predates_active_start(tmp_path: Path) -> None:
+    input_path = tmp_path / "newsagency_candidates.jsonl"
+    scored_path = tmp_path / "newsagency_scored.jsonl"
+    agency_seeds_path = tmp_path / "newsagency_seeds.json"
+    radio_seeds_path = tmp_path / "radiostation_seeds.json"
+    agency_seeds_path.write_text(
+        json.dumps(
+            [
+                {
+                    "canonical_id": "akp",
+                    "label": "org.ent.pressagency.akp",
+                    "display_name": "Agence Kampuchea Presse",
+                    "aliases": ["AKP"],
+                    "active_period": {
+                        "start": "1978",
+                        "end": "present",
+                        "note": "Known as SPK from its establishment in 1978.",
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    radio_seeds_path.write_text("[]", encoding="utf-8")
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "akp-too-early",
+                "candidate_label": "org.ent.pressagency.akp",
+                "query": "AKP",
+                "language": "fr",
+                "date": "1975-04-21",
+                "snippet": "AKP Phnom Penh annonce la nouvelle.",
+            }
+        ],
+    )
+
+    score_newsagency_rows(
+        type(
+            "Args",
+            (),
+            {
+                "input": str(input_path),
+                "output": str(scored_path),
+                "model": "",
+                "newsagencies": str(agency_seeds_path),
+                "radiostations": str(radio_seeds_path),
+                "device": "cpu",
+                "max_sequence_len": 512,
+                "auto_accept_min_confidence": 0.99,
+                "auto_accept_min_margin": 0.30,
+                "auto_accept_multiple_min_confidence": 0.99,
+            },
+        )
+    )
+
+    scored = json.loads(scored_path.read_text(encoding="utf-8"))
+    assert scored["temporal_verification"]["status"] == "suspicious_before_start"
+    assert scored["temporal_verification"]["document_year"] == 1975
+    assert scored["temporal_verification"]["start_year"] == 1978
+    assert "suspicious_before_entity_start" in scored["curation"]["reasons"]
+    assert scored["curation"]["status"] == "needs_review"
+
+
+def test_review_item_prints_temporal_warning(capsys: pytest.CaptureFixture[str]) -> None:
+    print_review_item(
+        {
+            "id": "akp-too-early",
+            "candidate_label": "org.ent.pressagency.akp",
+            "query": "AKP",
+            "curation": {"reasons": ["suspicious_before_entity_start"]},
+            "text": "AKP Phnom Penh annonce la nouvelle.",
+            "model": {"predicted_spans": []},
+            "temporal_verification": {
+                "status": "suspicious_before_start",
+                "document_year": 1975,
+                "start_year": 1978,
+                "delta_years": -3,
+                "active_period_note": "Known as SPK from its establishment in 1978.",
+            },
+        },
+        1,
+        1,
+        review_prefix="pressagency-span",
+    )
+
+    output = capsys.readouterr().out
+    assert "TEMPORAL WARNING" in output
+    assert "document year: 1975" in output
+    assert "entity start year: 1978" in output
+    assert "active-period note: Known as SPK from its establishment in 1978." in output
 
 
 def test_newsagency_curation_status_auto_accepts_multiple_very_confident_spans() -> None:
@@ -845,7 +940,7 @@ def test_sample_main_writes_completed_pools_after_keyboard_interrupt(tmp_path: P
     assert data["interrupted_at"] == "org.ent.pressagency.reuters || Reuters || fr"
 
 
-def test_sample_newsagencies_empty_alias_does_not_consume_query_cap(tmp_path: Path, monkeypatch) -> None:
+def test_sample_newsagencies_empty_alias_does_not_consume_query_cap(tmp_path: Path, monkeypatch, capsys) -> None:
     seeds = tmp_path / "seeds.json"
     out = tmp_path / "out.jsonl"
     summary = tmp_path / "summary.json"
@@ -918,6 +1013,10 @@ def test_sample_newsagencies_empty_alias_does_not_consume_query_cap(tmp_path: Pa
     assert attempted == ["dead alias", "CIP Belgien"]
     assert [row["query"] for row in rows] == ["CIP Belgien"]
     assert data["successful_aliases_by_label_language"] == {"org.ent.pressagency.cip || de": 1}
+    assert data["candidate_pool_by_label_language"] == {"org.ent.pressagency.cip || de": 1}
+    output = capsys.readouterr().out
+    assert "collected candidates for this alias/language: 0/1 (selection target=1)" in output
+    assert "cumulative for org.ent.pressagency.cip lang=de: candidate_pool=1, non_empty_aliases=1/1" in output
 
 
 def test_sample_newsagencies_sampling_plan_empty_aliases_do_not_consume_query_cap(
