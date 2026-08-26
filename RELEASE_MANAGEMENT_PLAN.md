@@ -9,7 +9,7 @@ This workbench separates private local work, committed collaborative prereleases
 - A **real release** is an immutable, committed snapshot that records the data used to create the Hugging Face dataset payload.
 - Git stores compact, public-projection prereleases and releases.
 - `staging.d/datasets/...` stores the generated Hugging Face payload shape used for upload.
-- S3 stores the full release hierarchy, including bulky audit/provenance files.
+- External audit storage can store coherent bulky audit/provenance files when available; it is not required for every release.
 - Dataset extension has two axes: **horizontal extension** adds more documents/examples; **vertical extension** adds more entity types or deeper annotations inside existing documents. Release notes and manifests should report these separately.
 
 ## Release Lifecycle
@@ -35,15 +35,23 @@ finalize publication metadata
 published
   |
   v
-archive + promote
+optional archive + promote
   |
   v
 final release
+  |
+  v
+verify published dataset projection
+  |
+  v
+model release cycle
 ```
 
 The key boundary is `ready`: before it, dataset content may change; after it, publication must derive from the accepted committed snapshot.
 
 Operational commands and the complete checklist live in `RELEASE_PROCESS.md`.
+
+Dataset releases and model releases are separate lifecycle steps. A published immutable dataset commit can support one or more later model releases. Model training for a released model should pin the published Hugging Face dataset revision and record model-specific provenance separately from the dataset release.
 
 ## Release Projections
 
@@ -64,6 +72,8 @@ The accepted prerelease is the complete Git source snapshot for a release operat
 | extensions and migration material | no | no | yes |
 
 `DATASET_STATISTICS.md` is dataset-facing release documentation. `DATASET_QUALITY.md` is model/checkpoint-facing diagnostics and stays in the workbench or audit archive.
+
+Post-publication dataset verification compares the Hugging Face payload against the Git final release projection, not against the full Git rows byte-for-byte. The public JSONL projection deliberately omits Git-only provenance such as top-level `legacy` fields and entity-level review/provenance fields. Files such as `label_map.json` should still match exactly.
 
 The release manifest distinguishes the base release from the current publication. `base_release` records the predecessor used to derive the new release. `publication` records the current release's Hugging Face dataset repo, revision, and commit SHA after upload. `audit_archive` records external audit storage when available.
 
@@ -127,7 +137,7 @@ audit.d/
     dataset-v1.0.0/
 ```
 
-External audit storage mirrors the full local audit hierarchy:
+External audit storage can mirror the full local audit hierarchy when the material forms a coherent release record:
 
 ```text
 s3://<audit-bucket>/impresso-mediaagencies-workbench/<release-kind>/<release-id>/
@@ -224,11 +234,11 @@ JSONL rows must be sorted by `document_id` or `id`, and JSON object keys must be
 
 Git prerelease and release snapshots should avoid files above 50 MiB. Files above 100 MiB must not be committed because GitHub rejects them.
 
-## S3 Audit Snapshot
+## External Audit Snapshot
 
-The S3 audit location stores the full prerelease or release hierarchy for temporary or long-term provenance checks.
+An external audit location stores the full prerelease or release hierarchy for temporary or long-term provenance checks. This is optional. It is not a prerequisite for publishing a dataset or model.
 
-It should include:
+When created, it should include:
 
 - the exact HF payload
 - source working inputs used to create the release
@@ -237,16 +247,39 @@ It should include:
 - checksums for every release file
 - validation reports and published Hugging Face revision metadata
 
-The committed `manifest.json` should reference the S3 audit prefix when available, but the prerelease or release must remain understandable without downloading the full audit hierarchy.
+The committed `manifest.json` should reference the external audit prefix when available, but the prerelease or release must remain understandable without downloading the full audit hierarchy.
+
+## Model Release Policy
+
+A model release is derived from a published dataset release, but it is not part of the dataset release itself. Use a separate model release branch and train from the pinned Hugging Face dataset commit that was published and verified.
+
+Released model provenance should record:
+
+- Hugging Face dataset repository and exact dataset commit SHA
+- workbench/training-code Git commit SHA
+- base model identifier and revision
+- training configuration
+- random seed
+- label map
+- tokenization and supervision strategy
+- number of unfrozen layers or equivalent adaptation strategy
+- decoder and evaluation strategy
+- selected checkpoint path
+- validation and test metrics
+- final Hugging Face model repository and commit SHA after publication
+
+Training should write to a fresh model output directory for the release candidate. Evaluation should use the checkpoint's own configured label vocabulary as the decoder contract and validate dataset/model compatibility explicitly.
 
 ## Release Workflow
 
 1. Build and iteratively review a prerelease.
 2. Freeze the accepted candidate as `ready`.
 3. Generate and publish the Hugging Face payload from that snapshot.
-4. Finalize the external audit archive.
+4. Optionally finalize the external audit archive.
 5. Promote the published snapshot to an immutable final release.
 6. Merge the final release to `main` and clean local work.
+7. Verify the published Hugging Face dataset projection against the Git final release.
+8. Train, evaluate, and publish model releases from the pinned published dataset.
 
 See `RELEASE_PROCESS.md` for commands and the complete operational checklist.
 
@@ -255,7 +288,8 @@ See `RELEASE_PROCESS.md` for commands and the complete operational checklist.
 - `make prepare-dataset-release` is implemented. It refreshes release metadata for the configured flat prerelease snapshot, validates the split files, materializes TSV inspection files, and keeps the manifest in `prerelease` status by default. Pass `DATASET_RELEASE_STATUS=ready` only when freezing an accepted candidate.
 - `make finalize-dataset-release` is implemented. It records Hugging Face publication metadata in a ready prerelease and changes manifest status to `published`.
 - `make promote-dataset-release` is implemented. It copies a published prerelease projection to immutable `data/releases/<release-id>/` and refuses existing release directories.
+- `make download-hf-dataset` and `make compare-hf-dataset-release` are implemented for post-publication dataset verification against the Git release projection.
+- `make publish-dataset` stages and uploads the configured committed prerelease or release snapshot. `make finalize-dataset-release` separately records the resulting Hugging Face commit SHA and publication metadata in the manifest.
 - Add explicit freeze metadata, such as the accepted prerelease Git commit SHA, before publication.
 - Extend validation so release preparation also fails on missing manifest-listed files, JSONL sort/key-order drift, unknown labels, and generated files larger than the configured threshold.
 - Add optional S3 audit upload support with a configurable `RELEASE_AUDIT_S3_PREFIX`.
-- `publish-dataset` accepts the configured committed prerelease or release snapshot as input and stages the Hugging Face payload. It still needs support for recording the published Hugging Face revision in the manifest/config.

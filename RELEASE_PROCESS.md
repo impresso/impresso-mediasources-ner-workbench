@@ -155,9 +155,9 @@ After this point, do not run annotation, sampling, snippet integration, TSV repa
 
 ## Publish
 
-## 6. Prepare Audit Material
+## 6. Optionally Prepare Audit Material
 
-Before publication, prepare the full audit hierarchy for S3 or another approved external store.
+If the release has coherent audit/provenance material worth archiving externally, prepare the full audit hierarchy for S3 or another approved external store. External audit archival is optional and is not a prerequisite for dataset or model publication.
 
 Use this shape:
 
@@ -221,9 +221,9 @@ This changes the manifest from `ready` to `published`. Running the same command 
 
 ## Finalize
 
-## 8. Finalize Audit Archive
+## 8. Optionally Finalize Audit Archive
 
-Finalize the audit archive with the published Hugging Face revision metadata and record the S3 prefix in `manifest.json`, if available.
+If an external audit archive exists, finalize it with the published Hugging Face revision metadata and record the archive prefix in `manifest.json`.
 
 ## 9. Promote To Final Release
 
@@ -237,7 +237,7 @@ data/releases/dataset-v2.0.0/
 make promote-dataset-release CFG=configs/model-v2.0.0.mk
 ```
 
-The final release folder should contain the Git final release projection: `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `DATASET_STATISTICS.md`, `dataset_summary.json`, and `manifest.json`. Publication metadata in `manifest.json` may be finalized during promotion.
+The final release folder should contain the Git final release projection: `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `DATASET_STATISTICS.md`, `dataset_summary.json`, and `manifest.json`.
 
 Final release IDs are immutable. Standard release tooling must refuse promotion if `data/releases/dataset-v2.0.0/` already exists. If the published content is wrong, create a patch release such as `dataset-v2.0.1`; do not overwrite `dataset-v2.0.0`.
 
@@ -282,7 +282,7 @@ The release branch and PR history remain the collaboration record for prerelease
 
 ## 11. Clean Local Workbench State
 
-After the final release is committed and audit material is archived externally:
+After the final release is committed and any intended audit material has been archived externally:
 
 ```bash
 make clean-dry-run
@@ -290,3 +290,86 @@ make clean
 ```
 
 `make clean` removes ignored local work and preserves committed `data/prereleases/` and `data/releases/` paths. On `main`, `data/prereleases/` should normally contain only `.gitkeep`.
+
+## Verify Published Dataset
+
+## 12. Verify The Hugging Face Projection
+
+After the dataset release has reached `main`, verify that the published Hugging Face dataset commit materializes to the expected public projection of the Git final release.
+
+Use a verification config pinned to the published Hugging Face dataset commit:
+
+```bash
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk download-hf-dataset
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk compare-hf-dataset-release
+```
+
+The JSONL comparison is projection-aware. The Git final release can retain provenance fields deliberately excluded from the public Hugging Face representation, such as top-level `legacy` fields and entity-level review/provenance fields. `label_map.json` should compare exactly.
+
+## Model Release
+
+## 13. Start A Model Release Branch
+
+Create a separate branch for the model release. Do not modify the immutable dataset release:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git switch -c release/model-v2.0.0
+```
+
+## 14. Train From The Published Dataset
+
+Model release training must use the pinned published Hugging Face dataset, not the mutable prerelease folder and not an accidental local candidate file.
+
+Ensure the exact pinned dataset commit has passed step 12. If the local Hugging Face materialization is absent or its provenance is uncertain, materialize and verify it again:
+
+```bash
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk download-hf-dataset
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk compare-hf-dataset-release
+```
+
+Then run inexpensive validation before training:
+
+```bash
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk validate-jsonl-format
+```
+
+Train into a fresh model directory configured for this model candidate:
+
+```bash
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk train
+```
+
+The model config should record the released dataset revision, the pinned Hugging Face dataset commit, the base model, label-supervision strategy, decoder strategy, and adaptation setting such as the number of unfrozen layers.
+
+## 15. Evaluate And Select The Model
+
+Evaluate validation and test with the release decoder:
+
+```bash
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk test
+```
+
+Record validation metrics, held-out test metrics, the selected checkpoint path, and any diagnostic outputs used to select the model. The decoder must use the checkpoint's configured BIO label vocabulary; the dataset label map must not silently resize or reinitialize the classifier head.
+
+## 16. Publish The Model
+
+Prepare the model card and publication payload from the selected checkpoint. Record at least:
+
+- Hugging Face dataset repository and exact dataset commit SHA
+- workbench/training-code Git commit SHA
+- base model identifier and revision
+- training config
+- random seed
+- label map
+- tokenization and supervision strategy
+- unfrozen layer count or equivalent adaptation strategy
+- decoder and evaluation strategy
+- selected checkpoint
+- validation and test metrics
+- Hugging Face model repository and model commit SHA after publication
+
+Publish the selected checkpoint using the configured model publication workflow. The publication command must upload the selected checkpoint, model card, label configuration, decoding metadata, and training provenance. If no model publication target exists yet, finalize that target before treating this checklist step as complete.
+
+After model publication, commit the model-release metadata and merge the model release branch through the normal PR/review path.
