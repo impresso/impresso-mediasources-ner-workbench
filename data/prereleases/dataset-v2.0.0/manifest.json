@@ -13,8 +13,25 @@
   },
   "dataset_repo": "impresso-project/impresso-mediaagencies-ner-dataset",
   "files": {
+    "git_release": [
+      "train.jsonl",
+      "validation.jsonl",
+      "test.jsonl",
+      "label_map.json",
+      "manifest.json",
+      "dataset_summary.json",
+      "DATASET_STATISTICS.md"
+    ],
     "hf_payload_generated_by": "make publish-dataset",
-    "release_snapshot": [
+    "hf_release": [
+      "train.jsonl",
+      "validation.jsonl",
+      "test.jsonl",
+      "label_map.json",
+      "README.md",
+      "DATASET_STATISTICS.md"
+    ],
+    "prerelease_snapshot": [
       "train.jsonl",
       "validation.jsonl",
       "test.jsonl",
@@ -36,8 +53,13 @@
     ]
   },
   "notes": "Committed dataset release-candidate snapshot. The JSONL files use the compact public training schema. Run make publish-dataset to stage the Hugging Face payload with data/train.jsonl, data/validation.jsonl, and data/test.jsonl.",
+  "publication": {
+    "dataset_repo": "impresso-project/impresso-mediaagencies-ner-dataset",
+    "hf_commit_sha": "a7ac5dc1ec0dd92ae848dbccd258aa0361830da3",
+    "hf_revision": "v2.0.0"
+  },
   "release_id": "dataset-v2.0.0",
-  "status": "ready",
+  "status": "published",
   "summary": {
     "documents_by_split": {
       "test": 458,
@@ -74,6 +96,6 @@
       }
     }
   },
-  "updated_at": "2026-08-26T17:53:38.192167Z",
+  "updated_at": "2026-08-26T18:22:03.001412Z",
   "version": "v2.0.0"
 }
