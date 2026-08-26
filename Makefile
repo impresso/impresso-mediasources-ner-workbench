@@ -1049,4 +1049,4 @@ apply-curation:
 
 push-model:
 	@echo "Pushing the fine-tuned model payload to Hugging Face."
-	$(PYTHON) -m lib.push_model_to_hub --repo-id "$(HF_MODEL)" --model "$(MODEL)" --card hf_model/README.md $(ARGS)
+	$(PYTHON) -m lib.push_model_to_hub --repo-id "$(HF_MODEL_REPO)" --revision "$(HF_MODEL_REVISION)" --model "$(SELECTED_MODEL)" --run-dir "$(MODEL)" --card hf_model/README.md $(ARGS)

@@ -47,3 +47,14 @@ def test_legacy_evaluation_targets_are_compatibility_aliases() -> None:
     assert target_block(text, "test").strip() == "test: evaluate-validation"
     assert target_block(text, "test-official").strip() == "test-official: evaluate-test"
 
+
+def test_push_model_uses_selected_checkpoint_and_remote_repo_variable() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+    block = target_block(text, "push-model")
+
+    assert '--repo-id "$(HF_MODEL_REPO)"' in block
+    assert '--revision "$(HF_MODEL_REVISION)"' in block
+    assert '--model "$(SELECTED_MODEL)"' in block
+    assert '--run-dir "$(MODEL)"' in block
+    assert '--repo-id "$(HF_MODEL)"' not in block
+    assert '--model "$(MODEL)"' not in block
