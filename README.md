@@ -17,6 +17,32 @@ sample new material -> pre-annotate -> review candidates -> update prerelease
 
 The workbench follows the control-plane pattern used by `impresso-frakturline-classifier-workbench`: code, curation tools, release configs, tests, and source Hugging Face cards live here; published datasets, test sets, and model payloads live on Hugging Face.
 
+## Released Versions
+
+### v2.0.0
+
+Dataset and model v2.0.0 were released in August 2026.
+
+**Dataset**
+
+- Repository: `impresso-project/impresso-mediaagencies-ner-dataset`
+- Revision: `v2.0.0`
+- Hugging Face commit: `a7ac5dc1ec0dd92ae848dbccd258aa0361830da3`
+- Git release snapshot: `data/releases/dataset-v2.0.0/`
+- Published dataset was verified against the Git release using the public-projection comparison workflow.
+
+**Model**
+
+- Repository: `impresso-project/mmbert-impresso-mediasources-ner`
+- Revision: `v2.0.0`
+- Hugging Face commit: `9899ad960b9bc310ee51cd7ee658fd3882b6b140`
+- Base model: `impresso-project/mmbert-multilingual-impresso-continued-mlm`
+- Selected-checkpoint validation entity F1: `0.9285`
+- Held-out test entity F1: `0.8981`
+- Decoder: `first_subtoken_viterbi`
+
+The released model was trained from the pinned published v2.0.0 dataset. Detailed model provenance is recorded in `hf_model/model_provenance.json`.
+
 ## Scope
 
 - One joint token-classification model.

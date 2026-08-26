@@ -375,3 +375,17 @@ For v2.0.0, the completed training run did not record a training-code Git SHA in
 Publish the selected checkpoint using the configured model publication workflow. The publication command must upload the selected checkpoint, model card, label configuration, decoding metadata, and training provenance. If no model publication target exists yet, finalize that target before treating this checklist step as complete.
 
 After model publication, commit the model-release metadata and merge the model release branch through the normal PR/review path.
+
+## 17. Close The Model Release
+
+After the model release branch has been reviewed and merged:
+
+1. Verify that `main` contains the model-release commits.
+2. Delete the local and remote model-release branch.
+3. Verify that the working tree is clean.
+4. Run `make clean-dry-run`.
+5. When the generated/local state is no longer needed, run `make clean`.
+
+Cleanup removes ignored workbench state such as downloaded Hugging Face materializations, trained model directories, reports, caches, staging directories, and local curation state. It does not remove committed immutable dataset releases.
+
+After cleanup, `main` with a clean working tree is the baseline for the next development or release cycle.
