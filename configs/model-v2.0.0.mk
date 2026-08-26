@@ -1,19 +1,19 @@
-# Active prerelease config for dataset-v2.0.0.
+# Released dataset config for dataset-v2.0.0.
 #
-# v2.x.x is self-contained: it uses the v2 prerelease dataset, v2 model
-# artifact, and v2 checker label map. It is not the published HF revision yet.
+# v2.x.x is self-contained: it uses the immutable v2 release dataset, v2 model
+# artifact, and v2 checker label map.
 
 include configs/common.mk
 
 MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0
 SELECTED_MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0/best
-DATASET_SOURCE_DIR = data/prereleases/dataset-v2.0.0
 DATASET_REVISION = v2.0.0
 DATASET_TSV_COMPARE_VERSION = v1.0.0
-TRAIN_JSONL = data/prereleases/dataset-v2.0.0/train.jsonl
-VALIDATION_JSONL = data/prereleases/dataset-v2.0.0/validation.jsonl
-TEST_JSONL = data/prereleases/dataset-v2.0.0/test.jsonl
-LABEL_MAP = data/prereleases/dataset-v2.0.0/label_map.json
+DATASET_SOURCE_DIR = data/releases/dataset-v2.0.0
+TRAIN_JSONL = $(DATASET_SOURCE_DIR)/train.jsonl
+VALIDATION_JSONL = $(DATASET_SOURCE_DIR)/validation.jsonl
+TEST_JSONL = $(DATASET_SOURCE_DIR)/test.jsonl
+LABEL_MAP = $(DATASET_SOURCE_DIR)/label_map.json
 HF_MODEL = $(SELECTED_MODEL)
 CURATION_MODEL = $(SELECTED_MODEL)
 CURATION_LABEL_MAP = $(LABEL_MAP)
