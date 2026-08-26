@@ -318,13 +318,13 @@ By default `IMPRESSO_PERSISTED_TOKEN=false`, so the `impresso` client prompts fo
 
 ## Publish Dataset
 
-The training dataset publisher prepares a Hugging Face-ready directory from the curated JSONL without uploading by default:
+The training dataset publisher prepares a Hugging Face-ready projection from the configured dataset source without uploading by default:
 
 ```bash
 make publish-dataset
 ```
 
-By default this reads `data/curated/legacy-import-curated/` and writes `staging.d/datasets/impresso-mediaagencies-ner-dataset/` with:
+By default this reads the dataset source configured by `CFG` and writes `staging.d/datasets/impresso-mediaagencies-ner-dataset/` with:
 
 ```text
 README.md
@@ -332,10 +332,7 @@ data/train.jsonl
 data/validation.jsonl
 data/test.jsonl
 label_map.json
-dataset_summary.json
-audit/curation_summary.json
-audit/curation_changes.jsonl
-audit/curation_changes_tags.tsv
+DATASET_STATISTICS.md
 ```
 
 The publisher validates entity labels against `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`. To upload after inspecting the staged directory:

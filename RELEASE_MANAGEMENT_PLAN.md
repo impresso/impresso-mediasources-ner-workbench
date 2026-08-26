@@ -42,6 +42,26 @@ The key boundary is `ready`: before it, dataset content may change; after it, pu
 
 Operational commands and the complete checklist live in `RELEASE_PROCESS.md`.
 
+## Release Projections
+
+The accepted prerelease is the complete Git source snapshot for a release operation. Hugging Face publication, final Git promotion, and audit archival derive purpose-specific projections from that snapshot.
+
+| Artifact | HF dataset | Git final release | Workbench/audit |
+| --- | --- | --- | --- |
+| `train.jsonl` | yes | yes | yes |
+| `validation.jsonl` | yes | yes | yes |
+| `test.jsonl` | yes | yes | yes |
+| `label_map.json` | yes | yes | yes |
+| `DATASET_STATISTICS.md` | yes | yes | yes |
+| `dataset_summary.json` | no | yes | yes |
+| `manifest.json` | no | yes | yes |
+| `DATASET_QUALITY.md` | no | no | yes |
+| curation operation files | no | no | yes |
+| `tsv/` materializations | no | no | yes |
+| extensions and migration material | no | no | yes |
+
+`DATASET_STATISTICS.md` is dataset-facing release documentation. `DATASET_QUALITY.md` is model/checkpoint-facing diagnostics and stays in the workbench or audit archive.
+
 ## Dataset Version Policy
 
 Dataset versions use semantic major versions for entity-family scope:
@@ -191,7 +211,7 @@ manifest.json
 DATASET_STATISTICS.md
 ```
 
-Recommended committed inspection files include `DATASET_QUALITY.md`, `tsv/train.tsv`, `tsv/validation.tsv`, and `tsv/test.tsv`.
+Recommended prerelease inspection files include `DATASET_QUALITY.md`, `tsv/train.tsv`, `tsv/validation.tsv`, and `tsv/test.tsv`. These files are useful during review but are not part of the HF dataset or immutable Git final release projections.
 
 Rows must use the public projection used by `lib.publish_dataset`: keep training fields and compact legacy trace fields; exclude local-only fields such as `segments`, `sentences`, `token_render`, `token_nel`, `token_ocr`, and `token_segment_ids`.
 

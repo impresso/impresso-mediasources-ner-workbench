@@ -88,6 +88,8 @@ token_segment_ids
 
 Keep bulky provenance in `audit.d/` or S3, not in git.
 
+`DATASET_QUALITY.md` and `tsv/` are prerelease review aids. They are not part of the Hugging Face dataset payload or the immutable Git final release projection.
+
 ## 4. Validate The Prerelease
 
 Before committing prerelease updates, check:
@@ -217,13 +219,17 @@ Finalize the audit archive with the published Hugging Face revision metadata and
 
 ## 9. Promote To Final Release
 
-Copy the accepted prerelease to the final release folder:
+Project the accepted prerelease to the final release folder:
 
 ```text
 data/releases/dataset-v2.0.0/
 ```
 
-The final release folder should contain the same flat committed dataset content and generated metadata that were used to stage the Hugging Face payload. Publication metadata in `manifest.json` may be finalized during promotion.
+```bash
+make promote-dataset-release CFG=configs/model-v2.0.0.mk
+```
+
+The final release folder should contain the Git final release projection: `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `DATASET_STATISTICS.md`, `dataset_summary.json`, and `manifest.json`. Publication metadata in `manifest.json` may be finalized during promotion.
 
 Final release IDs are immutable. Standard release tooling must refuse promotion if `data/releases/dataset-v2.0.0/` already exists. If the published content is wrong, create a patch release such as `dataset-v2.0.1`; do not overwrite `dataset-v2.0.0`.
 
