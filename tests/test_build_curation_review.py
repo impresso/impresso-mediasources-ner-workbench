@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from lib.build_curation_review import build_disagreements, context, selected_split_inputs, stable_review_id, summarize
+from lib.build_curation_review import (
+    build_disagreements,
+    context,
+    parse_args,
+    selected_split_inputs,
+    stable_review_id,
+    summarize,
+)
 
 
 def test_build_disagreements_groups_overlap_and_extra_prediction() -> None:
@@ -51,6 +58,45 @@ def test_build_disagreements_groups_overlap_and_extra_prediction() -> None:
     assert summarize(rows)["by_status"] == {"todo": 2}
 
 
+def test_build_disagreements_groups_all_predictions_overlapping_one_gold_span() -> None:
+    source_rows = [
+        {
+            "id": "doc1",
+            "language": "fr",
+            "tokens": ["Agence", "Wolff", "annonce"],
+            "token_start_offsets": [0, 7, 13],
+            "token_end_offsets": [6, 12, 20],
+            "text": "Agence Wolff annonce",
+        }
+    ]
+    prediction_rows = [
+        {
+            "id": "doc1",
+            "gold_labels": ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff", "O"],
+            "pred_labels": ["B-org.ent.pressagency.reuters", "I-org.ent.pressagency.wolff", "O"],
+        }
+    ]
+
+    rows = build_disagreements(
+        "validation",
+        source_rows,
+        prediction_rows,
+        languages={"fr"},
+        context_radius=1,
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["issue_type"] == "span_or_label_mismatch"
+    assert [(span["token_start"], span["token_stop"], span["label"]) for span in rows[0]["gold_spans"]] == [
+        (0, 2, "org.ent.pressagency.wolff")
+    ]
+    assert [(span["token_start"], span["token_stop"], span["label"]) for span in rows[0]["prediction_spans"]] == [
+        (0, 1, "org.ent.pressagency.reuters"),
+        (1, 2, "org.ent.pressagency.wolff"),
+    ]
+    assert rows[0]["prediction"] is None
+
+
 def test_build_disagreements_filters_languages() -> None:
     source_rows = [{"id": "doc1", "language": "lb", "tokens": ["Havas"]}]
     prediction_rows = [{"id": "doc1", "gold_labels": ["B-org.ent.pressagency.havas"], "pred_labels": ["O"]}]
@@ -60,6 +106,53 @@ def test_build_disagreements_filters_languages() -> None:
         source_rows,
         prediction_rows,
         languages={"de", "fr"},
+        context_radius=1,
+    )
+
+    assert rows == []
+
+
+def test_build_disagreements_omits_exact_gold_prediction_agreement() -> None:
+    source_rows = [{"id": "doc1", "language": "fr", "tokens": ["Agence", "Wolff"]}]
+    labels = ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff"]
+    prediction_rows = [{"id": "doc1", "gold_labels": labels, "pred_labels": labels}]
+
+    rows = build_disagreements(
+        "validation",
+        source_rows,
+        prediction_rows,
+        languages={"fr"},
+        context_radius=1,
+    )
+
+    assert rows == []
+
+
+def test_build_disagreements_merges_adjacent_predictions_with_same_label() -> None:
+    source_rows = [
+        {
+            "id": "doc1",
+            "language": "en",
+            "tokens": ["Vatican", "Radio"],
+            "token_start_offsets": [0, 8],
+            "token_end_offsets": [7, 13],
+            "text": "Vatican Radio",
+        }
+    ]
+    label = "org.ent.radiostation.vatican-radio"
+    prediction_rows = [
+        {
+            "id": "doc1",
+            "gold_labels": [f"B-{label}", f"I-{label}"],
+            "pred_labels": [f"B-{label}", f"B-{label}"],
+        }
+    ]
+
+    rows = build_disagreements(
+        "test",
+        source_rows,
+        prediction_rows,
+        languages={"en"},
         context_radius=1,
     )
 
@@ -113,6 +206,8 @@ def test_context_uses_natural_text_offsets_without_synthetic_spaces() -> None:
 def test_selected_split_inputs_accepts_test_only() -> None:
     args = argparse.Namespace(
         splits="test",
+        train_jsonl="",
+        train_predictions="",
         validation_jsonl="",
         validation_predictions="",
         test_jsonl="test.jsonl",
@@ -122,9 +217,25 @@ def test_selected_split_inputs_accepts_test_only() -> None:
     assert selected_split_inputs(args) == [("test", Path("test.jsonl"), Path("test_predictions.jsonl"))]
 
 
+def test_selected_split_inputs_accepts_train_only() -> None:
+    args = argparse.Namespace(
+        splits="train",
+        train_jsonl="train.jsonl",
+        train_predictions="train_predictions.jsonl",
+        validation_jsonl="",
+        validation_predictions="",
+        test_jsonl="",
+        test_predictions="",
+    )
+
+    assert selected_split_inputs(args) == [("train", Path("train.jsonl"), Path("train_predictions.jsonl"))]
+
+
 def test_selected_split_inputs_requires_requested_paths() -> None:
     args = argparse.Namespace(
         splits="validation",
+        train_jsonl="train.jsonl",
+        train_predictions="train_predictions.jsonl",
         validation_jsonl="",
         validation_predictions="",
         test_jsonl="test.jsonl",
@@ -133,3 +244,9 @@ def test_selected_split_inputs_requires_requested_paths() -> None:
 
     with pytest.raises(ValueError, match="validation requires"):
         selected_split_inputs(args)
+
+
+def test_parse_args_defaults_to_all_dataset_splits() -> None:
+    args = parse_args(["--output-dir", "review"])
+
+    assert args.splits == "train validation test"

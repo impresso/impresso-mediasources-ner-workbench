@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REF="${1:-HEAD}"
+SPLIT="${2:-train}"
+TSV_DIR="${TSV_DIR:-data/prereleases/dataset-v2.0.0/tsv}"
+TSV_FILE="${TSV_DIR}/${SPLIT}.tsv"
+MATERIALIZE_TSV_TARGET="${MATERIALIZE_TSV_TARGET:-materialize-dataset-tsv-quiet}"
+BCOMPARE="${BCOMPARE:-bcompare}"
+KEEP_UNTIL_ENTER="${KEEP_UNTIL_ENTER:-true}"
+
+case "$SPLIT" in
+  train|validation|test) ;;
+  *)
+    echo "Unsupported split: $SPLIT" >&2
+    echo "Expected one of: train, validation, test" >&2
+    exit 2
+    ;;
+esac
+
+repo_root="$(git rev-parse --show-toplevel)"
+repo_name="$(basename "$repo_root")"
+safe_ref="${REF//\//_}"
+tmpdir="$(mktemp -d "/tmp/${repo_name}-${safe_ref}-XXXXXX")"
+
+cleanup() {
+  git -C "$repo_root" worktree remove --force "$tmpdir" >/dev/null 2>&1 || rm -rf "$tmpdir"
+}
+trap cleanup EXIT
+
+echo "Creating temporary worktree for ${REF}..."
+git -C "$repo_root" worktree add --detach "$tmpdir" "$REF" >/dev/null
+
+echo "Materializing TSVs in temporary worktree..."
+make -C "$tmpdir" "$MATERIALIZE_TSV_TARGET"
+
+old_file="$tmpdir/$TSV_FILE"
+new_file="$repo_root/$TSV_FILE"
+
+if [[ ! -f "$old_file" ]]; then
+  echo "Missing generated file in temporary worktree: $old_file" >&2
+  exit 1
+fi
+
+if [[ ! -f "$new_file" ]]; then
+  echo "Missing current generated file: $new_file" >&2
+  echo "Run: make materialize-dataset-tsv" >&2
+  exit 1
+fi
+
+echo "Comparing:"
+echo "  OLD: $REF:$TSV_FILE"
+echo "  NEW: working tree:$TSV_FILE"
+"$BCOMPARE" \
+  -title1="${REF}:${TSV_FILE}" \
+  -title2="working-tree:${TSV_FILE}" \
+  "$old_file" \
+  "$new_file"
+
+if [[ "$KEEP_UNTIL_ENTER" == "true" && -t 0 ]]; then
+  echo
+  echo "Temporary worktree is still available at:"
+  echo "  $tmpdir"
+  echo "Close or finish inspecting Beyond Compare, then press Enter to remove it."
+  read -r _
+fi

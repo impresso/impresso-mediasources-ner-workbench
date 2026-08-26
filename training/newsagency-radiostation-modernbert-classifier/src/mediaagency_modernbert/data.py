@@ -15,28 +15,55 @@ class Window:
     label_ids: list[int]
 
 
-def load_jsonl(path: str | Path) -> list[dict[str, Any]]:
+def load_jsonl(
+    path: str | Path,
+    label_map: dict[str, Any] | None = None,
+    *,
+    unknown_label_id: int | None = None,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    label2id = {str(label): int(label_id) for label, label_id in label_map["label2id"].items()} if label_map else None
     with Path(path).open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
             line = line.strip()
             if not line:
                 continue
             row = json.loads(line)
-            validate_row(row, path, line_number)
+            validate_row(row, path, line_number, label2id=label2id, unknown_label_id=unknown_label_id)
             rows.append(row)
     return rows
 
 
-def validate_row(row: dict[str, Any], path: str | Path, line_number: int) -> None:
-    required = ["id", "tokens", "token_labels", "token_label_ids"]
+def validate_row(
+    row: dict[str, Any],
+    path: str | Path,
+    line_number: int,
+    *,
+    label2id: dict[str, int] | None = None,
+    unknown_label_id: int | None = None,
+) -> None:
+    required = ["id", "tokens", "token_labels"]
     missing = [field for field in required if field not in row]
     if missing:
         raise ValueError(f"{path}:{line_number}: missing fields: {', '.join(missing)}")
     token_count = len(row["tokens"])
-    for field in ["token_labels", "token_label_ids"]:
+    for field in ["token_labels"]:
         if len(row[field]) != token_count:
             raise ValueError(f"{path}:{line_number}: {field} length does not match tokens")
+    if "token_label_ids" not in row:
+        if label2id is None:
+            raise ValueError(f"{path}:{line_number}: missing fields: token_label_ids")
+        row["token_label_ids"] = []
+        for label in row["token_labels"]:
+            label = str(label)
+            if label in label2id:
+                row["token_label_ids"].append(label2id[label])
+            elif unknown_label_id is not None:
+                row["token_label_ids"].append(unknown_label_id)
+            else:
+                raise ValueError(f"{path}:{line_number}: token label missing from label map: {label}")
+    if len(row["token_label_ids"]) != token_count:
+        raise ValueError(f"{path}:{line_number}: token_label_ids length does not match tokens")
 
 
 def load_label_map(path: str | Path) -> dict[str, Any]:

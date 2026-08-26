@@ -21,8 +21,10 @@ For example, adding more French `org.ent.pressagency.havas` examples is horizont
 The span-patch review workflow supports vertical extension and missed-annotation repair:
 
 ```text
-audit candidates -> review span patches -> append decisions -> apply patches -> refresh prerelease
+audit candidates -> review span patches -> append decisions -> apply patches -> promote patched split
 ```
+
+For systematic boundary checks of already annotated entities, use the existing-span audit variant. It extracts every occurrence of one target label, reuses the span-patch review interface, and lets the curator verify unchanged spans, correct boundaries, or remove invalid annotations.
 
 See `DATASET_EXTENSION_PLAN.md` for the operational model.
 
@@ -46,6 +48,10 @@ data/prereleases/<dataset-version>/
 ```
 
 Update that prerelease in place as the candidate changes, so collaborators can review normal git diffs.
+
+Span-patch decisions are **applied** to a local patched split first. The prerelease only changes after `make promote-span-patches` **promotes** the patched output into the configured prerelease/source split. `make refresh-span-patches` is a convenience shortcut that applies and then promotes in one step.
+
+Snippet review follows the same boundary. `make export-newsagency-snippets` and `make export-radiostation-snippets` **export** reviewed decisions to ignored working JSONL files under `data/curated/snippets/`. The prerelease only changes after `make promote-snippets` **promotes** those exported rows into the configured dataset splits. `make refresh-snippets` is a convenience shortcut that exports and then promotes in one step.
 
 When the dataset is published, promote the accepted prerelease to an immutable release snapshot under:
 

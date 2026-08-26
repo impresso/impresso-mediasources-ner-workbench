@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from lib.build_curation_review import natural_text
-from lib.import_legacy_hipe_tsv import fill_label_ids, make_label_map, validate_public_row
+from lib.import_legacy_hipe_tsv import make_label_map
 
 
 CORRECTION_RE = re.compile(
@@ -66,6 +66,20 @@ def span_from_entity(entity: dict[str, Any] | None) -> Span | None:
     return Span(int(entity["token_start"]), int(entity["token_stop"]), str(entity["label"]))
 
 
+def side_spans(item: dict[str, Any], side: str) -> list[Span]:
+    plural = item.get(f"{side}_spans")
+    if isinstance(plural, list):
+        spans = []
+        for entity in plural:
+            if isinstance(entity, dict):
+                span = span_from_entity(entity)
+                if span is not None:
+                    spans.append(span)
+        return spans
+    span = span_from_entity(item.get(side))
+    return [span] if span is not None else []
+
+
 def parse_correction(notes: str) -> Span | None:
     match = CORRECTION_RE.search(notes or "")
     if not match:
@@ -75,6 +89,22 @@ def parse_correction(notes: str) -> Span | None:
     if start >= stop:
         raise ValueError(f"invalid correction span {start}:{stop}")
     return Span(start, stop, match.group("label"))
+
+
+def spans_from_decision(decision: dict[str, Any]) -> list[Span]:
+    spans = []
+    raw_spans = decision.get("accepted_spans")
+    if not isinstance(raw_spans, list):
+        return spans
+    for raw_span in raw_spans:
+        if not isinstance(raw_span, dict):
+            continue
+        start = int(raw_span["token_start"])
+        stop = int(raw_span["token_stop"])
+        if start >= stop:
+            raise ValueError(f"invalid manual span {start}:{stop}")
+        spans.append(Span(start, stop, str(raw_span["label"])))
+    return spans
 
 
 def entity_to_span(entity: dict[str, Any]) -> Span:
@@ -102,34 +132,43 @@ def add_span(spans: list[Span], span: Span) -> list[Span]:
 
 
 def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, Any]) -> tuple[list[Span], dict[str, Any]]:
-    gold = span_from_entity(item.get("gold"))
-    prediction = span_from_entity(item.get("prediction"))
-    correction = parse_correction(str(decision.get("notes", "")))
+    gold_spans = side_spans(item, "gold")
+    prediction_spans = side_spans(item, "prediction")
+    displayed_spans = [*gold_spans, *prediction_spans]
+    manual_spans = spans_from_decision(decision)
+    correction = manual_spans[0] if len(manual_spans) == 1 else parse_correction(str(decision.get("notes", "")))
     choice = decision.get("choice")
     before = sorted(spans, key=lambda span: (span.token_start, span.token_stop, span.label))
     action = "unchanged"
 
     if choice == "gold":
         if correction:
-            spans = remove_overlapping(spans, [gold, prediction, correction])
+            spans = remove_overlapping(spans, [*displayed_spans, correction])
             spans = add_span(spans, correction)
             action = "replaced_with_correction"
-        elif gold is None:
-            spans = remove_overlapping(spans, [prediction])
+        elif not gold_spans:
+            spans = remove_overlapping(spans, prediction_spans)
             action = "accepted_empty_gold"
         else:
+            spans = remove_overlapping(spans, displayed_spans)
+            for gold in gold_spans:
+                spans = add_span(spans, gold)
             action = "kept_gold"
     elif choice == "prediction":
-        target = correction or prediction
-        if target is None:
-            spans = remove_overlapping(spans, [gold])
+        if correction:
+            targets = [correction]
+        else:
+            targets = prediction_spans
+        if not targets:
+            spans = remove_overlapping(spans, gold_spans)
             action = "accepted_empty_prediction"
         else:
-            spans = remove_overlapping(spans, [gold, prediction, target])
-            spans = add_span(spans, target)
+            spans = remove_overlapping(spans, [*displayed_spans, *targets])
+            for target in targets:
+                spans = add_span(spans, target)
             action = "accepted_prediction" if correction is None else "accepted_prediction_correction"
     elif choice == "neither":
-        spans = remove_overlapping(spans, [gold, prediction])
+        spans = remove_overlapping(spans, displayed_spans)
         if correction:
             spans = remove_overlapping(spans, [correction])
             spans = add_span(spans, correction)
@@ -137,13 +176,20 @@ def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, 
         else:
             action = "removed_displayed_spans"
     elif choice == "both":
-        targets = [span for span in [gold, prediction, correction] if span is not None]
+        targets = [*displayed_spans, *([correction] if correction else [])]
         if not targets:
             raise ValueError(f"{item['review_id']}: choice=both but no spans are available")
-        spans = remove_overlapping(spans, [prediction, correction])
+        spans = remove_overlapping(spans, [*prediction_spans, correction])
         for target in targets:
             spans = add_span(spans, target)
         action = "kept_both"
+    elif choice == "manual":
+        if not manual_spans:
+            raise ValueError(f"{item['review_id']}: choice=manual but accepted_spans is empty")
+        spans = remove_overlapping(spans, [*displayed_spans, *manual_spans])
+        for manual_span in manual_spans:
+            spans = add_span(spans, manual_span)
+        action = "manual_correction"
     elif choice == "skip":
         action = "ignored"
     else:
@@ -157,9 +203,12 @@ def apply_decision(spans: list[Span], item: dict[str, Any], decision: dict[str, 
         "choice": choice,
         "action": action,
         "focus": {
-            "gold": gold.__dict__ if gold else None,
-            "prediction": prediction.__dict__ if prediction else None,
+            "gold": gold_spans[0].__dict__ if len(gold_spans) == 1 else None,
+            "prediction": prediction_spans[0].__dict__ if len(prediction_spans) == 1 else None,
+            "gold_spans": [span.__dict__ for span in gold_spans],
+            "prediction_spans": [span.__dict__ for span in prediction_spans],
             "correction": correction.__dict__ if correction else None,
+            "manual_spans": [span.__dict__ for span in manual_spans],
         },
         "before": [span.__dict__ for span in before],
         "after": [span.__dict__ for span in after],
@@ -210,6 +259,36 @@ def rebuild_row(row: dict[str, Any], spans: list[Span]) -> dict[str, Any]:
     out["token_labels"] = labels
     out["entities"] = entities
     return out
+
+
+def validate_output_row(row: dict[str, Any], label_map: dict[str, Any]) -> None:
+    token_count = len(row["tokens"])
+    for field_name in ["token_start_offsets", "token_end_offsets", "token_labels"]:
+        if len(row[field_name]) != token_count:
+            raise ValueError(f"{row['id']}: {field_name} length does not match tokens")
+    if "token_label_ids" in row and len(row["token_label_ids"]) != token_count:
+        raise ValueError(f"{row['id']}: token_label_ids length does not match tokens")
+    for token, start, stop in zip(row["tokens"], row["token_start_offsets"], row["token_end_offsets"], strict=True):
+        if row["text"][start:stop] != token:
+            raise ValueError(f"{row['id']}: token offset mismatch for {token!r}")
+    label2id = label_map["label2id"]
+    for index, label in enumerate(row["token_labels"]):
+        if label not in label2id:
+            raise ValueError(f"{row['id']}: token label missing from label map: {label}")
+        if "token_label_ids" in row and row["token_label_ids"][index] != label2id[label]:
+            raise ValueError(f"{row['id']}: token_label_ids mismatch")
+        validate_allowed_label(row["id"], label)
+    for entity in row["entities"]:
+        if row["text"][entity["start"] : entity["stop"]] != entity["surface"]:
+            raise ValueError(f"{row['id']}: entity surface mismatch")
+        validate_allowed_label(row["id"], str(entity["label"]))
+
+
+def validate_allowed_label(row_id: str, label: str) -> None:
+    lowered = label.lower()
+    base = lowered[2:] if lowered.startswith(("b-", "i-")) else lowered
+    if base in {"org.ent.pressagency.unk", "org.ent.pressagency.ag", "pers.ind.articleauthor"}:
+        raise ValueError(f"{row_id}: forbidden public label {label}")
 
 
 def entity_family(label: str) -> str:
@@ -267,9 +346,12 @@ def apply_curation(
         all_rows.extend(output_rows)
 
     label_map = make_label_map(all_rows)
-    fill_label_ids(all_rows, label_map)
+    label2id = label_map["label2id"]
     for row in all_rows:
-        validate_public_row(row, label_map)
+        if "token_label_ids" in row:
+            row["token_label_ids"] = [label2id[label] for label in row["token_labels"]]
+    for row in all_rows:
+        validate_output_row(row, label_map)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for split, output_rows in output_rows_by_split.items():
@@ -329,6 +411,9 @@ def focus_window(audit: dict[str, Any], token_count: int, *, radius: int) -> tup
         value = audit.get("focus", {}).get(key)
         if value:
             spans.append((int(value["token_start"]), int(value["token_stop"])))
+    for key in ("gold_spans", "prediction_spans", "manual_spans"):
+        for value in audit.get("focus", {}).get(key, []):
+            spans.append((int(value["token_start"]), int(value["token_stop"])))
     for key in ("before", "after"):
         for value in audit.get(key, []):
             spans.append((int(value["token_start"]), int(value["token_stop"])))
@@ -345,7 +430,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--disagreements", required=True)
     parser.add_argument("--decisions", required=True)
-    parser.add_argument("--splits", default="validation test")
+    parser.add_argument("--splits", default="train validation test")
     parser.add_argument("--require-complete", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args(argv)
 

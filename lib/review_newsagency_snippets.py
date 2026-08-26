@@ -9,11 +9,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import review_ui
 from .snippet_data import append_jsonl, latest_decisions, load_jsonl, write_jsonl
 
 
 CLEAR_SCREEN = "\033[2J\033[H"
-CHOICES = {"a": "accepted", "r": "rejected", "s": "skipped", "m": "accepted"}
+CHOICES = {"a": "accepted", "A": "accepted", "r": "rejected", "s": "skipped", "m": "accepted"}
 FINAL_STATUSES = {"accepted", "rejected", "removed"}
 SPAN_RE = re.compile(r"^(?P<start>\d+):(?P<stop>\d+)\s+(?P<label>\S+)$")
 NUMBERED_TOKEN_RE = re.compile(r"(?P<index>\d+):(?P<token>\S+)")
@@ -86,8 +87,7 @@ def coverage_priority(row: dict[str, Any], coverage: dict[str, dict[str, Any]]) 
 
 
 def clear_screen() -> None:
-    if sys.stdout.isatty() and os.environ.get("TERM") not in {"", "dumb"}:
-        print(CLEAR_SCREEN, end="")
+    review_ui.clear_screen()
 
 
 def review_id(row: dict[str, Any], *, prefix: str = "newsagency-snippet") -> str:
@@ -102,29 +102,23 @@ def prediction_spans(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def span_line(span: dict[str, Any], index: int) -> str:
+    confidence = span.get("confidence")
+    margin = span.get("margin")
+    confidence_text = f"{float(confidence):.3f}" if confidence is not None else "-"
+    margin_text = f"{float(margin):.3f}" if margin is not None else "-"
     return (
         f"{index}: {span.get('token_start')}:{span.get('token_stop')} "
         f"{span.get('surface', '')} [{span.get('label', '')}] "
-        f"conf={float(span.get('confidence', 0.0)):.3f} margin={float(span.get('margin', 0.0)):.3f}"
+        f"conf={confidence_text} margin={margin_text}"
     )
 
 
 def numbered_tokens(row: dict[str, Any]) -> str:
-    return " ".join(f"{index}:{token}" for index, token in enumerate(row.get("tokens", [])))
+    return review_ui.numbered_tokens(row)
 
 
 def load_label_metadata(path: Path) -> dict[str, dict[str, Any]]:
-    paths = [path, DEFAULT_LABEL_METADATA, *EXTRA_DEFAULT_LABEL_METADATA]
-    metadata: dict[str, dict[str, Any]] = {}
-    for current_path in paths:
-        if not current_path.is_file():
-            continue
-        rows = json.loads(current_path.read_text(encoding="utf-8"))
-        for row in rows:
-            label = str(row.get("label") or "")
-            if label and label not in metadata:
-                metadata[label] = row
-    return metadata
+    return review_ui.load_label_metadata(path)
 
 
 def impresso_article_id(row: dict[str, Any]) -> str:
@@ -177,7 +171,7 @@ def print_label_info(
     if source_path:
         print(f"  source file: {source_path}")
     if article_id:
-        print(f"  impresso article: https://impresso-project.ch/app/article/{article_id}")
+        print(f"  impresso article: https://impresso-project.ch/app/content-item/{article_id}")
     for current_label in labels:
         row_info = label_metadata.get(current_label)
         print(f"  label: {current_label}")
@@ -194,6 +188,7 @@ def print_label_info(
             print(f"    description: {row_info['description']}")
         if row_info.get("annotation_note"):
             print(f"    annotation note: {row_info['annotation_note']}")
+        review_ui.print_mention_profile(row_info)
         aliases_by_language = row_info.get("aliases_by_language") or {}
         for lang in ("de", "fr", "en"):
             if aliases_by_language.get(lang):
@@ -212,10 +207,21 @@ def print_label_info(
 
 def print_review_item(row: dict[str, Any], index: int, total: int, *, review_prefix: str = "newsagency-snippet") -> None:
     print("\n" + "=" * 88)
-    print(f"{index}/{total} {review_id(row, prefix=review_prefix)}")
+    article_id = impresso_article_id(row)
+    article_url = f" https://impresso-project.ch/app/content-item/{article_id}" if article_id else ""
+    print(f"{index}/{total} {review_id(row, prefix=review_prefix)}{article_url}")
     print(f"query: {row.get('query', '')}")
     print(f"candidate label: {row.get('candidate_label') or row.get('curation', {}).get('label') or ''}")
     print(f"reasons: {', '.join(row.get('curation', {}).get('reasons', []))}")
+    temporal = row.get("temporal_verification")
+    if isinstance(temporal, dict) and temporal.get("status") == "suspicious_before_start":
+        print("TEMPORAL WARNING: document predates canonical entity start")
+        print(f"  document year: {temporal.get('document_year')}")
+        print(f"  entity start year: {temporal.get('start_year')}")
+        if temporal.get("delta_years") is not None:
+            print(f"  delta years: {temporal.get('delta_years')}")
+        if temporal.get("active_period_note"):
+            print(f"  active-period note: {temporal.get('active_period_note')}")
     print("-" * 88)
     print(row.get("text", ""))
     print("-" * 88)
@@ -227,53 +233,23 @@ def print_review_item(row: dict[str, Any], index: int, total: int, *, review_pre
     else:
         print("predicted spans: <none>")
     print("choice meaning:")
-    print("  a = accept/review suggested spans; m = enter manual span(s)")
+    print("  a = accept/review suggested spans; A = accept all suggested spans")
+    print("  m = enter manual span(s)")
     print("  r = reject suggested annotation for this item; s = skip temporarily")
     print("  R = remove this sample permanently from review/export; q = quit")
-    print("Choices: [a]ccept/review prediction spans [m]anual span [r]eject annotation [R]emove sample [s]kip [i]nfo [N]umbered tokens [q]uit")
+    print("Choices: [a]ccept/review prediction spans [A]ccept all [m]anual span [r]eject annotation [R]emove sample [s]kip [i]nfo [N]umbered tokens [q]uit")
 
 
 def target_label(row: dict[str, Any]) -> str:
-    return str(row.get("curation", {}).get("label") or row.get("candidate_label") or "")
+    return review_ui.target_label(row)
 
 
 def resolve_manual_label(raw_label: str, row: dict[str, Any], label_metadata: dict[str, dict[str, Any]] | None = None) -> str:
-    label = raw_label.strip()
-    if not label:
-        inferred = target_label(row)
-        if inferred:
-            return inferred
-        raise ValueError("cannot infer label; add a full label or canonical id, e.g. agence-radio")
-    if label.startswith(("org.ent.pressagency.", "org.ent.radiostation.")):
-        return label
-    label_metadata = label_metadata or {}
-    matches = []
-    for metadata_label, metadata_row in label_metadata.items():
-        canonical_id = str(metadata_row.get("canonical_id") or metadata_label.rsplit(".", 1)[-1])
-        if label == canonical_id or label == metadata_label.rsplit(".", 1)[-1]:
-            matches.append(metadata_label)
-    if len(matches) == 1:
-        return matches[0]
-    if len(matches) > 1:
-        raise ValueError(f"ambiguous canonical id {label}; use the full label")
-    target = target_label(row)
-    if target.startswith(("org.ent.pressagency.", "org.ent.radiostation.")):
-        family = ".".join(target.split(".")[:3])
-        return f"{family}.{label}"
-    raise ValueError(f"unknown canonical id {label}; use the full label")
+    return review_ui.resolve_manual_label(raw_label, row, label_metadata)
 
 
 def split_trailing_manual_label(raw: str) -> tuple[str, str]:
-    stripped = raw.strip()
-    if not stripped:
-        return "", ""
-    parts = stripped.rsplit(maxsplit=1)
-    if len(parts) == 1:
-        return stripped, ""
-    body, possible_label = parts
-    if ":" not in possible_label:
-        return body, possible_label
-    return stripped, ""
+    return review_ui.split_trailing_manual_label(raw)
 
 
 def parse_numbered_token_span(
@@ -281,25 +257,7 @@ def parse_numbered_token_span(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[int, int, str] | None:
-    body, raw_label = split_trailing_manual_label(raw)
-    raw = body or raw
-    matches = list(NUMBERED_TOKEN_RE.finditer(raw.strip()))
-    if not matches:
-        return None
-    indexes = [int(match.group("index")) for match in matches]
-    expected = list(range(indexes[0], indexes[-1] + 1))
-    if indexes != expected:
-        raise ValueError("pasted numbered tokens must be contiguous")
-    tokens = row["tokens"]
-    for match in matches:
-        index = int(match.group("index"))
-        if index < 0 or index >= len(tokens):
-            raise ValueError("token span out of range")
-        pasted = match.group("token")
-        if pasted != str(tokens[index]):
-            raise ValueError(f"pasted token {index}:{pasted} does not match current token {index}:{tokens[index]}")
-    label = resolve_manual_label(raw_label, row, label_metadata)
-    return indexes[0], indexes[-1] + 1, label
+    return review_ui.parse_numbered_token_span(raw, row, label_metadata)
 
 
 def parse_manual_span(
@@ -307,79 +265,20 @@ def parse_manual_span(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    match = SPAN_RE.match(raw.strip())
-    if match:
-        start = int(match.group("start"))
-        stop = int(match.group("stop"))
-        label = resolve_manual_label(match.group("label"), row, label_metadata)
-    else:
-        parsed = parse_numbered_token_span(raw, row, label_metadata)
-        if parsed is None:
-            raise ValueError('expected: 12:13 reuters or pasted tokens like 9:B 10:. 11:B bbc')
-        start, stop, label = parsed
-    tokens = row["tokens"]
-    starts = row["token_start_offsets"]
-    stops = row["token_end_offsets"]
-    text = row["text"]
-    if start < 0 or stop <= start or stop > len(tokens):
-        raise ValueError("token span out of range")
-    return {
-        "token_start": start,
-        "token_stop": stop,
-        "label": label,
-        "surface": text[starts[start] : stops[stop - 1]],
-        "start": starts[start],
-        "stop": stops[stop - 1],
-        "confidence": None,
-        "margin": None,
-    }
+    return review_ui.parse_manual_span(raw, row, label_metadata)
 
 
 def interpreted_span_line(span: dict[str, Any]) -> str:
-    return (
-        f"interpreted: {span['token_start']}:{span['token_stop']} "
-        f"\"{span['surface']}\" [{span['label']}]"
-    )
+    return review_ui.interpreted_span_line(span)
 
 
 def prompt_manual_spans(
     row: dict[str, Any],
     label_metadata: dict[str, dict[str, Any]] | None = None,
+    *,
+    single_span: bool = False,
 ) -> list[dict[str, Any]] | None:
-    accepted_spans = []
-    print("numbered tokens:")
-    print(numbered_tokens(row))
-    print('manual correction syntax: 12:13 reuters or 12:13 org.ent.pressagency.reuters')
-    print('or paste numbered tokens, e.g. 9:B 10:. 11:B 12:. 13:C 14:. bbc')
-    print('if no label is supplied, the current candidate label is used')
-    print('manual commands: N = show numbered tokens, q = cancel/finish manual entry')
-    while True:
-        raw_span = input("span> ").strip()
-        if raw_span == "N":
-            print("numbered tokens:")
-            print(numbered_tokens(row))
-            continue
-        if raw_span.lower() in {"q", "quit", "done"}:
-            return accepted_spans or None
-        try:
-            span = parse_manual_span(raw_span, row, label_metadata)
-        except ValueError as exc:
-            print(exc)
-            continue
-        accepted_spans.append(span)
-        print(interpreted_span_line(span))
-        while True:
-            raw = input("finished? [Y/n/v] ").strip().lower()
-            if raw in {"", "y", "yes"}:
-                return accepted_spans
-            if raw in {"n", "no"}:
-                break
-            if raw in {"v", "revise"}:
-                accepted_spans.pop()
-                print("removed last manual span; enter the revised span")
-                break
-            print("Invalid choice; use y to finish, n to add another span, or v to revise.")
-        continue
+    return review_ui.prompt_manual_spans(row, label_metadata, single_span=single_span)
 
 
 def prompt_prediction_spans(
@@ -391,15 +290,20 @@ def prompt_prediction_spans(
         return spans[:1]
 
     accepted_spans = []
-    print("multiple predicted spans; review them one after another")
+    print("multiple non-overlapping predicted mentions; review them one after another")
     expected_label = target_label(row)
     for span_index, span in enumerate(spans, start=1):
         print("  " + span_line(span, span_index))
-        if expected_label and span.get("label") != expected_label:
-            print(f"  label mismatch: prediction={span.get('label')} candidate={expected_label}")
-            print("  use c to keep this boundary with the candidate label, m for another correction, or r to reject this span")
+        predicted_label = str(span.get("label") or "")
+        if expected_label and predicted_label != expected_label:
+            print(f"  this mention differs from the sampled candidate: predicted={predicted_label} candidate={expected_label}")
+            print(f"  use a to keep {predicted_label}; use c only to relabel this span as {expected_label}")
         while True:
-            raw = input("this span: [a]ccept predicted label [c]andidate label [m]anual correction [r]eject [N]umbered tokens > ").strip()
+            accept_text = f"[a]ccept as {predicted_label}"
+            candidate_text = f" [c]relabel as {expected_label}" if expected_label and predicted_label != expected_label else ""
+            raw = input(
+                f"this span: {accept_text}{candidate_text} [m]anual correction [r]eject [N]umbered tokens > "
+            ).strip()
             if raw == "N":
                 print(numbered_tokens(row))
                 continue
@@ -408,13 +312,13 @@ def prompt_prediction_spans(
                 accepted_spans.append(span)
                 break
             if raw == "c":
-                if not expected_label:
-                    print("No candidate label is available; use manual correction.")
+                if not expected_label or predicted_label == expected_label:
+                    print("Relabeling is not available because this span already has the candidate label.")
                     continue
                 accepted_spans.append({**span, "label": expected_label})
                 break
             if raw == "m":
-                manual_spans = prompt_manual_spans(row, label_metadata)
+                manual_spans = prompt_manual_spans(row, label_metadata, single_span=True)
                 if manual_spans is None:
                     continue
                 accepted_spans.extend(manual_spans)
@@ -423,6 +327,29 @@ def prompt_prediction_spans(
                 break
             print("Invalid choice; span not saved.")
     return accepted_spans
+
+
+def confirm_annotation_finished(
+    row: dict[str, Any],
+    accepted_spans: list[dict[str, Any]],
+    label_metadata: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    while True:
+        print("accepted annotations:")
+        if accepted_spans:
+            for span_index, span in enumerate(accepted_spans, start=1):
+                print("  " + span_line(span, span_index))
+        else:
+            print("  <none>")
+        raw = input("annotation finished? [Y/m] ").strip().lower()
+        if raw in {"", "y", "yes"}:
+            return accepted_spans
+        if raw == "m":
+            manual_spans = prompt_manual_spans(row, label_metadata)
+            if manual_spans:
+                accepted_spans.extend(manual_spans)
+            continue
+        print("Invalid choice; use y to save or m to add manual annotation spans.")
 
 
 def review_loop(
@@ -436,14 +363,16 @@ def review_loop(
     review_prefix: str = "newsagency-snippet",
     coverage_json: Path | None = None,
     only_under_target: bool = False,
+    review_statuses: set[str] | None = None,
 ) -> int:
     decisions = latest_decisions(decisions_path)
     label_metadata = load_label_metadata(label_metadata_path)
     coverage = load_coverage(coverage_json)
+    review_statuses = review_statuses or {"needs_review"}
     pending = [
         row
         for row in rows
-        if row.get("curation", {}).get("status") == "needs_review"
+        if row.get("curation", {}).get("status") in review_statuses
         and decisions.get(review_id(row, prefix=review_prefix), {}).get("status") not in FINAL_STATUSES
     ]
     if coverage and only_under_target:
@@ -458,11 +387,17 @@ def review_loop(
             clear_screen()
             print_review_item(row, index, len(pending), review_prefix=review_prefix)
             spans = prediction_spans(row)
+            notes = ""
             while True:
                 raw = input("> ").strip()
                 if raw == "N":
                     print(numbered_tokens(row))
                     continue
+                if raw == "A":
+                    if not spans:
+                        print("No predicted spans to accept.")
+                        continue
+                    break
                 if raw == "R":
                     raw = "remove"
                     break
@@ -473,6 +408,9 @@ def review_loop(
                     print_review_item(row, index, len(pending), review_prefix=review_prefix)
                     continue
                 raw = raw.lower()
+                if raw == "n":
+                    notes = input("notes: ").strip()
+                    continue
                 if raw == "q":
                     return reviewed
                 if raw not in CHOICES:
@@ -480,22 +418,19 @@ def review_loop(
                     continue
                 break
             accepted_spans: list[dict[str, Any]] = []
-            notes = ""
             if raw == "a":
                 target = row.get("curation", {}).get("label") or row.get("candidate_label")
                 matching = [span for span in spans if span.get("label") == target]
                 spans_to_review = spans if len(spans) > 1 else matching or spans
                 accepted_spans = prompt_prediction_spans(row, spans_to_review, label_metadata)
-                if len(accepted_spans) > 1:
-                    notes = input("notes for accepted spans (optional): ").strip()
+                accepted_spans = confirm_annotation_finished(row, accepted_spans, label_metadata)
+            elif raw == "A":
+                accepted_spans = spans[:]
             elif raw == "m":
                 manual_spans = prompt_manual_spans(row, label_metadata)
                 if manual_spans is None:
                     continue
                 accepted_spans = manual_spans
-                notes = input("notes (optional): ").strip()
-            elif raw in {"r", "s"}:
-                notes = input("notes (optional): ").strip()
             elif raw == "remove":
                 notes = input("removal reason (optional): ").strip()
             break
@@ -546,6 +481,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--review-prefix", default="newsagency-snippet")
     parser.add_argument("--coverage-json", type=Path)
     parser.add_argument("--only-under-target", action="store_true")
+    parser.add_argument(
+        "--review-status",
+        action="append",
+        default=[],
+        help="Curation status to review. Can be repeated. Defaults to needs_review. Use auto_accepted to audit auto-accepted rows.",
+    )
     parser.add_argument("--materialize-only", action="store_true")
     return parser.parse_args(argv)
 
@@ -556,6 +497,7 @@ def main(argv: list[str] | None = None) -> int:
     reviewed = 0
     if not args.materialize_only:
         input_path = Path(args.input)
+        review_statuses = set(args.review_status or ["needs_review"])
         reviewed = review_loop(
             rows,
             Path(args.decisions),
@@ -566,6 +508,7 @@ def main(argv: list[str] | None = None) -> int:
             review_prefix=args.review_prefix,
             coverage_json=args.coverage_json,
             only_under_target=args.only_under_target,
+            review_statuses=review_statuses,
         )
     revised = apply_decisions(rows, Path(args.decisions), review_prefix=args.review_prefix)
     write_jsonl(Path(args.output), revised)

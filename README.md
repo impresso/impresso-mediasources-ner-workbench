@@ -30,7 +30,7 @@ For a high-level view of the workbench activities and their sub-workflows, see [
 
 Dataset growth has two explicit axes. **Horizontal extension** adds more documents/examples for existing labels. **Vertical extension** deepens annotations in existing documents by adding more entity types, such as future newspaper mentions. Keep these separate in audit, review, and release notes. See [DATASET_EXTENSION_PLAN.md](DATASET_EXTENSION_PLAN.md).
 
-Terminology: **HIPE-derived data** refers to the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. It is still active baseline training and evaluation data. Some paths, commands, and trace-back fields keep `legacy-*` names for compatibility.
+Terminology: **HIPE-derived data** refers to the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. It is still active baseline training and evaluation data. Some local paths and trace-back fields still use `legacy` because they describe retained import provenance, not obsolete data.
 
 ## Repository Map
 
@@ -81,7 +81,7 @@ Local generated directory roots use the `*.d` suffix convention. Defaults includ
 
 Local working data under `data/candidates/`, `data/curated/`, and `data/testset/` is ignored. Shared dataset prerelease snapshots belong under `data/prereleases/<dataset-version>/`; published release snapshots belong under `data/releases/<dataset-version>/`. Both are committed. See [docs/data_lifecycle.md](docs/data_lifecycle.md).
 
-Release configs are version-scoped. `configs/model-v1.0.0.mk` points at the published press-agency baseline release. `configs/model-v2.0.0.mk` is the active prerelease config for press agencies plus radio stations and is the default. `configs/model-v0.1.0.mk` is only a compatibility shim for older commands.
+Release configs are version-scoped. `configs/model-v1.0.0.mk` points at the published press-agency baseline release. `configs/model-v2.0.0.mk` is the active prerelease config for press agencies plus radio stations and is the default. `configs/model-v0.1.0.mk` is retained only for historical v0.1 runs.
 
 For Impresso API sampling workflows, install the sampling extras:
 
@@ -96,10 +96,12 @@ make smoke
 python tests/test_import_legacy_hipe_tsv.py
 ```
 
+Command examples in this file assume the virtual environment is activated (`source .venv/bin/activate`) and the default release config `CFG=configs/model-v2.0.0.mk` is in effect. Pass `CFG=` or `PYTHON=` only when you need a non-default value. See [docs/curation.md](docs/curation.md) for the full curation workflow and command assumptions.
+
 To test the HIPE-derived data converter on the fixture:
 
 ```bash
-make import-legacy-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --source-root . --split validation --output /private/tmp/mediasources-fixture --newsagency-seeds resources/newsagency_seeds.json"
+make import-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --source-root . --split validation --output /private/tmp/mediasources-fixture --newsagency-seeds resources/newsagency_seeds.json"
 ```
 
 ## Training
@@ -107,13 +109,13 @@ make import-legacy-hipe ARGS="--input tests/fixtures/legacy_hipe_sample.tsv --so
 First create the cleaned HIPE-derived JSONL dataset:
 
 ```bash
-make import-legacy-hipe ARGS="--input ../newsagency-classification-main-nikki/data/annotated_data/de --input ../newsagency-classification-main-nikki/data/annotated_data/fr --source-root ../newsagency-classification-main-nikki --output data/curated/legacy-import --newsagency-seeds resources/newsagency_seeds.json --forbidden-label-policy exclude --unknown-label-policy error --malformed-bio-policy error --duplicate-policy keep-first"
+make import-hipe ARGS="--input ../newsagency-classification-main-nikki/data/annotated_data/de --input ../newsagency-classification-main-nikki/data/annotated_data/fr --source-root ../newsagency-classification-main-nikki --output data/curated/legacy-import --newsagency-seeds resources/newsagency_seeds.json --forbidden-label-policy exclude --unknown-label-policy error --malformed-bio-policy error --duplicate-policy keep-first"
 ```
 
 Optionally download the compiled Impresso source files for continued MLM pretraining:
 
 ```bash
-make download-mlm-sources PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make download-mlm-sources
 ```
 
 The source URLs are configured in `configs/model-v2.0.0.mk` as `MLM_SOURCE_URL_DE`, `MLM_SOURCE_URL_FR`, `MLM_SOURCE_URL_EN`, and `MLM_SOURCE_URL_LB`. Files are written to `mlm.d/source/` by default, unless you override `MLM_DATASET_DIR`.
@@ -121,13 +123,13 @@ The source URLs are configured in `configs/model-v2.0.0.mk` as `MLM_SOURCE_URL_D
 Then build the multilingual MLM corpus. By default this samples up to 300,000 texts per language, exhausting smaller languages such as Luxembourgish, and keeps 1 percent for validation:
 
 ```bash
-make build-mlm-data PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make build-mlm-data
 ```
 
 Then continue MLM pretraining from `jhu-clsp/mmBERT-base` to create `models.d/multilingualmodernimpressoBERT_v1.0.0/final`:
 
 ```bash
-make pretrain-mlm PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make pretrain-mlm
 ```
 
 The default MLM run keeps the sampled corpus on disk but trains on `MLM_MAX_TRAIN_SAMPLES=100000` rows and evaluates on `MLM_MAX_EVAL_SAMPLES=2000` rows. It uses one epoch, `MLM_MAX_LEN=256`, fixed max-length padding, `MLM_BATCH=1`, `MLM_GRADIENT_ACCUMULATION_STEPS=8`, gradient checkpointing, learning rate `2e-5`, weight decay `0.01`, and automatic warmup over 6 percent of the capped optimizer steps. Validation runs three times across the epoch plus one final evaluation. Intermediate checkpoint saving is disabled by default; the final model is always saved to `models.d/multilingualmodernimpressoBERT_v1.0.0/final`. Override these on the command line to match available GPU memory or to run a smaller smoke test.
@@ -137,57 +139,57 @@ MLM tokenization pads to the configured max length by default to keep tensor sha
 Push the continued-MLM checkpoint and source model card to Hugging Face:
 
 ```bash
-make push-mlm-model PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make push-mlm-model
 ```
 
 Then train the media-source NER model. The default base model in `configs/model-v2.0.0.mk` is the pushed continued-MLM checkpoint `hf://impresso-project/mmbert-multilingual-impresso-continued-mlm`.
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make train
 ```
 
-Local Apple MPS training uses memory-conservative defaults: `BATCH=1`, `GRADIENT_ACCUMULATION_STEPS=4`, gradient checkpointing, `OPTIMIZER=adafactor`, and `FREEZE_BASE_MODEL=true`. This trains the token-classification head on top of the adapted encoder. Use `FREEZE_BASE_MODEL=false` only on hardware with enough memory for full-model optimizer updates.
+Local Apple MPS training uses memory-conservative defaults: `BATCH=1`, `GRADIENT_ACCUMULATION_STEPS=4`, gradient checkpointing, `OPTIMIZER=adafactor`, `FREEZE_BASE_MODEL=true`, and `UNFREEZE_TOP_LAYERS=3`. This trains the token-classification head plus the top encoder layers. Use `FREEZE_BASE_MODEL=false` only on hardware with enough memory for full-model optimizer updates.
 
-Validation is run after each epoch for early stopping. The default monitors `entity_f1` with `EARLY_STOPPING_PATIENCE=1` and writes the best checkpoint to `models.d/newsagency_radiostation_modernbert_v2.0.0/best`.
+Validation is run after each epoch for early stopping. The default monitors `entity_f1` with `EARLY_STOPPING_PATIENCE=2` and writes the best checkpoint to `models.d/newsagency_radiostation_modernbert_v2.0.0/best`.
 
 At startup, training prints and writes `training_start_report.json` with the model source, device, optimizer, trainable/frozen parameter counts, batch and window settings, early-stopping configuration, and train/validation dataset summaries. During validation and test evaluation, the trainer prints a compact NER summary with exact entity precision/recall/F1, non-`O` token precision/recall/F1, token accuracy, and the most frequent gold/predicted entity labels. The full metrics and prediction JSONL files are still written under the model output directory.
 
 To continue from an existing classifier checkpoint, pass `CHECKPOINT`. This loads the model weights but starts a fresh optimizer state, so use a lower learning rate for continuation runs. Prefer writing to a new `MODEL` directory unless you intentionally want to overwrite the previous output:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk CHECKPOINT=models.d/newsagency_radiostation_modernbert_v2.0.0/best MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1 EPOCHS=2 LEARNING_RATE=1e-5
+make train CHECKPOINT=models.d/newsagency_radiostation_modernbert_v2.0.0/best MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1 EPOCHS=2 LEARNING_RATE=1e-5
 ```
 
 Select another base model on the command line when needed:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk BASE_MODEL=models.d/multilingualmodernimpressoBERT_v1.0.0/final
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk BASE_MODEL=hf://impresso-project/mmbert-multilingual-impresso-continued-mlm
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk BASE_MODEL=jhu-clsp/mmBERT-base MODEL=models.d/newsagency_radiostation_mmbert_base_v2.0.0
+make train BASE_MODEL=models.d/multilingualmodernimpressoBERT_v1.0.0/final
+make train BASE_MODEL=hf://impresso-project/mmbert-multilingual-impresso-continued-mlm
+make train BASE_MODEL=jhu-clsp/mmBERT-base MODEL=models.d/newsagency_radiostation_mmbert_base_v2.0.0
 ```
 
 For a quick one-step smoke test:
 
 ```bash
-make train PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS="--max-steps 1 --device cpu --epochs 1 --train-batch-size 1 --eval-batch-size 1 --max-words-per-window 64 --stride-words 0 --output-dir /private/tmp/mediaagency-modernbert-smoke"
+make train ARGS="--max-steps 1 --device cpu --epochs 1 --train-batch-size 1 --eval-batch-size 1 --max-words-per-window 64 --stride-words 0 --output-dir /private/tmp/mediaagency-modernbert-smoke"
 ```
 
 After training, evaluate consistency against validation and test:
 
 ```bash
-make test PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
-make test-official PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make test
+make test-official
 ```
 
 Metrics and prediction JSONL files are written under `models.d/newsagency_radiostation_modernbert_v2.0.0/eval/`.
 
-For basic curation of the existing HIPE-derived French/German dev and test folds, run the selected model over both splits and build disagreement records for manual review:
+For basic curation of the existing HIPE-derived French/German dev and test folds, run the configured v2 model over both splits and build disagreement records for manual review:
 
 ```bash
-make curate-legacy-eval PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements
 ```
 
-To build only one fold's review queue, use `make curate-legacy-validation ...` or `make curate-legacy-test ...` with the same arguments. The command names keep `legacy` for compatibility; the data itself is the active HIPE-derived baseline, not discarded material.
+To build only one fold's review queue, use `make suggest-eval-disagreements-validation` or `make suggest-eval-disagreements-test`. The checker is self-contained: `CURATION_MODEL` and `CURATION_LABEL_MAP` must belong to the same trained model. If the v2 model has not been trained yet, run `make train` first.
 
 The review files are written below `data/curated/legacy-eval-curation/review/`, including split/language files such as `validation_de_disagreements.jsonl`, `validation_fr_disagreements.jsonl`, `test_de_disagreements.jsonl`, and `test_fr_disagreements.jsonl`. Each row contains a deterministic `review_id`, document metadata, gold entity, predicted entity, token context, and a `decision` block for manual curation.
 
@@ -196,9 +198,9 @@ For iterative or multi-reviewer curation, store decisions in `data/curated/legac
 To test a short terminal curation session:
 
 ```bash
-make review-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk REVIEWER="$USER" ARGS="--limit 1"
-make curation-review PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
-make validate-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS=--no-require-complete
+make review-curation REVIEWER="$USER" ARGS="--limit 1"
+make curation-review
+make validate-curation ARGS=--no-require-complete
 ```
 
 The reviewer appends to `decisions.jsonl`; it does not modify the generated disagreement files.
@@ -206,8 +208,8 @@ The reviewer appends to `decisions.jsonl`; it does not modify the generated disa
 Before committing curation decisions, validate that every current disagreement has exactly one completed decision:
 
 ```bash
-make curation-review PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
-make validate-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make curation-review
+make validate-curation
 ```
 
 Use `ARGS=--no-require-complete` only for in-progress review snapshots.
@@ -215,10 +217,10 @@ Use `ARGS=--no-require-complete` only for in-progress review snapshots.
 After validation, apply the reviewed decisions to a new curated JSONL directory:
 
 ```bash
-make apply-curation PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make apply-curation
 ```
 
-This writes revised HIPE-derived folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Boundary corrections are parsed from notes such as `13:15 "Agence Wolff" label=org.ent.pressagency.wolff`.
+This writes revised HIPE-derived folds to `data/curated/legacy-import-curated/` and leaves the original `data/curated/legacy-import/` files untouched. The output includes `train.jsonl`, `validation.jsonl`, `test.jsonl`, `label_map.json`, `curation_changes.jsonl`, `curation_changes_tags.tsv`, and `curation_summary.json`. Manual corrections entered with `m` are stored as structured token spans and applied directly.
 
 To inspect the exact ground-truth changes before publishing or retraining, compare the original and curated JSONL files with `git diff --no-index`:
 
@@ -235,8 +237,46 @@ For a lightweight NER-tag overview, inspect `data/curated/legacy-import-curated/
 The fine-tuned Hugging Face model repository is configured as `HF_MODEL=impresso-project/mmbert-impresso-mediasources-ner`. The v0.1 label space covers news agencies and radio stations; the repository name leaves room for future cited media-source families such as newspaper citations.
 
 ```bash
-make push-model PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make push-model MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
 ```
+
+See [docs/curation.md](docs/curation.md) for full curation workflows, path selection, and command assumptions.
+
+## Task Cheat Sheet
+
+| If you want to... | Call this target | `CFG=...`? |
+| --- | --- | --- |
+| See the main help and target groups. | `make` | Not needed. |
+| Refresh annotation checks, coverage, profiles, and curation state. | `make anno-housekeeping` | Yes, to choose another dataset/model config. |
+| Refresh dataset checks, TSV views, statistics, label map, and quality reports. | `make data-housekeeping` | Yes, to choose another dataset/model config. |
+| Check current annotation, snippet, and dataset progress. | `make curation-state` | Yes, to inspect another configured prerelease/model. |
+| Validate token offsets, BIO labels, entities, and minimal JSONL fields. | `make validate-jsonl-format` | Yes, if validating another configured dataset. |
+| Validate one patched JSONL before copying it into a split. | `make validate-jsonl-format JSONL_FORMAT_JSONL=data/curated/tsv-segment-replacements/train/patched.jsonl` | Yes, if the patch belongs to another configured dataset. |
+| Generate the BIO-complete dataset label map from train/validation/test plus seed metadata. | `make sync-label-map` | Yes, if the target dataset comes from another config. |
+| Generate release dataset statistics. | `make dataset-statistics` | Yes, if the target dataset comes from another config. |
+| Generate validation/test model quality and coverage reports. | `make dataset-quality-analysis` | Yes, to evaluate/report with another configured model. |
+| Materialize TOKEN/NERTAG TSV files for inspection and manual patching. | `make materialize-dataset-tsv` | Yes, if the target dataset comes from another config. |
+| Search the materialized TSV by token text. | `make search-tsv TSV_SEARCH="Radio London"` | Yes, if searching TSVs for another config. |
+| Search the materialized TSV by entity tag. | `make search-tsv TSV_SEARCH_TAG="org.ent.pressagency.apa"` | Yes, if searching TSVs for another config. |
+| Create TSV-derived span patches from pasted TOKEN OLD \[NEW\] lines across train/validation/test. | `make create-tsv-span-patches` | Yes, if patching another configured dataset. |
+| Replace an exact TOKEN/NERTAG segment with a clean TOKEN/NERTAG block; in the replacement block, optional `_` after a row suppresses the default following space. | `make replace-tsv-segment TSV_SEGMENT_SPLIT=train TSV_SEGMENT_OLD=/tmp/old.tsv TSV_SEGMENT_NEW=/tmp/new.tsv` | Yes, if patching another configured dataset. |
+| Apply and promote TSV-derived span patches, then refresh TSV and annotation reports. | `make create-tsv-span-patches integrate-tsv-span-patches materialize-dataset-tsv anno-housekeeping` | Yes, keep the same `CFG=...` across the whole chain. |
+| Sample focused press-agency snippets for under-covered labels. | `make sample-media-snippets MEDIA_FAMILY=pressagency` | Yes, coverage and outputs follow the config. |
+| Sample focused radio-station snippets for under-covered labels. | `make sample-media-snippets MEDIA_FAMILY=radiostation` | Yes, coverage and outputs follow the config. |
+| Force sampling for one press-agency label. | `make sample-freely-media-snippets MEDIA_FAMILY=pressagency MEDIA_LABELS=org.ent.pressagency.cip MEDIA_SAMPLE_MAX_QUERIES_PER_LABEL=0` | Yes, outputs and existing-data filters follow the config. |
+| Suggest model/metadata spans for sampled snippets. | `make suggest-media-snippet-spans MEDIA_FAMILY=pressagency` | Yes, to use the configured scorer model. |
+| Review sampled snippet spans. | `make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"` | Usually yes, to read/write the matching configured snippet files. |
+| Put accepted/rejected reviewed snippets into train only. | `make split-media-snippets MEDIA_FAMILY=pressagency SNIPPET_VALIDATION_FRACTION=0.0 SNIPPET_TEST_FRACTION=0.0 HOLDOUT_MIN_PER_LABEL=0` | Yes, split outputs and holdout sources follow the config. |
+| Promote split snippets into the configured dataset. | `make integrate-snippets` | Yes, because it changes the configured dataset splits. |
+| Evaluate the configured model into model-local diagnostics. | `make test EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
+| Evaluate the official test split into model-local diagnostics. | `make test-official EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
+| Evaluate train/validation/test into shared curation disagreement inputs. | `make curation-eval` | Yes, to choose the curation checker model/dataset. |
+| Build and review gold-vs-prediction disagreements. | `make suggest-eval-disagreements` | Yes, to use the configured curation eval paths. |
+| Audit illegal BIO transitions in prediction diagnostics. | `make audit-predicted-iob PREDICTED_IOB_SPLIT=validation` | Yes, if diagnostics were generated under another config. |
+| Audit subtoken prediction consistency in diagnostics. | `make audit-subtokens SUBTOKEN_AUDIT_SPLIT=validation` | Yes, if diagnostics were generated under another config. |
+| Train the default v2 model. | `make train` | Yes, use `CFG=...` to train a model variant. |
+| Remove the configured model directory and train from scratch. | `make train-fresh` | Yes, use `CFG=...` to choose which model directory is cleaned and trained. |
+| Train the v2 variant that adapts the final 4 ModernBERT layers. | `make train-fresh CFG=configs/model-v2.0.0-4layers.mk` | Already supplied. |
 
 ## Common Commands
 
@@ -245,8 +285,8 @@ make help
 make smoke
 make clean-dry-run
 make validate-labels
-make sample-newsagencies ARGS="--dry-run --labels org.ent.pressagency.reuters --max-queries-per-label 1"
-make sample-radiostations ARGS="--dry-run --labels org.ent.radiostation.rtl --max-queries-per-label 1"
+make sample-freely-newsagency-snippets ARGS="--dry-run --labels org.ent.pressagency.reuters --max-queries-per-label 1"
+make sample-freely-radio-snippets ARGS="--dry-run --labels org.ent.radiostation.rtl --max-queries-per-label 1"
 make export-dataset
 make download-mlm-sources
 make build-mlm-data
@@ -257,12 +297,12 @@ make publish-testset ARGS="--dry-run"
 make train CFG=configs/model-v2.0.0.mk
 make test CFG=configs/model-v2.0.0.mk
 make apply-curation CFG=configs/model-v2.0.0.mk
-make score-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make review-newsagency-snippets CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make score-radiostation-snippets CFG=configs/model-v2.0.0.mk
-make review-radiostation-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
 make push-model CFG=configs/model-v2.0.0.mk
 ```
 
@@ -278,13 +318,13 @@ By default `IMPRESSO_PERSISTED_TOKEN=false`, so the `impresso` client prompts fo
 
 ## Publish Dataset
 
-The training dataset publisher prepares a Hugging Face-ready directory from the curated JSONL without uploading by default:
+The training dataset publisher prepares a Hugging Face-ready projection from the configured dataset source without uploading by default:
 
 ```bash
-make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk
+make publish-dataset
 ```
 
-By default this reads `data/curated/legacy-import-curated/` and writes `staging.d/datasets/impresso-mediaagencies-ner-dataset/` with:
+By default this reads the dataset source configured by `CFG` and writes `staging.d/datasets/impresso-mediaagencies-ner-dataset/` with:
 
 ```text
 README.md
@@ -292,24 +332,21 @@ data/train.jsonl
 data/validation.jsonl
 data/test.jsonl
 label_map.json
-dataset_summary.json
-audit/curation_summary.json
-audit/curation_changes.jsonl
-audit/curation_changes_tags.tsv
+DATASET_STATISTICS.md
 ```
 
 The publisher validates entity labels against `resources/newsagency_seeds.json` and `resources/radiostation_seeds.json`. To upload after inspecting the staged directory:
 
 ```bash
-make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS="--upload"
+make publish-dataset ARGS="--upload"
 ```
 
-The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. In that field name, `legacy` means HIPE import trace-back metadata retained for compatibility, not data that is obsolete. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
+The staged `data/*.jsonl` files are compact public training files, not byte-for-byte copies of the converted HIPE import. They keep the useful model/data fields (`text`, `tokens`, token offsets, BIO labels, entity spans, document metadata, quality flags) and group only minimal trace-back fields under `legacy`. In that field name, `legacy` means retained HIPE import trace-back metadata, not data that is obsolete. Large conversion/debug fields such as `segments`, `sentences`, `token_nel`, `token_ocr`, `token_render`, and `token_segment_ids` stay in the local curated source unless explicitly needed for an audit workflow.
 
 To open a Hub pull request instead of pushing directly:
 
 ```bash
-make publish-dataset PYTHON=.venv/bin/python CFG=configs/model-v2.0.0.mk ARGS="--upload --create-pr"
+make publish-dataset ARGS="--upload --create-pr"
 ```
 
 Most commands are scaffolded and will become active as the implementation lands.
@@ -327,7 +364,7 @@ Use these targets to check local curation progress and dataset staging state:
 ```bash
 make curation-state CFG=configs/model-v2.0.0.mk
 make snippet-state CFG=configs/model-v2.0.0.mk
-make legacy-curation-state CFG=configs/model-v2.0.0.mk
+make eval-disagreement-state CFG=configs/model-v2.0.0.mk
 make dataset-state CFG=configs/model-v2.0.0.mk
 make curation-state-json CFG=configs/model-v2.0.0.mk
 ```
@@ -340,8 +377,15 @@ Coverage and targeted sampling are label-language aware. By default, `de`, `fr`,
 
 ```bash
 make annotation-stats CFG=configs/model-v2.0.0.mk
-make sample-needed-newsagencies CFG=configs/model-v2.0.0.mk
-make sample-radiostations CFG=configs/model-v2.0.0.mk RADIOSTATION_SAMPLE_ONLY_UNDER_TARGET=true
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+```
+
+Restrict a sampling pass to one canonical label with `ARGS="--labels ..."`:
+
+```bash
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency ARGS="--labels org.ent.pressagency.reuters"
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation ARGS="--labels org.ent.radiostation.rtl"
 ```
 
 Override the defaults from the command line when needed:

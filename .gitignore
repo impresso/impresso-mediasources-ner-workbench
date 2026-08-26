@@ -7,6 +7,7 @@
 .env
 .env.*
 !.env.example
+config.local.mk
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -18,6 +19,7 @@ __pycache__/
 data/candidates/*
 data/curated/*
 data/testset/*
+data/**/tsv/
 
 # Legacy generated roots kept ignored for compatibility with earlier defaults.
 .cache/

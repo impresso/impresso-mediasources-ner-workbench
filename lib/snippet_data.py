@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-TOKEN_RE = re.compile(r"\w+(?:[-']\w+)*|[^\w\s]", re.UNICODE)
+from .tokenization import tokenize_with_offsets
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -55,29 +55,8 @@ def strip_html(value: str) -> str:
     return unescape(re.sub(r"<[^>]+>", "", value))
 
 
-def tokenize_with_offsets(text: str) -> tuple[list[str], list[int], list[int]]:
-    tokens: list[str] = []
-    starts: list[int] = []
-    stops: list[int] = []
-    for match in TOKEN_RE.finditer(text):
-        tokens.append(match.group(0))
-        starts.append(match.start())
-        stops.append(match.end())
-    return tokens, starts, stops
-
-
 def candidate_tokens(row: dict[str, Any]) -> tuple[str, list[str], list[int], list[int]]:
     text = row_text(row)
-    tokens = row.get("tokens")
-    starts = row.get("token_start_offsets")
-    stops = row.get("token_end_offsets")
-    if (
-        isinstance(tokens, list)
-        and isinstance(starts, list)
-        and isinstance(stops, list)
-        and len(tokens) == len(starts) == len(stops)
-    ):
-        return text, [str(token) for token in tokens], [int(start) for start in starts], [int(stop) for stop in stops]
     tokens, starts, stops = tokenize_with_offsets(text)
     return text, tokens, starts, stops
 

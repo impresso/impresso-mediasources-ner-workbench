@@ -11,7 +11,7 @@ from .snippet_data import load_jsonl
 
 
 DEFAULT_SOURCES = {
-    "legacy": [
+    "dataset": [
         Path("data/curated/legacy-import/train.jsonl"),
         Path("data/curated/legacy-import/validation.jsonl"),
         Path("data/curated/legacy-import/test.jsonl"),
@@ -128,7 +128,7 @@ def build_stats(args: argparse.Namespace) -> dict[str, Any]:
     total_language_counts: Counter[tuple[str, str]] = Counter()
 
     sources = {
-        "legacy": args.legacy_jsonl,
+        "dataset": args.dataset_jsonl,
         "newsagency_snippets": args.newsagency_snippet_jsonl,
         "radiostation_snippets": args.radiostation_snippet_jsonl,
     }
@@ -176,7 +176,7 @@ def build_stats(args: argparse.Namespace) -> dict[str, Any]:
             lang_total = total_language_counts[(label, language)]
             lang_missing = max(target - lang_total, 0)
             language_item = {
-                "legacy": by_source_language["legacy"][(label, language)],
+                "dataset": by_source_language["dataset"][(label, language)],
                 "newsagency_snippets": by_source_language["newsagency_snippets"][(label, language)],
                 "radiostation_snippets": by_source_language["radiostation_snippets"][(label, language)],
                 "total": lang_total,
@@ -201,7 +201,7 @@ def build_stats(args: argparse.Namespace) -> dict[str, Any]:
                 "family": metadata.get(label, {}).get("family") or family_for_label(label),
                 "canonical_id": metadata.get(label, {}).get("canonical_id") or label.rsplit(".", 1)[-1],
                 "display_name": metadata.get(label, {}).get("display_name") or label,
-                "legacy": by_source["legacy"][label],
+                "dataset": by_source["dataset"][label],
                 "newsagency_snippets": by_source["newsagency_snippets"][label],
                 "radiostation_snippets": by_source["radiostation_snippets"][label],
                 "total": total,
@@ -234,10 +234,10 @@ def print_table(rows: list[dict[str, Any]], *, limit: int, family: str) -> None:
     selected.sort(key=lambda row: (row["missing_to_target"] == 0, row["total"], row["label"]))
     if limit > 0:
         selected = selected[:limit]
-    headers = ["label", "legacy", "news", "radio", "total", "missing", "pending"]
+    headers = ["label", "dataset", "news", "radio", "total", "missing", "pending"]
     widths = {
         "label": max([len("label"), *(len(row["label"]) for row in selected)] or [5]),
-        "legacy": 6,
+        "dataset": 7,
         "news": 5,
         "radio": 5,
         "total": 5,
@@ -246,18 +246,18 @@ def print_table(rows: list[dict[str, Any]], *, limit: int, family: str) -> None:
     }
     print(
         f"{headers[0]:<{widths['label']}}  "
-        f"{headers[1]:>{widths['legacy']}}  "
+        f"{headers[1]:>{widths['dataset']}}  "
         f"{headers[2]:>{widths['news']}}  "
         f"{headers[3]:>{widths['radio']}}  "
         f"{headers[4]:>{widths['total']}}  "
         f"{headers[5]:>{widths['missing']}}  "
         f"{headers[6]:>{widths['pending']}}"
     )
-    print("-" * (widths["label"] + 48))
+    print("-" * (widths["label"] + 49))
     for row in selected:
         print(
             f"{row['label']:<{widths['label']}}  "
-            f"{row['legacy']:>{widths['legacy']}}  "
+            f"{row['dataset']:>{widths['dataset']}}  "
             f"{row['newsagency_snippets']:>{widths['news']}}  "
             f"{row['radiostation_snippets']:>{widths['radio']}}  "
             f"{row['total']:>{widths['total']}}  "
@@ -273,7 +273,7 @@ def write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
         "label",
         "canonical_id",
         "display_name",
-        "legacy",
+        "dataset",
         "newsagency_snippets",
         "radiostation_snippets",
         "total",
@@ -314,7 +314,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--side-target-per-label-language", type=int, default=5)
     parser.add_argument("--language-target", action="append", default=[], help="Explicit per-language target override such as de=20. Can be repeated.")
     parser.add_argument("--label-metadata", type=Path, action="append", default=[])
-    parser.add_argument("--legacy-jsonl", type=Path, action="append", default=[])
+    parser.add_argument("--dataset-jsonl", type=Path, action="append", default=[])
+    parser.add_argument("--legacy-jsonl", type=Path, action="append", default=[], help=argparse.SUPPRESS)
     parser.add_argument("--newsagency-snippet-jsonl", type=Path, action="append", default=[])
     parser.add_argument("--radiostation-snippet-jsonl", type=Path, action="append", default=[])
     parser.add_argument("--newsagency-reviewed-jsonl", type=Path, default=Path("data/curated/snippets/newsagencies/reviewed.jsonl"))
@@ -329,8 +330,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def fill_defaults(args: argparse.Namespace) -> argparse.Namespace:
     if not args.label_metadata:
         args.label_metadata = [Path("resources/newsagency_seeds.json"), Path("resources/radiostation_seeds.json")]
-    if not args.legacy_jsonl:
-        args.legacy_jsonl = DEFAULT_SOURCES["legacy"]
+    if not args.dataset_jsonl:
+        args.dataset_jsonl = args.legacy_jsonl or DEFAULT_SOURCES["dataset"]
     if not args.newsagency_snippet_jsonl:
         args.newsagency_snippet_jsonl = DEFAULT_SOURCES["newsagency_snippets"]
     if not args.radiostation_snippet_jsonl:

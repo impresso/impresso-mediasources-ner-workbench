@@ -4,13 +4,21 @@ import argparse
 import hashlib
 import json
 import math
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .snippet_data import candidate_tokens, load_jsonl, write_jsonl
+from .snippet_data import candidate_tokens, load_jsonl, strip_html, tokenize_with_offsets, write_jsonl
+from .tokenization import CharacterEntity, TOKENIZATION_PROFILE, narrow_french_agence
 
 
 ACCEPTED_STATUSES = {"auto_accepted", "accepted"}
+NEGATIVE_STATUSES = {"rejected"}
+LABEL_ALIASES = {
+    "org.ent.pressagency.ats": "org.ent.pressagency.ats-sda",
+    "org.ent.pressagency.conti": "org.ent.pressagency.wolff",
+    "org.ent.pressagency.reuter": "org.ent.pressagency.reuters",
+}
 
 
 def load_label_map(path: Path) -> dict[str, Any]:
@@ -23,6 +31,8 @@ def load_label_map(path: Path) -> dict[str, Any]:
 def extend_label_map(label_map: dict[str, Any], metadata_paths: list[Path]) -> dict[str, Any]:
     label2id = dict(label_map["label2id"])
     for path in metadata_paths:
+        if not path.is_file():
+            continue
         rows = json.loads(path.read_text(encoding="utf-8"))
         for row in rows:
             label = str(row.get("label", ""))
@@ -53,6 +63,37 @@ def selected_spans(row: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def canonical_label(label: Any) -> str:
+    value = str(label or "")
+    return LABEL_ALIASES.get(value, value)
+
+
+def canonicalize_span_labels(row_id: str, spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for span in spans:
+        label = canonical_label(span.get("label"))
+        if label != span.get("label"):
+            print(f"{row_id}: canonicalized snippet label {span.get('label')} -> {label}")
+        out.append({**span, "label": label})
+    return out
+
+
+def normalize_span_boundaries(spans: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
+    normalized = []
+    for span in spans:
+        entity = CharacterEntity(int(span["start"]), int(span["stop"]), str(span["label"]))
+        entity, _ = narrow_french_agence(entity, text)
+        normalized.append(
+            {
+                **span,
+                "start": entity.start,
+                "stop": entity.stop,
+                "surface": text[entity.start : entity.stop],
+            }
+        )
+    return normalized
+
+
 def empty_labels(token_count: int) -> list[str]:
     return ["O"] * token_count
 
@@ -67,7 +108,176 @@ def apply_span(labels: list[str], span: dict[str, Any]) -> None:
         labels[index] = f"{'B' if index == start else 'I'}-{label}"
 
 
-def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts: list[int], stops: list[int], text: str) -> list[dict[str, Any]]:
+def normalized_span_for_export(
+    row_id: str,
+    span: dict[str, Any],
+    *,
+    text: str,
+    starts: list[int],
+    stops: list[int],
+) -> dict[str, Any] | None:
+    try:
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if 0 <= token_start < token_stop <= len(starts):
+        token_char_start = starts[token_start]
+        token_char_stop = stops[token_stop - 1]
+        if "start" not in span or "stop" not in span:
+            return {**span, "start": token_char_start, "stop": token_char_stop, "token_start": token_start, "token_stop": token_stop}
+    try:
+        char_start = int(span["start"])
+        char_stop = int(span["stop"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if char_start < 0 or char_stop <= char_start or char_stop > len(text):
+        return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
+    if 0 <= token_start < token_stop <= len(starts):
+        if token_char_start == char_start and token_char_stop == char_stop:
+            return {**span, "start": char_start, "stop": char_stop, "token_start": token_start, "token_stop": token_stop}
+    try:
+        repaired_token_start = starts.index(char_start)
+        repaired_token_stop = stops.index(char_stop) + 1
+    except ValueError:
+        return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
+    if repaired_token_start >= repaired_token_stop:
+        return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
+    print(f"{row_id}: repaired stale token offsets for span {char_start}:{char_stop} {span.get('label', '')}")
+    return {**span, "start": char_start, "stop": char_stop, "token_start": repaired_token_start, "token_stop": repaired_token_stop}
+
+
+def normalized_span_from_surface(
+    row_id: str,
+    span: dict[str, Any],
+    *,
+    text: str,
+    starts: list[int],
+    stops: list[int],
+) -> dict[str, Any] | None:
+    surface = str(span.get("surface") or "")
+    if not surface:
+        return None
+    matches = []
+    search_from = 0
+    while True:
+        start = text.find(surface, search_from)
+        if start < 0:
+            break
+        stop = start + len(surface)
+        matches.append((start, stop))
+        search_from = start + max(1, len(surface))
+    if len(matches) != 1:
+        return None
+    start, stop = matches[0]
+    try:
+        token_start = starts.index(start)
+        token_stop = stops.index(stop) + 1
+    except ValueError:
+        return None
+    if token_start >= token_stop:
+        return None
+    print(f"{row_id}: relocated stale span by surface to {start}:{stop} {span.get('label', '')}")
+    return {**span, "start": start, "stop": stop, "token_start": token_start, "token_stop": token_stop}
+
+
+def valid_spans_for_export(row: dict[str, Any], spans: list[dict[str, Any]], *, text: str, starts: list[int], stops: list[int]) -> list[dict[str, Any]]:
+    row_id = str(row.get("id") or row.get("document_id") or "")
+    valid = []
+    seen = set()
+    invalid = 0
+    for span in spans:
+        normalized = normalized_span_for_export(row_id, span, text=text, starts=starts, stops=stops)
+        if normalized is None:
+            invalid += 1
+            continue
+        key = (int(normalized["token_start"]), int(normalized["token_stop"]), str(normalized["label"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        valid.append(normalized)
+    if invalid:
+        print(f"{row_id}: ignored {invalid} stale/out-of-window accepted span(s) during snippet export")
+    if spans and not valid:
+        raise ValueError(f"{row_id}: accepted snippet has no valid spans in the exported text window")
+    return valid
+
+
+def span_is_exactly_in_window(span: dict[str, Any], *, text: str, starts: list[int], stops: list[int]) -> bool:
+    try:
+        start = int(span["start"])
+        stop = int(span["stop"])
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        0 <= start < stop <= len(text)
+        and 0 <= token_start < token_stop <= len(starts)
+        and starts[token_start] == start
+        and stops[token_stop - 1] == stop
+    )
+
+
+def patch_window_for_accepted_spans(
+    row: dict[str, Any],
+    spans: list[dict[str, Any]],
+    *,
+    text: str,
+    tokens: list[str],
+    starts: list[int],
+    stops: list[int],
+) -> tuple[str, list[str], list[int], list[int], list[dict[str, Any]]]:
+    if not spans:
+        return text, tokens, starts, stops, spans
+    patched_text = text
+    patched_spans = [dict(span) for span in spans]
+    used_fragments: set[int] = set()
+    represented = {
+        (str(span.get("label") or ""), str(span.get("surface") or ""))
+        for span in patched_spans
+        if span_is_exactly_in_window(span, text=text, starts=starts, stops=stops)
+    }
+    matches = row.get("matches")
+    match_fragments = [strip_html(str(match)).strip() for match in matches] if isinstance(matches, list) else []
+
+    for index, span in enumerate(patched_spans):
+        surface = str(span.get("surface") or "")
+        label = str(span.get("label") or "")
+        if not surface or span_is_exactly_in_window(span, text=patched_text, starts=starts, stops=stops):
+            continue
+        if (label, surface) not in represented and surface in patched_text:
+            represented.add((label, surface))
+            continue
+        fragment_index = next(
+            (
+                idx
+                for idx, fragment in enumerate(match_fragments)
+                if idx not in used_fragments and surface in fragment and fragment not in patched_text
+            ),
+            None,
+        )
+        if fragment_index is None:
+            continue
+        fragment = match_fragments[fragment_index]
+        used_fragments.add(fragment_index)
+        separator = "\n...\n"
+        offset = len(patched_text) + len(separator)
+        local_start = fragment.find(surface)
+        patched_text = f"{patched_text}{separator}{fragment}"
+        patched_spans[index] = {
+            **span,
+            "start": offset + local_start,
+            "stop": offset + local_start + len(surface),
+        }
+        represented.add((label, surface))
+        print(f"{row.get('id')}: expanded export window to include accepted span {surface!r}")
+
+    tokens, starts, stops = tokenize_with_offsets(patched_text)
+    return patched_text, tokens, starts, stops, patched_spans
+
+
+def labels_to_entities(labels: list[str], starts: list[int], stops: list[int], text: str) -> list[dict[str, Any]]:
     entities: list[dict[str, Any]] = []
     start: int | None = None
     active = ""
@@ -80,7 +290,6 @@ def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts
         char_stop = stops[stop - 1]
         entities.append(
             {
-                "entity_id": f"{row_id}#ent-{len(entities)}",
                 "entity_family": "radiostation" if active.startswith("org.ent.radiostation.") else "pressagency",
                 "label": active,
                 "token_start": start,
@@ -88,9 +297,7 @@ def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts
                 "start": char_start,
                 "stop": char_stop,
                 "surface": text[char_start:char_stop],
-                "normalized_surface": " ".join(tokens[start:stop]),
-                "has_ocr_correction": False,
-                "max_ocr_levenshtein": 0.0,
+                "status": "accepted",
             }
         )
         start = None
@@ -108,19 +315,6 @@ def labels_to_entities(row_id: str, labels: list[str], tokens: list[str], starts
             active = base
     close(len(labels))
     return entities
-
-
-def source_component(row: dict[str, Any]) -> str:
-    value = row.get("source_component")
-    if value:
-        return str(value)
-    status = row.get("curation", {}).get("status")
-    if status == "auto_accepted":
-        return "newsagency_snippet_auto"
-    family = row.get("entity_family")
-    if family == "radiostation":
-        return "radiostation_snippet_manual"
-    return "newsagency_snippet_manual"
 
 
 def base_document_id(value: Any) -> str:
@@ -181,33 +375,164 @@ def apply_split_assignments(rows: list[dict[str, Any]], *, test_fraction: float,
     return out
 
 
+def positive_label_counts(rows: list[dict[str, Any]]) -> Counter[str]:
+    return Counter(
+        str(entity.get("label"))
+        for row in rows
+        for entity in (row.get("entities") or [])
+        if str(entity.get("label") or "").startswith("org.ent.")
+    )
+
+
+def apply_holdout_deficit_assignments(
+    rows: list[dict[str, Any]],
+    *,
+    existing_by_split: dict[str, list[dict[str, Any]]],
+    minimum: int,
+    test_fraction: float,
+    validation_fraction: float,
+    seed: int,
+) -> list[dict[str, Any]]:
+    normal = split_group_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=seed)
+    existing_id_split = {
+        str(row.get("document_id") or row.get("id")): split
+        for split, existing_rows in existing_by_split.items()
+        for row in existing_rows
+    }
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        groups.setdefault(str(row["split_group"]), []).append(row)
+
+    assignments: dict[str, str] = {}
+    for group, group_rows in groups.items():
+        existing_splits = {
+            existing_id_split[str(row.get("document_id") or row.get("id"))]
+            for row in group_rows
+            if str(row.get("document_id") or row.get("id")) in existing_id_split
+        }
+        if len(existing_splits) > 1:
+            raise ValueError(f"split group {group} already occurs in multiple dataset splits: {sorted(existing_splits)}")
+        if existing_splits:
+            assignments[group] = next(iter(existing_splits))
+
+    deficits = {
+        split: Counter(
+            {
+                label: max(minimum - count, 0)
+                for label, count in positive_label_counts(existing_by_split.get(split, [])).items()
+            }
+        )
+        for split in ("test", "validation")
+    }
+    all_labels = {str(entity.get("label")) for row in rows for entity in (row.get("entities") or [])}
+    for split in deficits:
+        for label in all_labels:
+            deficits[split].setdefault(label, minimum)
+
+    new_groups = [group for group in groups if group not in assignments]
+    new_groups.sort(key=lambda group: stable_digest(group, seed))
+    for split in ("test", "validation"):
+        while any(value > 0 for value in deficits[split].values()):
+            ranked = []
+            for group in new_groups:
+                if group in assignments:
+                    continue
+                counts = positive_label_counts(groups[group])
+                benefit = sum(min(count, deficits[split][label]) for label, count in counts.items())
+                if benefit:
+                    ranked.append((-benefit, stable_digest(group, seed), group, counts))
+            if not ranked:
+                break
+            _, _, group, counts = min(ranked)
+            assignments[group] = split
+            for label, count in counts.items():
+                deficits[split][label] = max(0, deficits[split][label] - count)
+
+    return [{**row, "split": assignments.get(str(row["split_group"]), normal.get(str(row["split_group"]), "train"))} for row in rows]
+
+
+def unique_row_id(base_id: str, text: str, spans: list[dict[str, Any]], id_counts: Counter[str]) -> str:
+    if id_counts[base_id] <= 1:
+        return base_id
+    payload = json.dumps(
+        {
+            "id": base_id,
+            "text": text,
+            "spans": [
+                {
+                    "label": span.get("label"),
+                    "start": span.get("start"),
+                    "stop": span.get("stop"),
+                    "token_start": span.get("token_start"),
+                    "token_stop": span.get("token_stop"),
+                }
+                for span in spans
+            ],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
+    return f"{base_id}#snippet-{digest}"
+
+
+def deduplicate_exported_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse repeated materializations while rejecting ID collisions."""
+    unique: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        row_id = str(row.get("document_id") or row.get("id") or "")
+        previous = unique.get(row_id)
+        if previous is None:
+            unique[row_id] = row
+            continue
+        if previous != row:
+            raise ValueError(
+                f"{row_id}: duplicate exported snippet ID has conflicting row content"
+            )
+    return list(unique.values())
+
+
 def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata: list[Path] | None = None) -> list[dict[str, Any]]:
     label_map = load_label_map(label_map_path)
     if extra_label_metadata:
         label_map = extend_label_map(label_map, extra_label_metadata)
     label2id = label_map["label2id"]
-    exported = []
+    prepared = []
     for row in load_jsonl(input_path):
         curation = row.get("curation", {})
-        if curation.get("status") not in ACCEPTED_STATUSES:
+        status = str(curation.get("status") or "")
+        if status not in ACCEPTED_STATUSES | NEGATIVE_STATUSES:
             continue
+        spans = [] if status in NEGATIVE_STATUSES else selected_spans(row)
+        if not spans and status in ACCEPTED_STATUSES:
+            continue
+        spans = canonicalize_span_labels(str(row.get("id") or row.get("document_id") or ""), spans)
         text, tokens, starts, stops = candidate_tokens(row)
-        labels = empty_labels(len(tokens))
-        spans = selected_spans(row)
-        if not spans:
+        text, tokens, starts, stops, spans = patch_window_for_accepted_spans(row, spans, text=text, tokens=tokens, starts=starts, stops=stops)
+        spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
+        spans = normalize_span_boundaries(spans, text)
+        spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
+        if not spans and status in ACCEPTED_STATUSES:
             continue
+        prepared.append((row, spans, text, tokens, starts, stops))
+    id_counts = Counter(str(row["id"]) for row, *_ in prepared)
+    exported = []
+    for row, spans, text, tokens, starts, stops in prepared:
+        labels = empty_labels(len(tokens))
         for span in spans:
             apply_span(labels, span)
         unknown = sorted(set(labels) - set(label2id))
         if unknown:
             raise ValueError(f"{row.get('id')}: labels missing from label map: {unknown}")
-        row_id = str(row["id"])
+        source_id = str(row["id"])
+        row_id = unique_row_id(source_id, text, spans, id_counts)
         split_group = source_split_group(row)
         source = row.get("source") if isinstance(row.get("source"), dict) else {}
         source_document_id = row.get("sample_document_id") or source.get("document_id") or ""
         exported.append(
             {
-                "schema_version": "mediaagencies-jsonl-v0.1",
+                "schema_version": "mediaagencies-jsonl-v0.2",
+                "tokenization": TOKENIZATION_PROFILE,
                 "id": row_id,
                 "document_id": row_id,
                 "split": "train",
@@ -220,21 +545,20 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
                 "token_start_offsets": starts,
                 "token_end_offsets": stops,
                 "token_labels": labels,
-                "token_label_ids": [int(label2id[label]) for label in labels],
-                "entities": labels_to_entities(row_id, labels, tokens, starts, stops, text),
-                "quality_flags": [],
-                "source_component": source_component(row),
+                "entities": labels_to_entities(labels, starts, stops, text),
+                "quality_flags": ["reviewed_negative_snippet"] if not spans else [],
                 "split_group": split_group,
                 "legacy": {
                     "source_format": "sampled-snippet-jsonl",
-                    "source_id": row.get("id", row_id),
+                    "source_id": source_id,
                     "source_document_id": source_document_id,
                     "source_issue_id": split_group,
                     "query": row.get("query", ""),
+                    "review_status": str((row.get("curation") or {}).get("status") or ""),
                 },
             }
         )
-    return exported
+    return deduplicate_exported_rows(exported)
 
 
 def write_split_outputs(rows: list[dict[str, Any]], *, output: Path, validation_output: Path | None, test_output: Path | None) -> dict[str, int]:
@@ -263,6 +587,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--split-seed", type=int, default=42)
     parser.add_argument("--label-map", required=True)
     parser.add_argument("--extra-label-metadata", action="append", default=[])
+    parser.add_argument("--holdout-source", action="append", default=[], help="Existing split as SPLIT=PATH.")
+    parser.add_argument("--holdout-min-per-label", type=int, default=0)
     return parser.parse_args(argv)
 
 
@@ -271,7 +597,23 @@ def main(argv: list[str] | None = None) -> int:
     rows = export_rows(Path(args.input), Path(args.label_map), extra_label_metadata=[Path(path) for path in args.extra_label_metadata])
     test_fraction = args.test_fraction if args.test_output else 0.0
     validation_fraction = args.validation_fraction if args.validation_output else 0.0
-    rows = apply_split_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=args.split_seed)
+    existing_by_split: dict[str, list[dict[str, Any]]] = {}
+    for item in args.holdout_source:
+        split, separator, path = item.partition("=")
+        if not separator or split not in {"train", "validation", "test"}:
+            raise ValueError(f"invalid --holdout-source {item!r}; expected train|validation|test=PATH")
+        existing_by_split[split] = load_jsonl(Path(path))
+    if args.holdout_min_per_label > 0:
+        rows = apply_holdout_deficit_assignments(
+            rows,
+            existing_by_split=existing_by_split,
+            minimum=args.holdout_min_per_label,
+            test_fraction=test_fraction,
+            validation_fraction=validation_fraction,
+            seed=args.split_seed,
+        )
+    else:
+        rows = apply_split_assignments(rows, test_fraction=test_fraction, validation_fraction=validation_fraction, seed=args.split_seed)
     counts = write_split_outputs(
         rows,
         output=Path(args.output),

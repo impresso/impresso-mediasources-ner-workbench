@@ -1,9 +1,147 @@
 [
   {
+    "canonical_id": "radio-liberty",
+    "label": "org.ent.radiostation.radio-liberty",
+    "display_name": "Radio Liberty",
+    "aliases": [
+      "Radio Liberty",
+      "Radio-Liberty",
+      "Radio Liberation",
+      "Radio Liberation from Bolshevism",
+      "Radio Svoboda",
+      "Radio Liberty Munich"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty",
+    "wikidata_url": null,
+    "description": "US-funded international broadcaster directed at audiences in the Soviet Union. Founded in 1951 by the American Committee for the Liberation of the Peoples of Russia (Amcomlib). Initially known as Radio Liberation from Bolshevism and later Radio Liberation before adopting the name Radio Liberty. It operated separately from Radio Free Europe until their merger in 1976.",
+    "annotation_note": "Annotate Radio Liberty, Radio-Liberty, Radio Liberation, and related historical forms when they refer to the broadcaster, a broadcast source, a programme, a transmission, or institutional radio activity. Do not normalize Radio Liberty to Radio Free Europe in pre-1976 contexts; they were separate broadcasters.",
+    "active_period": {
+      "start": "1951",
+      "end": "1976",
+      "note": "Founded in 1951. Began broadcasting in 1953. Merged with Radio Free Europe in 1976 to form Radio Free Europe/Radio Liberty."
+    },
+    "aliases_by_language": {
+      "en": [
+        "Radio Liberty",
+        "Radio-Liberty",
+        "Radio Liberation",
+        "Radio Liberation from Bolshevism"
+      ],
+      "de": [
+        "Radio Liberty",
+        "Radio-Liberty",
+        "Radio Befreiung",
+        "Radio Liberation"
+      ],
+      "fr": [
+        "Radio Liberty",
+        "Radio-Liberty",
+        "Radio Libération",
+        "Radio Liberation"
+      ],
+      "ru": ["Радио Свобода", "Radio Svoboda"]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty"
+      }
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
+    "canonical_id": "polskie-radio",
+    "label": "org.ent.radiostation.polskie-radio",
+    "display_name": "Polskie Radio",
+    "aliases": [
+      "Polskie Radio",
+      "Radio Varsovie",
+      "Radio-Varsovie",
+      "Radio Warsaw",
+      "Radio-Warsaw",
+      "Radio Warschau",
+      "Radio-Warschau",
+      "Radio Warszawa",
+      "Varsovie Radio",
+      "Warsaw Radio",
+      "Warschauer Rundfunk",
+      "Sender Warschau"
+    ],
+    "historical_station_aliases": [
+      "Radio Varsovie",
+      "Radio-Varsovie",
+      "Radio Warsaw",
+      "Radio-Warsaw",
+      "Radio Warschau",
+      "Radio-Warschau",
+      "Radio Warszawa",
+      "Varsovie Radio",
+      "Warsaw Radio",
+      "Warschauer Rundfunk",
+      "Sender Warschau"
+    ],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Polskie_Radio",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1067189",
+    "description": "Polish public radio broadcaster founded in 1925. Historical newspapers frequently refer to broadcasts from Warsaw using translated station names such as Radio Varsovie, Radio Warsaw, Radio Warschau, Warschauer Rundfunk, or Sender Warschau. In news reports, programme listings, source attributions, and broadcast announcements these forms typically refer to the Polish Radio network rather than a separate broadcaster entity.",
+    "annotation_note": "Annotate Polskie Radio and historical station forms such as Radio Varsovie, Radio Warsaw, Radio Warschau, Warschauer Rundfunk, and Sender Warschau when the context refers to a broadcaster, broadcast source, programme listing, transmission, radio announcement, or institutional radio activity. Normalize these forms to org.ent.radiostation.polskie-radio.",
+    "active_period": {
+      "start": "1925",
+      "end": null,
+      "note": "Polskie Radio was established in 1925. Regular broadcasting from Warsaw began in April 1926 and became the core station of the national Polish radio network."
+    },
+    "aliases_by_language": {
+      "pl": ["Polskie Radio", "Radio Warszawa"],
+      "fr": ["Radio Varsovie", "Radio-Varsovie"],
+      "de": [
+        "Radio Warschau",
+        "Radio-Warschau",
+        "Warschauer Rundfunk",
+        "Sender Warschau"
+      ],
+      "en": ["Polskie Radio", "Radio Warsaw", "Radio-Warsaw", "Warsaw Radio"]
+    },
+    "metadata_sources": [
+      {
+        "type": "wikidata",
+        "url": "https://www.wikidata.org/wiki/Q1067189"
+      },
+      {
+        "type": "wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Polskie_Radio"
+      }
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "bbc",
     "label": "org.ent.radiostation.bbc",
     "display_name": "BBC",
-    "aliases": ["BBC", "Radio Londres", "Radio London", "Radio Londra", "Londoner Rundfunk"],
+    "aliases": [
+      "BBC",
+      "British Broadcasting Corporation",
+      "Radio Londres",
+      "Radio-Londres",
+      "Radio London",
+      "Radio-London",
+      "Radio Londra",
+      "Radio-Londra",
+      "Londoner Rundfunk",
+      "Londoner-Rundfunk",
+      "Sender London"
+    ],
+    "historical_station_aliases": [
+      "Radio Londres",
+      "Radio-Londres",
+      "Radio London",
+      "Radio-London",
+      "Radio Londra",
+      "Radio-Londra",
+      "Londoner Rundfunk",
+      "Londoner-Rundfunk",
+      "Sender London"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/BBC",
     "wikidata_url": null,
     "description": "British public broadcaster. In wartime European newspaper contexts, names such as Radio Londres, Radio London, Radio Londra, and Londoner Rundfunk usually refer to BBC foreign-language broadcasts from London rather than to separate stations. These broadcasts could involve Free French, exile-government, resistance, or other allied contributors, but the broadcasting infrastructure and service were part of the BBC's wider European output.",
@@ -15,7 +153,20 @@
     "canonical_id": "radio-paris",
     "label": "org.ent.radiostation.radio-paris",
     "display_name": "Radio Paris",
-    "aliases": ["Radio Paris"],
+    "aliases": [
+      "Radio Paris",
+      "Radio-Paris",
+      "Poste national Radio-Paris",
+      "Poste National Radio-Paris",
+      "Radiola"
+    ],
+    "historical_station_aliases": [
+      "Radio Paris",
+      "Radio-Paris",
+      "Poste national Radio-Paris",
+      "Poste National Radio-Paris",
+      "Radiola"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Paris",
     "wikidata_url": null,
     "trainable": true,
@@ -25,7 +176,30 @@
     "canonical_id": "radio-moscow",
     "label": "org.ent.radiostation.radio-moscow",
     "display_name": "Radio Moscow",
-    "aliases": ["Radio Moscow", "Radio Moscou"],
+    "aliases": [
+      "Radio Moscow",
+      "Radio-Moscow",
+      "Moscow Radio",
+      "Radio Moscou",
+      "Radio-Moscou",
+      "Moscou Radio",
+      "Radio Moskau",
+      "Radio-Moskau",
+      "Moskauer Rundfunk",
+      "Sender Moskau"
+    ],
+    "historical_station_aliases": [
+      "Radio Moscow",
+      "Radio-Moscow",
+      "Moscow Radio",
+      "Radio Moscou",
+      "Radio-Moscou",
+      "Moscou Radio",
+      "Radio Moskau",
+      "Radio-Moskau",
+      "Moskauer Rundfunk",
+      "Sender Moskau"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Moscow",
     "wikidata_url": null,
     "trainable": true,
@@ -35,7 +209,30 @@
     "canonical_id": "radio-bucharest",
     "label": "org.ent.radiostation.radio-bucharest",
     "display_name": "Radio Bucharest",
-    "aliases": ["Radio Bucharest", "Radio Bucarest", "Radio-Bucharest", "Radio-Bucarest"],
+    "aliases": [
+      "Radio Bucharest",
+      "Radio-Bucharest",
+      "Bucharest Radio",
+      "Radio Bucarest",
+      "Radio-Bucarest",
+      "Bucarest Radio",
+      "Radio Bukarest",
+      "Radio-Bukarest",
+      "Bukarester Rundfunk",
+      "Sender Bukarest"
+    ],
+    "historical_station_aliases": [
+      "Radio Bucharest",
+      "Radio-Bucharest",
+      "Bucharest Radio",
+      "Radio Bucarest",
+      "Radio-Bucarest",
+      "Bucarest Radio",
+      "Radio Bukarest",
+      "Radio-Bukarest",
+      "Bukarester Rundfunk",
+      "Sender Bukarest"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Romania_International",
     "wikidata_url": null,
     "description": "Romanian international/state broadcaster from Bucharest. In French and German historical newspaper snippets, Radio Bucarest or Radio-Bucarest is used as a broadcast-source name for announcements from Bucharest. Radio Romania International documents that in 1948 broadcasts in French, English, Russian, Serbian, and German were aired from Bucharest, and that Radio Bucharest later became Radio Romania International.",
@@ -46,9 +243,14 @@
       "note": "Foreign-language programming from Bucharest began in 1932; Radio Bucharest became Radio Romania International after 1989."
     },
     "aliases_by_language": {
-      "de": ["Radio Bukarest", "Radio-Bukarest", "Radio Bucharest"],
-      "fr": ["Radio Bucarest", "Radio-Bucarest"],
-      "en": ["Radio Bucharest"]
+      "de": [
+        "Radio Bukarest",
+        "Radio-Bukarest",
+        "Bukarester Rundfunk",
+        "Sender Bukarest"
+      ],
+      "fr": ["Radio Bucarest", "Radio-Bucarest", "Bucarest Radio"],
+      "en": ["Radio Bucharest", "Radio-Bucharest", "Bucharest Radio"]
     },
     "metadata_sources": [
       {
@@ -76,18 +278,9 @@
     "wikipedia_url": "https://en.wikipedia.org/wiki/Voice_of_America",
     "wikidata_url": null,
     "aliases_by_language": {
-      "de": [
-        "Voice of America",
-        "Stimme Amerikas"
-      ],
-      "fr": [
-        "Voice of America",
-        "Voix de l'Amerique",
-        "Voix de l’Amérique"
-      ],
-      "en": [
-        "Voice of America"
-      ]
+      "de": ["Voice of America", "Stimme Amerikas"],
+      "fr": ["Voice of America", "Voix de l'Amerique", "Voix de l’Amérique"],
+      "en": ["Voice of America"]
     },
     "trainable": true,
     "status": "seed_from_sampler"
@@ -96,7 +289,12 @@
     "canonical_id": "radio-free-europe",
     "label": "org.ent.radiostation.radio-free-europe",
     "display_name": "Radio Free Europe",
-    "aliases": ["Radio Free Europe", "Radio Europe libre", "Radio Europa Libera", "Radio Freies Europa"],
+    "aliases": [
+      "Radio Free Europe",
+      "Radio Europe libre",
+      "Radio Europa Libera",
+      "Radio Freies Europa"
+    ],
     "aliases_by_language": {
       "de": ["Radio Freies Europa"],
       "fr": ["Radio Europe libre"],
@@ -113,6 +311,14 @@
     "display_name": "Deutsche Welle",
     "aliases": [
       "Deutsche Welle",
+      "Deutsche Welle-Königswusterhausen",
+      "Deutsche Welle-Koenigswusterhausen",
+      "Deutsche Welle-Kœnigswusterhausen",
+      "Deutsche Welle-Königs Wusterhausen",
+      "Deutsche Welle-Koenigs Wusterhausen",
+      "Deutsche Welle-Kœnigs Wusterhausen"
+    ],
+    "historical_station_aliases": [
       "Deutsche Welle-Königswusterhausen",
       "Deutsche Welle-Koenigswusterhausen",
       "Deutsche Welle-Kœnigswusterhausen",
@@ -142,10 +348,7 @@
         "Deutsche Welle-Koenigswusterhausen",
         "Onde allemande"
       ],
-      "en": [
-        "Deutsche Welle",
-        "German Wave"
-      ]
+      "en": ["Deutsche Welle", "German Wave"]
     },
     "metadata_sources": [
       {
@@ -169,10 +372,250 @@
     "status": "metadata_enriched"
   },
   {
+    "canonical_id": "rfi",
+    "label": "org.ent.radiostation.rfi",
+    "display_name": "Radio France Internationale",
+    "aliases": [
+      "RFI",
+      "R.F.I.",
+      "Radio France Internationale",
+      "Radio France international",
+      "Radio Francia Internacional",
+      "Rádio França Internacional",
+      "Международное французское радио",
+      "Poste Colonial",
+      "Paris-Mondial",
+      "Paris Mondial",
+      "RTF Radio Paris",
+      "ORTF Radio Paris"
+    ],
+    "search_aliases": ["RFI", "Radio France Internationale"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_France_Internationale",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q19912",
+    "description": "Canonical umbrella entity for France's public international broadcasting service from the creation of Poste Colonial in 1931 through the present Radio France Internationale. The service successively appeared under historical names including Poste Colonial, Paris-Mondial, and external services of RTF/ORTF before the Radio France Internationale name was introduced on 6 January 1975. RFI became an independent national broadcasting company in 1987 and has belonged to France Médias Monde since 2008.",
+    "annotation_note": "Use org.ent.radiostation.rfi as the canonical label for the continuous French public international broadcasting lineage from 1931 onward, while preserving the historical visible name as the annotated surface. This includes clearly identified international-service mentions of Poste Colonial, Paris-Mondial, RTF Radio Paris, and ORTF Radio Paris, as well as RFI and Radio France Internationale from 1975 onward. Bare Radio Paris remains ambiguous and requires explicit French external-service context; do not globally normalize every Radio Paris mention to RFI.",
+    "active_period": {
+      "start": "1931",
+      "end": null,
+      "note": "Canonical coverage begins with Poste Colonial in 1931. The Radio France Internationale name was introduced on 6 January 1975; RFI became an independent national programme company in 1987 and remains active under France Médias Monde."
+    },
+    "historical_station_aliases": [
+      "Poste Colonial",
+      "Paris-Mondial",
+      "Paris Mondial",
+      "RTF Radio Paris",
+      "ORTF Radio Paris"
+    ],
+    "aliases_by_language": {
+      "de": ["RFI", "R.F.I.", "Radio France Internationale"],
+      "fr": ["RFI", "R.F.I.", "Radio France internationale", "Radio France Internationale", "Poste Colonial", "Paris-Mondial", "Paris Mondial", "RTF Radio Paris", "ORTF Radio Paris"],
+      "en": ["RFI", "R.F.I.", "Radio France Internationale"],
+      "es": ["RFI", "Radio Francia Internacional"],
+      "pt": ["RFI", "Rádio França Internacional"],
+      "it": ["RFI", "Radio France Internationale"],
+      "ru": ["RFI", "Международное французское радио"],
+      "lb": ["RFI", "Radio France Internationale"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q19912"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Radio_France_Internationale"},
+      {"type": "official-history", "url": "https://www.radiofrance.com/radio-france"},
+      {"type": "official-rfi-history", "url": "https://www1.rfi.fr/actubr/articles/082/article_753.asp"},
+      {"type": "broadcast-regulator", "url": "https://www.arcom.fr/radio-et-audio-numerique/radio-fm-dab/radios/rfi"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
+    "canonical_id": "china-radio-international",
+    "label": "org.ent.radiostation.china-radio-international",
+    "display_name": "China Radio International",
+    "aliases": [
+      "China Radio International",
+      "CRI",
+      "Radio Peking",
+      "Radio-Peking",
+      "Peking Radio",
+      "Peking-Radio",
+      "Radio Beijing",
+      "Radio-Beijing",
+      "Radio Pékin",
+      "Radio-Pékin",
+      "Radio Pekin",
+      "Radio-Pekin",
+      "Radio Chine Internationale",
+      "Rádio Internacional da China",
+      "中国国际广播电台"
+    ],
+    "search_aliases_by_language": {
+      "de": [
+        "Radio Peking",
+        "Radio-Peking",
+        "Peking Radio",
+        "Peking-Radio",
+        "Radio Beijing",
+        "Radio-Beijing",
+        "Pekinger Rundfunk",
+        "Pekinger Radio",
+        "Sender Peking",
+        "Rundfunk Peking",
+        "China Radio International"
+      ],
+      "fr": [
+        "Radio Pékin",
+        "Radio-Pékin",
+        "Radio Pekin",
+        "Radio-Pekin",
+        "Radio Peking",
+        "Radio-Peking",
+        "Radio Beijing",
+        "Radio-Beijing",
+        "Radio Chine Internationale",
+        "China Radio International"
+      ],
+      "en": [
+        "Radio Peking",
+        "Radio-Peking",
+        "Peking Radio",
+        "Peking-Radio",
+        "Radio Beijing",
+        "Radio-Beijing",
+        "China Radio International"
+      ]
+    },
+    "wikipedia_url": "https://en.wikipedia.org/wiki/China_Radio_International",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q375117",
+    "description": "Chinese state international broadcaster founded in 1941. Its international service used the name Radio Peking from 1950, Radio Beijing from 1983, and China Radio International from 1993. Radio Peking remains useful for late-1970s and early-1980s historical search because older external-service naming continued in use for some time. It is now part of China Media Group.",
+    "annotation_note": "Use one canonical label across the broadcaster's historical names: Radio Peking/Radio-Pékin, Peking Radio, Radio Beijing, and China Radio International/CRI. Preserve the printed historical surface. Do not confuse this international broadcaster with the separate local Radio Beijing International service. German search variants such as Pekinger Rundfunk, Pekinger Radio, Sender Peking, and Rundfunk Peking are exploratory search forms; annotate them only when the context identifies the Chinese international broadcaster.",
+    "active_period": {
+      "start": "1941",
+      "end": null,
+      "note": "Founded in 1941; named Radio Peking from 1950, Radio Beijing from 1983, and China Radio International from 1993; still active."
+    },
+    "aliases_by_language": {
+      "de": ["Radio Peking", "Radio-Peking", "Peking Radio", "Peking-Radio", "Radio Beijing", "Radio-Beijing", "China Radio International", "CRI"],
+      "fr": ["Radio Pékin", "Radio-Pékin", "Radio Pekin", "Radio-Pekin", "Radio Beijing", "Radio Chine Internationale", "CRI"],
+      "en": ["Radio Peking", "Radio-Peking", "Peking Radio", "Peking-Radio", "Radio Beijing", "Radio-Beijing", "China Radio International", "CRI"],
+      "es": ["Radio Pekín", "Radio Internacional de China", "CRI"],
+      "pt": ["Rádio Pequim", "Rádio Internacional da China", "CRI"],
+      "zh": ["中国国际广播电台", "中国国际广播电台（CRI）"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q375117"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/China_Radio_International"},
+      {"type": "official-profile", "url": "https://polish.cri.cn/1272/2013/09/24/21s120377.htm"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
+    "canonical_id": "kol-yisrael",
+    "label": "org.ent.radiostation.kol-yisrael",
+    "display_name": "Kol Yisrael",
+    "aliases": [
+      "Kol Yisrael",
+      "Kol Israel",
+      "KOL Israel",
+      "KOL Israël",
+      "Kol Israël",
+      "Voice of Israel",
+      "Voix d'Israël",
+      "Voix d’Israël",
+      "Stimme Israels",
+      "Radio Israel",
+      "Radio Israël",
+      "קול ישראל"
+    ],
+    "search_aliases": ["Kol Yisrael", "Kol Israel", "KOL Israël", "Voice of Israel"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Kol_Yisrael",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1714952",
+    "description": "Israeli public domestic and international radio service. It became the official Kol Yisrael broadcaster at Israeli independence in May 1948, drawing on late-1947 Haganah broadcasting, and later operated under the Israel Broadcasting Authority until that authority closed in May 2017.",
+    "annotation_note": "Annotate Kol Yisrael/Kol Israel, KOL Israël, Voice of Israel, and equivalent clearly identifying names for the historical Israeli public radio service. Keep the post-2017 Israeli Public Broadcasting Corporation and Kan services separate unless the visible mention still explicitly names Kol Yisrael.",
+    "active_period": {
+      "start": "1948",
+      "end": "2017",
+      "note": "Official broadcaster from Israeli independence on 14 May 1948 until the Israel Broadcasting Authority closed on 14 May 2017; immediate broadcasting roots date to late 1947."
+    },
+    "aliases_by_language": {
+      "de": ["Kol Israel", "Kol Yisrael", "KOL Israel", "Stimme Israels", "Radio Israel"],
+      "fr": ["Kol Israël", "Kol Israel", "KOL Israël", "Voix d'Israël", "Voix d’Israël", "Radio Israël"],
+      "en": ["Kol Yisrael", "Kol Israel", "Voice of Israel", "Israel Radio"],
+      "es": ["Kol Israel", "La Voz de Israel", "Radio Israel"],
+      "it": ["Kol Israel", "Voce di Israele", "Radio Israele"],
+      "he": ["קול ישראל"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q1714952"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Kol_Yisrael"},
+      {"type": "historical-study", "url": "https://openscholar.huji.ac.il/sites/default/files/eshkol/files/acoustic_space_the_role_of_radio_in_israeli_collective_history-_tamar_liebes.pdf"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
+    "canonical_id": "deutschlandfunk",
+    "label": "org.ent.radiostation.deutschlandfunk",
+    "display_name": "Deutschlandfunk",
+    "aliases": [
+      "Deutschlandfunk",
+      "Deutschland-Funk",
+      "DLF",
+      "D.L.F.",
+      "DeutschlandRadio Köln",
+      "Deutschlandradio Köln"
+    ],
+    "search_aliases": ["Deutschlandfunk", "Deutschland-Funk", "DLF"],
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Deutschlandfunk",
+    "wikidata_url": "https://www.wikidata.org/wiki/Q695328",
+    "description": "German national public radio service conceived by the West German federal government in 1959, established as a federal public-law broadcasting institution in November 1960, and first broadcast on 1 January 1962. It originally addressed listeners across divided Germany and German-speaking audiences in Europe. Since 1994 Deutschlandfunk has operated as the news and current-affairs service of Deutschlandradio.",
+    "annotation_note": "Annotate Deutschlandfunk, Deutschland-Funk, DLF, and explicit transitional DeutschlandRadio Köln forms when they name the broadcaster, its planned institution, programmes, transmissions, or staff. Prospective institutional mentions in the 1959 legislative proposal are valid even though regular broadcasting began in 1962. Keep Deutschlandfunk separate from Deutsche Welle, Deutschlandradio Kultur, Deutschlandfunk Kultur, Deutschlandfunk Nova, and the proposed Deutschland-Fernsehen television organization.",
+    "active_period": {
+      "start": "1959",
+      "end": null,
+      "note": "Proposed by the federal government in 1959, legally established on 29 November 1960, began broadcasting on 1 January 1962, and has continued as a Deutschlandradio service since 1994."
+    },
+    "aliases_by_language": {
+      "de": ["Deutschlandfunk", "Deutschland-Funk", "DLF", "D.L.F.", "DeutschlandRadio Köln", "Deutschlandradio Köln"],
+      "fr": ["Deutschlandfunk", "DLF"],
+      "en": ["Deutschlandfunk", "DLF"],
+      "it": ["Deutschlandfunk", "DLF"]
+    },
+    "metadata_sources": [
+      {"type": "wikidata", "url": "https://www.wikidata.org/wiki/Q695328"},
+      {"type": "wikipedia", "url": "https://en.wikipedia.org/wiki/Deutschlandfunk"},
+      {"type": "official-history", "url": "https://www.deutschlandfunk.de/zwei-neue-sender-fuer-das-land-100.html"},
+      {"type": "official-broadcast-archive", "url": "https://www.deutschlandfunk.de/programmstart-deutschlandfunk-dlf-08b0cafe-100.html"},
+      {"type": "federal-law", "url": "https://dejure.org/BGBl/1960/BGBl._I_S._862"}
+    ],
+    "trainable": true,
+    "status": "metadata_enriched"
+  },
+  {
     "canonical_id": "radio-prague",
     "label": "org.ent.radiostation.radio-prague",
     "display_name": "Radio Prague",
-    "aliases": ["Radio Prague", "Radio Prag"],
+    "aliases": [
+      "Radio Prague",
+      "Radio-Prague",
+      "Prague Radio",
+      "Radio Praha",
+      "Radio-Praha",
+      "Radio Prag",
+      "Radio-Prag",
+      "Prager Rundfunk",
+      "Sender Prag"
+    ],
+    "historical_station_aliases": [
+      "Radio Prague",
+      "Radio-Prague",
+      "Prague Radio",
+      "Radio Praha",
+      "Radio-Praha",
+      "Radio Prag",
+      "Radio-Prag",
+      "Prager Rundfunk",
+      "Sender Prag"
+    ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Prague_International",
     "wikidata_url": null,
     "trainable": true,
@@ -202,24 +645,9 @@
       "note": "Radio Suisse Romande existed as RSR until the 2010 merger; the continuing broadcaster is Radio Télévision Suisse (RTS)."
     },
     "aliases_by_language": {
-      "de": [
-        "RTS",
-        "Radio Télévision Suisse",
-        "Radio Suisse Romande",
-        "RSR"
-      ],
-      "fr": [
-        "RTS",
-        "Radio Télévision Suisse",
-        "Radio Suisse Romande",
-        "RSR"
-      ],
-      "en": [
-        "RTS",
-        "Radio Television Suisse",
-        "Radio Suisse Romande",
-        "RSR"
-      ]
+      "de": ["RTS", "Radio Télévision Suisse", "Radio Suisse Romande", "RSR"],
+      "fr": ["RTS", "Radio Télévision Suisse", "Radio Suisse Romande", "RSR"],
+      "en": ["RTS", "Radio Television Suisse", "Radio Suisse Romande", "RSR"]
     },
     "metadata_sources": [
       {
@@ -261,11 +689,7 @@
       "note": "Vatican Radio began regular broadcasting in 1931 and continues as part of Vatican media services."
     },
     "aliases_by_language": {
-      "de": [
-        "Radio Vatikan",
-        "Radio-Vatikan",
-        "Vatican Radio"
-      ],
+      "de": ["Radio Vatikan", "Radio-Vatikan", "Vatican Radio"],
       "fr": [
         "Radio Vatican",
         "Radio-Vatican",
@@ -276,14 +700,8 @@
         "radio de la Cite du Vatican",
         "Vatican Radio"
       ],
-      "en": [
-        "Vatican Radio",
-        "Radio Vatican"
-      ],
-      "it": [
-        "Radio Vaticano",
-        "Radio Vaticana"
-      ]
+      "en": ["Vatican Radio", "Radio Vatican"],
+      "it": ["Radio Vaticano", "Radio Vaticana"]
     },
     "metadata_sources": [
       {
@@ -349,11 +767,7 @@
         "Radio Television Luxembourg",
         "Radio Luxembourg 208"
       ],
-      "lb": [
-        "RTL",
-        "RTL Radio Lëtzebuerg",
-        "Radio Lëtzebuerg"
-      ]
+      "lb": ["RTL", "RTL Radio Lëtzebuerg", "Radio Lëtzebuerg"]
     },
     "metadata_sources": [
       {

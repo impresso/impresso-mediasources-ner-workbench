@@ -2,7 +2,7 @@
 
 This document gives a compact view of the main workbench activities. The workbench is the control plane: it creates and curates local JSONL artifacts, trains/evaluates models, and stages published Hugging Face dataset and model repositories.
 
-In diagrams and prose, **HIPE-derived data** means the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. This data is still an active baseline training and evaluation source. Some local paths and commands keep the historical `legacy-*` name for compatibility.
+In diagrams and prose, **HIPE-derived data** means the converted French/German news-agency annotations imported from the earlier HIPE/CoNLL-style source files. This data is still an active baseline training and evaluation source. Some local paths still use `legacy` because they describe retained import provenance, not obsolete data.
 
 ## Dataset Extension Axes
 
@@ -45,7 +45,8 @@ flowchart TD
   B --> C[Review one target at a time]
   C --> D[Append span-patch decisions]
   D --> E[Apply accepted/corrected patches]
-  E --> F[Refresh prerelease snapshot]
+  E --> F[Promote patched split]
+  F --> G[Refresh prerelease snapshot]
 ```
 
 For future newspaper mentions, prefer target-scoped passes such as `org.ent.newspaper.nzz` first, then the next newspaper label. This keeps reviewer decisions consistent.
@@ -80,7 +81,7 @@ flowchart TD
 flowchart TD
   A[HIPE TSV or curated HIPE-derived JSONL] --> B[Import or apply corrections]
   B --> C[Curated HIPE-derived JSONL]
-  D[Reviewed sampled spans] --> E[Snippet-derived train/test JSONL]
+  D[Reviewed sampled spans] --> E[Snippet-derived train/validation/test JSONL]
   C --> F[Dataset export]
   E --> F
   F --> G[Staged HF dataset directory]
@@ -91,10 +92,10 @@ flowchart TD
 Primary commands:
 
 ```bash
-make import-legacy-hipe ARGS="..."
+make import-hipe ARGS="..."
 make apply-curation CFG=configs/model-v2.0.0.mk
-make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
 make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--dry-run"
 ```
 
@@ -110,17 +111,57 @@ flowchart TD
   D --> E[Apply accepted/corrected patches]
   E --> F[Patched JSONL split]
   E --> G[Change audit JSONL/TSV]
+  F --> H[Promote into prerelease/source split]
 ```
 
 Primary commands:
 
 ```bash
-make audit-empty-training-docs CFG=configs/model-v2.0.0.mk
-make review-span-patches CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make apply-span-patches CFG=configs/model-v2.0.0.mk
+make audit-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
+make review-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train REVIEWER="$USER"
+make integrate-missing-spans CFG=configs/model-v2.0.0.mk MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata MISSING_SPAN_SPLIT=train
 ```
 
+For broad empty-gold scans, the audit command scores train, validation, and test. Review and integrate one split at a time:
+
+```bash
+make audit-empty-training-docs CFG=configs/model-v2.0.0.mk
+make review-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation REVIEWER="$USER"
+make apply-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation
+make span-patch-status CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation
+make promote-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation
+```
+
+Use `make integrate-span-patches CFG=configs/model-v2.0.0.mk EMPTY_DOC_SPLIT=validation` when you want to apply accepted decisions and immediately promote that patched split into the configured prerelease/source split.
+
 For target-scoped vertical extension, override `SPAN_PATCH_AUDIT_ID`, `SPAN_PATCH_CANDIDATES`, `SPAN_PATCH_SOURCE_JSONL`, and `SPAN_PATCH_TARGET_LABEL`.
+
+## Existing Span Boundary Audit
+
+Use an existing-span boundary audit to verify one already annotated label occurrence by occurrence.
+
+```mermaid
+flowchart TD
+  A[Choose one existing label] --> B[Extract all existing occurrences]
+  B --> C[Review with shared span-patch UI]
+  C --> D{Decision}
+  D -->|accept| E[Mark verified unchanged]
+  D -->|modify| F[Replace boundary or label]
+  D -->|reject| G[Remove existing annotation]
+  E --> H[Apply decisions to patched split]
+  F --> H
+  G --> H
+  H --> I[Promote patched split into prerelease]
+```
+
+Primary commands:
+
+```bash
+make audit-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make review-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas REVIEWER="$USER"
+make apply-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+make promote-existing-spans CFG=configs/model-v2.0.0.mk SPAN_BOUNDARY_TARGET_LABEL=org.ent.pressagency.havas
+```
 
 ## Create, Pre-Annotate, And Review Sampled Data
 
@@ -138,22 +179,27 @@ flowchart TD
   H -->|needs_review| J[Terminal span review]
   J --> I
   J --> K[Rejected, skipped, or removed audit rows]
-  I --> L[Export train/test JSONL]
+  I --> L[Split train/validation/test JSONL]
+  L --> M[Promote split snippets into prerelease splits]
 ```
 
 Primary commands:
 
 ```bash
-make sample-newsagencies CFG=configs/model-v2.0.0.mk
-make score-newsagency-snippets CFG=configs/model-v2.0.0.mk
-make review-newsagency-snippets CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-newsagency-snippets CFG=configs/model-v2.0.0.mk
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=pressagency
 
-make sample-radiostations CFG=configs/model-v2.0.0.mk
-make score-radiostation-snippets CFG=configs/model-v2.0.0.mk
-make review-radiostation-spans CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
-make export-radiostation-snippets CFG=configs/model-v2.0.0.mk
+make sample-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+make suggest-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+make review-media-snippet-spans CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation REVIEWER="$USER"
+make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
+make preview-promote-snippets CFG=configs/model-v2.0.0.mk
+make promote-snippets CFG=configs/model-v2.0.0.mk
 ```
+
+Use `make integrate-snippets CFG=configs/model-v2.0.0.mk` when reviewed snippet files are current and you want to split both entity families, preview promotion, and promote the split train/validation/test rows into the configured dataset splits. Promotion is idempotent by `document_id`: existing rows with the same ID are replaced, new rows are appended, and the split is sorted again.
 
 ## Correct HIPE-Derived Dev/Test Data
 
@@ -175,11 +221,13 @@ flowchart TD
 Primary commands:
 
 ```bash
-make curate-legacy-eval CFG=configs/model-v2.0.0.mk CURATION_MODEL=models.d/newsagency_radiostation_modernbert_v2.0.0_continue1/best
+make suggest-eval-disagreements CFG=configs/model-v2.0.0.mk
 make review-curation CFG=configs/model-v2.0.0.mk REVIEWER="$USER"
 make validate-curation CFG=configs/model-v2.0.0.mk
 make apply-curation CFG=configs/model-v2.0.0.mk
 ```
+
+The v2 disagreement checker is self-contained: it uses the configured v2 model artifact and that artifact's `label_map.json`. Run `make train CFG=configs/model-v2.0.0.mk` first if the model artifact is missing.
 
 ## Create Or Update Models
 

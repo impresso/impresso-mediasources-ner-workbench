@@ -51,6 +51,14 @@ def token_span_for_offsets(row: dict[str, Any], start: int, stop: int) -> tuple[
     return token_start, token_stop
 
 
+def char_offsets_for_token_span(row: dict[str, Any], token_start: int, token_stop: int) -> tuple[int, int]:
+    starts = [int(value) for value in row.get("token_start_offsets", [])]
+    stops = [int(value) for value in row.get("token_end_offsets", [])]
+    if token_start < 0 or token_stop <= token_start or token_stop > len(starts):
+        raise ValueError(f"{row_id(row)}: patch token span {token_start}:{token_stop} is out of range")
+    return starts[token_start], stops[token_stop - 1]
+
+
 def overlaps(a_start: int, a_stop: int, b_start: int, b_stop: int) -> bool:
     return a_start < b_stop and b_start < a_stop
 
@@ -60,20 +68,78 @@ def accepted_patch(decision: dict[str, Any]) -> bool:
     return verified and decision.get("choice") in {"accept", "modify", "correct"}
 
 
+def existing_boundary_patch(patch: dict[str, Any]) -> bool:
+    return patch.get("audit_mode") == "existing-span-boundary"
+
+
+def removal_patch(patch: dict[str, Any]) -> bool:
+    return patch.get("audit_mode") == "manual-tsv-remove"
+
+
+def manual_tsv_patch(patch: dict[str, Any]) -> bool:
+    return str(patch.get("audit_mode") or "").startswith("manual-tsv-")
+
+
 def verified_decision(decision: dict[str, Any]) -> bool:
     return decision.get("audit_status") == "verified" or decision.get("status") == "done"
+
+
+def decision_source_key(decision: dict[str, Any]) -> tuple[str, str, int, int] | None:
+    source = decision.get("source") if isinstance(decision.get("source"), dict) else {}
+    if source.get("start") is None or source.get("stop") is None:
+        return None
+    return (
+        str(decision.get("audit_id") or ""),
+        str(decision.get("document_id") or ""),
+        int(source["start"]),
+        int(source["stop"]),
+    )
+
+
+def latest_decision_per_source_span(decisions: dict[str, dict[str, Any]], patches: dict[str, dict[str, Any]]) -> set[str]:
+    latest: dict[tuple[str, str, int, int], tuple[str, int, str]] = {}
+    keep_ids: set[str] = set()
+    for order, (review_id, decision) in enumerate(decisions.items()):
+        patch = patches.get(review_id)
+        if not patch or not manual_tsv_patch(patch):
+            keep_ids.add(review_id)
+            continue
+        key = decision_source_key(decision)
+        if key is None:
+            keep_ids.add(review_id)
+            continue
+        reviewed_at = str(decision.get("reviewed_at") or "")
+        current = latest.get(key)
+        if current is None or (reviewed_at, order, review_id) > current:
+            latest[key] = (reviewed_at, order, review_id)
+    keep_ids.update(review_id for _reviewed_at, _order, review_id in latest.values())
+    return keep_ids
+
+
+def decision_apply_order(decisions: dict[str, dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
+    return sorted(
+        decisions.items(),
+        key=lambda item: (str(item[1].get("reviewed_at") or ""), str(item[0])),
+    )
 
 
 def audit_mark(decision: dict[str, Any]) -> dict[str, Any]:
     source = decision.get("source") if isinstance(decision.get("source"), dict) else {}
     span = decision.get("span") if isinstance(decision.get("span"), dict) else {}
+    source_label = source.get("label") or decision.get("correct_label", "")
+    source_start = int(source.get("start"))
+    source_stop = int(source.get("stop"))
+    if source_label == "O" and isinstance(span, dict) and decision.get("choice") in {"accept", "modify", "correct"}:
+        source_label = span.get("label") or source_label
+        source_start = int(span.get("start", source_start))
+        source_stop = int(span.get("stop", source_stop))
     mark = {
         "audit_id": decision.get("audit_id", ""),
         "decision": decision.get("choice", ""),
-        "label": source.get("label") or decision.get("correct_label", ""),
-        "start": int(source.get("start")),
+        "label": source_label,
+        "start": source_start,
         "status": "verified",
-        "stop": int(source.get("stop")),
+        "stop": source_stop,
     }
     if decision.get("choice") in {"modify", "correct"}:
         mark["applied_label"] = span.get("label") or decision.get("correct_label", "")
@@ -96,18 +162,48 @@ def add_audit_mark(row: dict[str, Any], mark: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def patch_span(decision: dict[str, Any]) -> dict[str, Any]:
-    span = decision.get("span") if isinstance(decision.get("span"), dict) else {}
+def audit_mark_keys(row: dict[str, Any]) -> set[tuple[Any, Any, Any, Any, Any]]:
     return {
-        "label": str(span.get("label") or decision.get("correct_label") or ""),
+        (item.get("audit_id"), item.get("label"), item.get("start"), item.get("stop"), item.get("decision"))
+        for item in row.get("audit_marks", [])
+        if isinstance(item, dict)
+    }
+
+
+def patch_span(row: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
+    span = decision.get("span") if isinstance(decision.get("span"), dict) else {}
+    label = str(span.get("label") or decision.get("correct_label") or "")
+    if span.get("token_start") is not None and span.get("token_stop") is not None:
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+        start, stop = char_offsets_for_token_span(row, token_start, token_stop)
+        return {
+            "label": label,
+            "start": start,
+            "stop": stop,
+            "token_start": token_start,
+            "token_stop": token_stop,
+        }
+    return {
+        "label": label,
         "start": int(span["start"]),
         "stop": int(span["stop"]),
     }
 
 
-def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, replace_overlaps: bool) -> tuple[dict[str, Any], dict[str, Any]]:
-    span = patch_span(decision)
-    token_start, token_stop = token_span_for_offsets(row, span["start"], span["stop"])
+def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, replace_overlaps: bool) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    span = patch_span(row, decision)
+    if span.get("token_start") is not None and span.get("token_stop") is not None:
+        token_start = int(span["token_start"])
+        token_stop = int(span["token_stop"])
+    else:
+        try:
+            token_start, token_stop = token_span_for_offsets(row, span["start"], span["stop"])
+        except ValueError as exc:
+            raise ValueError(
+                f"{decision.get('review_id', '<unknown>')}: {exc}. "
+                "Re-review this item with token-based manual span syntax; old character-based decisions cannot be applied."
+            ) from exc
     text = str(row.get("text") or "")
     surface = text[span["start"] : span["stop"]]
     existing = list(row.get("entities") or [])
@@ -146,6 +242,8 @@ def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, repl
     out = dict(row)
     out["entities"] = sorted(existing, key=lambda entity: (int(entity["start"]), int(entity["stop"]), str(entity["label"])))
     out["token_labels"] = labels_from_entities(out)
+    if exists:
+        return out, None
     return out, {
         "choice": decision.get("choice"),
         "document_id": row_id(row),
@@ -156,6 +254,69 @@ def add_or_replace_entity(row: dict[str, Any], decision: dict[str, Any], *, repl
         "surface": surface,
         "token_start": token_start,
         "token_stop": token_stop,
+    }
+
+
+def remove_source_entity(row: dict[str, Any], decision: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    source = decision.get("source") if isinstance(decision.get("source"), dict) else {}
+    start = int(source["start"])
+    stop = int(source["stop"])
+    label = str(source["label"])
+    existing = list(row.get("entities") or [])
+    kept = [
+        entity
+        for entity in existing
+        if not (int(entity["start"]) == start and int(entity["stop"]) == stop and str(entity.get("label") or "") == label)
+    ]
+    if len(kept) == len(existing):
+        raise ValueError(f"{row_id(row)}: source entity not found for removal: {start}:{stop} {label}")
+    out = dict(row)
+    out["entities"] = sorted(kept, key=lambda entity: (int(entity["start"]), int(entity["stop"]), str(entity["label"])))
+    out["token_labels"] = labels_from_entities(out)
+    return out, {
+        "choice": decision.get("choice"),
+        "document_id": row_id(row),
+        "label": label,
+        "review_id": decision["review_id"],
+        "start": start,
+        "stop": stop,
+        "surface": source.get("surface", ""),
+        "token_start": source.get("token_start"),
+        "token_stop": source.get("token_stop"),
+    }
+
+
+def remove_overlapping_entities(row: dict[str, Any], decision: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    span = patch_span(row, decision)
+    existing = list(row.get("entities") or [])
+    removed = [
+        entity
+        for entity in existing
+        if overlaps(int(entity["start"]), int(entity["stop"]), span["start"], span["stop"])
+    ]
+    kept = [
+        entity
+        for entity in existing
+        if not overlaps(int(entity["start"]), int(entity["stop"]), span["start"], span["stop"])
+    ]
+    if not removed:
+        return row, None
+    out = dict(row)
+    out["entities"] = sorted(kept, key=lambda entity: (int(entity["start"]), int(entity["stop"]), str(entity["label"])))
+    out["token_labels"] = labels_from_entities(out)
+    labels = sorted({str(entity.get("label") or "") for entity in removed})
+    text = str(row.get("text") or "")
+    return out, {
+        "choice": decision.get("choice"),
+        "document_id": row_id(row),
+        "label": "O",
+        "removed_labels": ",".join(labels),
+        "review_id": decision["review_id"],
+        "start": span["start"],
+        "stop": span["stop"],
+        "surface": text[span["start"] : span["stop"]],
+        "token_start": span.get("token_start"),
+        "token_stop": span.get("token_stop"),
     }
 
 
@@ -189,32 +350,75 @@ def apply_span_patches(
     rows_by_id = {row_id(row): row for row in rows}
     patches = {patch["review_id"]: patch for patch in load_span_patches(candidates_path, audit_id=audit_id, target_label=target_label)}
     decisions = latest_decisions(decisions_path)
+    active_decision_ids = latest_decision_per_source_span(decisions, patches)
     changes: list[dict[str, Any]] = []
     changed_ids: set[str] = set()
+    audit_marks_written = 0
 
-    for review_id, decision in sorted(decisions.items()):
-        if review_id not in patches or not verified_decision(decision):
+    for review_id, decision in decision_apply_order(decisions):
+        if review_id not in active_decision_ids or review_id not in patches or not verified_decision(decision):
             continue
         doc_id = str(decision["document_id"])
         if doc_id not in rows_by_id:
             raise ValueError(f"{review_id}: source document not found: {doc_id}")
+        patch = patches[review_id]
+        before_audit_marks = audit_mark_keys(rows_by_id[doc_id])
         rows_by_id[doc_id] = add_audit_mark(rows_by_id[doc_id], audit_mark(decision))
+        if audit_mark_keys(rows_by_id[doc_id]) != before_audit_marks:
+            audit_marks_written += 1
+        if existing_boundary_patch(patch) and decision.get("choice") == "accept":
+            continue
+        if existing_boundary_patch(patch) and decision.get("choice") == "reject":
+            rows_by_id[doc_id], change = remove_source_entity(rows_by_id[doc_id], decision)
+            change.update(
+                {
+                    "audit_id": audit_id,
+                    "date": rows_by_id[doc_id].get("date", ""),
+                    "language": rows_by_id[doc_id].get("language", ""),
+                    "newspaper": rows_by_id[doc_id].get("newspaper", ""),
+                    "suggested_label": patch.get("suggested_label", ""),
+                    "target_label": patch.get("target_label", ""),
+                }
+            )
+            changes.append(change)
+            changed_ids.add(doc_id)
+            continue
+        if removal_patch(patch) and accepted_patch(decision):
+            rows_by_id[doc_id], change = remove_overlapping_entities(rows_by_id[doc_id], decision)
+            if change is not None:
+                change.update(
+                    {
+                        "audit_id": audit_id,
+                        "date": rows_by_id[doc_id].get("date", ""),
+                        "language": rows_by_id[doc_id].get("language", ""),
+                        "newspaper": rows_by_id[doc_id].get("newspaper", ""),
+                        "suggested_label": patch.get("suggested_label", ""),
+                        "target_label": patch.get("target_label", ""),
+                    }
+                )
+                changes.append(change)
+                changed_ids.add(doc_id)
+            continue
         if not accepted_patch(decision):
             continue
-        rows_by_id[doc_id], change = add_or_replace_entity(rows_by_id[doc_id], decision, replace_overlaps=replace_overlaps)
-        patch = patches[review_id]
-        change.update(
-            {
-                "audit_id": audit_id,
-                "date": rows_by_id[doc_id].get("date", ""),
-                "language": rows_by_id[doc_id].get("language", ""),
-                "newspaper": rows_by_id[doc_id].get("newspaper", ""),
-                "suggested_label": patch.get("suggested_label", ""),
-                "target_label": patch.get("target_label", ""),
-            }
+        rows_by_id[doc_id], change = add_or_replace_entity(
+            rows_by_id[doc_id],
+            decision,
+            replace_overlaps=replace_overlaps or existing_boundary_patch(patch) or manual_tsv_patch(patch),
         )
-        changes.append(change)
-        changed_ids.add(doc_id)
+        if change is not None:
+            change.update(
+                {
+                    "audit_id": audit_id,
+                    "date": rows_by_id[doc_id].get("date", ""),
+                    "language": rows_by_id[doc_id].get("language", ""),
+                    "newspaper": rows_by_id[doc_id].get("newspaper", ""),
+                    "suggested_label": patch.get("suggested_label", ""),
+                    "target_label": patch.get("target_label", ""),
+                }
+            )
+            changes.append(change)
+            changed_ids.add(doc_id)
 
     output_rows = [rows_by_id[row_id(row)] for row in rows]
     write_jsonl(output_jsonl, output_rows)
@@ -222,7 +426,7 @@ def apply_span_patches(
     write_tsv(
         changes_tsv,
         changes,
-        ["review_id", "document_id", "language", "date", "newspaper", "choice", "label", "surface", "start", "stop", "token_start", "token_stop"],
+        ["review_id", "document_id", "language", "date", "newspaper", "choice", "label", "removed_labels", "surface", "start", "stop", "token_start", "token_stop"],
     )
     summary = {
         "audit_id": audit_id,
@@ -230,6 +434,7 @@ def apply_span_patches(
         "output_jsonl": str(output_jsonl),
         "candidate_patches": len(patches),
         "decisions": len(decisions),
+        "audit_marks_written": audit_marks_written,
         "applied": len(changes),
         "documents_changed": len(changed_ids),
         "changes_jsonl": str(changes_jsonl),
@@ -269,6 +474,7 @@ def main(argv: list[str] | None = None) -> int:
         replace_overlaps=args.replace_overlaps,
     )
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
+    print(f"accepted TSV decisions applied: {summary['applied']} change(s) in {summary['documents_changed']} document(s)")
     return 0
 
 

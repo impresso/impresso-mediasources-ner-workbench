@@ -25,11 +25,10 @@ data/train.jsonl
 data/validation.jsonl
 data/test.jsonl
 label_map.json
-dataset_summary.json
-audit/curation_summary.json
-audit/curation_changes.jsonl
-audit/curation_changes_tags.tsv
+DATASET_STATISTICS.md
 ```
+
+`DATASET_STATISTICS.md` is a generated, human-readable release report with split sizes, token and mention totals, language and entity-family distributions, date and newspaper coverage, per-label frequencies, and the train/validation/test document-overlap check.
 
 Each JSONL row represents one document/article. The published `data/*.jsonl` files intentionally use a compact training schema rather than the full converted HIPE payload, so they are easy to load with `datasets` and inspect in the Hub viewer:
 
@@ -63,7 +62,7 @@ Fields intentionally excluded from the public training rows:
 - `legacy.news_agency_as_source`: thesis-era document-level source-attribution provenance. It mixes QIDs with sentinels such as `_`, `unk`, and `NIL`, and is not part of the current annotation target.
 - `entities[].entity_id`, `entities[].nel`, `entities[].normalized_surface`, `entities[].has_ocr_correction`, `entities[].max_ocr_levenshtein`, `entities[].label_original`, and `entities[].status`: legacy normalization/linking/OCR/audit fields. The current label is `entities[].label`; current entity links use `entities[].wikidata_url`; compact OCR corrections use `entities[].ocr_correction`.
 
-`audit/curation_changes_tags.tsv` is a compact CoNLL-like review file with `TOKEN`, `BEFORE_NERTAG`, and `AFTER_NERTAG` columns for the manually reviewed changes. It is intended for human audit, not model training.
+Workbench/audit artifacts such as curation operation files, TSV materializations, tokenization migration reports, and model-specific quality diagnostics are intentionally not part of the Hugging Face dataset payload.
 
 ## Loading
 

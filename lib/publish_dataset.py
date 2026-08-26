@@ -7,16 +7,23 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
-from huggingface_hub import CommitOperationAdd, HfApi
-
 from .env import load_dotenv_if_available
+from .dataset_statistics import write_report
 
 
 SPLITS = ("train", "validation", "test")
 PRIMARY_FILES = tuple(f"{split}.jsonl" for split in SPLITS) + ("label_map.json",)
-OPTIONAL_AUDIT_FILES = ("curation_summary.json", "curation_changes.jsonl", "curation_changes_tags.tsv")
+DEFAULT_HF_RELEASE_FILES = (
+    "train.jsonl",
+    "validation.jsonl",
+    "test.jsonl",
+    "label_map.json",
+    "README.md",
+    "DATASET_STATISTICS.md",
+)
 PUBLIC_ROW_FIELDS = (
     "schema_version",
+    "tokenization",
     "id",
     "document_id",
     "split",
@@ -68,6 +75,12 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
             handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def read_json(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def row_sort_key(row: dict[str, Any]) -> tuple[str, str]:
     identifier = str(row.get("document_id") or row.get("id") or "")
     return (identifier.casefold(), identifier)
@@ -78,6 +91,13 @@ def copy_file(source: Path, target: Path) -> None:
         raise FileNotFoundError(source)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, target)
+
+
+def parse_file_list(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+    if not value:
+        return default
+    files = tuple(item.strip() for item in value.split() if item.strip())
+    return files or default
 
 
 def public_entity(entity: dict[str, Any]) -> dict[str, Any]:
@@ -111,12 +131,15 @@ def prepare_dataset_repo(
     output_dir: Path,
     card_path: Path,
     repo_id: str,
-    include_audit: bool,
+    release_files: tuple[str, ...] = DEFAULT_HF_RELEASE_FILES,
     allowed_labels: set[str] | None = None,
 ) -> dict[str, Any]:
     for file_name in PRIMARY_FILES:
         if not (input_dir / file_name).is_file():
             raise FileNotFoundError(input_dir / file_name)
+    manifest = read_json(input_dir / "manifest.json")
+    if manifest.get("status") != "ready":
+        raise ValueError(f"dataset publication requires manifest status 'ready', found {manifest.get('status')!r}")
 
     if output_dir.exists():
         shutil.rmtree(output_dir)
@@ -126,27 +149,44 @@ def prepare_dataset_repo(
         rows = sorted(load_jsonl(input_dir / f"{split}.jsonl"), key=row_sort_key)
         write_jsonl(output_dir / "data" / f"{split}.jsonl", (public_row(row) for row in rows))
     copy_file(input_dir / "label_map.json", output_dir / "label_map.json")
-    copy_file(card_path, output_dir / "README.md")
 
-    copied_audit = []
-    if include_audit:
-        audit_dir = output_dir / "audit"
-        for file_name in OPTIONAL_AUDIT_FILES:
-            source = input_dir / file_name
-            if source.is_file():
-                copy_file(source, audit_dir / file_name)
-                copied_audit.append(f"audit/{file_name}")
+    if "README.md" in release_files:
+        copy_file(card_path, output_dir / "README.md")
 
-    summary = dataset_summary(dataset_dir=output_dir, repo_id=repo_id, audit_files=copied_audit)
+    summary = dataset_summary(dataset_dir=output_dir, repo_id=repo_id)
     if allowed_labels is not None:
         unknown = sorted(set(summary["entity_labels"]) - allowed_labels)
         if unknown:
             raise ValueError(f"dataset contains labels not present in canonical metadata: {unknown}")
-    write_json(output_dir / "dataset_summary.json", summary)
+    rows_by_split = {split: load_jsonl(output_dir / "data" / f"{split}.jsonl") for split in SPLITS}
+    release = input_dir.name.removeprefix("dataset-") or "release"
+    summary["files"] = [f"data/{split}.jsonl" for split in SPLITS] + ["label_map.json"]
+    if "DATASET_STATISTICS.md" in release_files:
+        write_report(rows_by_split=rows_by_split, output=output_dir / "DATASET_STATISTICS.md", release=release)
+        summary["files"].append("DATASET_STATISTICS.md")
+    if "dataset_summary.json" in release_files:
+        summary["files"].append("dataset_summary.json")
+        write_json(output_dir / "dataset_summary.json", summary)
+    validate_hf_projection(output_dir, release_files)
     return summary
 
 
-def dataset_summary(*, dataset_dir: Path, repo_id: str, audit_files: list[str]) -> dict[str, Any]:
+def hf_projection_path(file_name: str) -> str:
+    if file_name in PRIMARY_FILES:
+        return f"data/{file_name}" if file_name.endswith(".jsonl") else file_name
+    return file_name
+
+
+def validate_hf_projection(output_dir: Path, release_files: tuple[str, ...]) -> None:
+    expected = {hf_projection_path(file_name) for file_name in release_files}
+    actual = set(list_files(output_dir))
+    if actual != expected:
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        raise ValueError(f"HF projection mismatch: missing={missing} extra={extra}")
+
+
+def dataset_summary(*, dataset_dir: Path, repo_id: str) -> dict[str, Any]:
     label_map = json.loads((dataset_dir / "label_map.json").read_text(encoding="utf-8"))
     rows_by_split = {split: load_jsonl(dataset_dir / "data" / f"{split}.jsonl") for split in SPLITS}
     language_counts: dict[str, dict[str, int]] = {}
@@ -170,7 +210,7 @@ def dataset_summary(*, dataset_dir: Path, repo_id: str, audit_files: list[str]) 
         "entities_by_split": entity_counts,
         "entity_labels": dict(sorted(label_counts.items())),
         "label_count": len(label_map["label2id"]),
-        "files": [f"data/{split}.jsonl" for split in SPLITS] + ["label_map.json", "dataset_summary.json", *audit_files],
+        "files": [f"data/{split}.jsonl" for split in SPLITS] + ["label_map.json"],
         "public_row_fields": list(PUBLIC_ROW_FIELDS) + ["legacy"],
         "public_entity_fields": list(PUBLIC_ENTITY_FIELDS),
         "legacy_trace_fields": list(LEGACY_TRACE_FIELDS),
@@ -179,6 +219,10 @@ def dataset_summary(*, dataset_dir: Path, repo_id: str, audit_files: list[str]) 
 
 def upload_dataset(output_dir: Path, repo_id: str, *, create_pr: bool) -> None:
     load_dotenv_if_available()
+    try:
+        from huggingface_hub import CommitOperationAdd, HfApi
+    except ImportError as exc:
+        raise SystemExit('Hugging Face publishing requires huggingface-hub. Install with: python -m pip install -e ".[hf]"') from exc
     operations = [
         CommitOperationAdd(path_in_repo=str(path.relative_to(output_dir)), path_or_fileobj=str(path))
         for path in sorted(output_dir.rglob("*"))
@@ -216,7 +260,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--newsagencies", default="resources/newsagency_seeds.json")
     parser.add_argument("--radiostations", default="resources/radiostation_seeds.json")
     parser.add_argument("--validate-labels", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--include-audit", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--release-files", default=" ".join(DEFAULT_HF_RELEASE_FILES))
     parser.add_argument("--upload", action="store_true")
     parser.add_argument("--create-pr", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -227,6 +271,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
+    release_files = parse_file_list(args.release_files, DEFAULT_HF_RELEASE_FILES)
+    try:
+        manifest = read_json(input_dir / "manifest.json")
+        if manifest.get("status") != "ready":
+            raise ValueError(f"dataset publication requires manifest status 'ready', found {manifest.get('status')!r}")
+    except (FileNotFoundError, ValueError) as exc:
+        print(str(exc))
+        return 1
     if args.dry_run:
         print(
             json.dumps(
@@ -235,7 +287,8 @@ def main(argv: list[str] | None = None) -> int:
                     "input_dir": str(input_dir),
                     "output_dir": str(output_dir),
                     "repo_id": args.repo_id,
-                    "would_copy": [*PRIMARY_FILES, *OPTIONAL_AUDIT_FILES],
+                    "would_copy": list(release_files),
+                    "would_stage": sorted(hf_projection_path(file_name) for file_name in release_files),
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -248,7 +301,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=output_dir,
         card_path=Path(args.card),
         repo_id=args.repo_id,
-        include_audit=args.include_audit,
+        release_files=release_files,
         allowed_labels=load_allowed_labels([Path(args.newsagencies), Path(args.radiostations)])
         if args.validate_labels
         else None,

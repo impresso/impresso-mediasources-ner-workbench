@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from lib.apply_curation_decisions import apply_curation, parse_correction
+from lib.apply_curation_decisions import apply_curation, parse_args, parse_correction
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -85,6 +85,23 @@ def test_parse_correction_span() -> None:
     assert correction.label == "org.ent.pressagency.wolff"
 
 
+def test_apply_curation_defaults_to_all_dataset_splits() -> None:
+    args = parse_args(
+        [
+            "--input-dir",
+            "input",
+            "--output-dir",
+            "output",
+            "--disagreements",
+            "disagreements.jsonl",
+            "--decisions",
+            "decisions.jsonl",
+        ]
+    )
+
+    assert args.splits == "train validation test"
+
+
 def test_apply_prediction_correction_adds_entity(tmp_path: Path) -> None:
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -136,6 +153,60 @@ def test_apply_prediction_correction_adds_entity(tmp_path: Path) -> None:
     assert "Wolff\tO\tI-org.ent.pressagency.wolff" in tsv
 
 
+def test_apply_manual_decision_adds_structured_span(tmp_path: Path) -> None:
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    source = row("doc1", ["Moscou", ",", "HnviiH", "."], ["O", "O", "O", "O"])
+    write_jsonl(input_dir / "test.jsonl", [source])
+    write_jsonl(
+        tmp_path / "disagreements.jsonl",
+        [
+            {
+                "review_id": "test:doc1:abc",
+                "split": "test",
+                "document": {"id": "doc1"},
+                "gold": None,
+                "prediction": {"token_start": 2, "token_stop": 3, "label": "org.ent.pressagency.ats-sda"},
+            }
+        ],
+    )
+    write_jsonl(
+        tmp_path / "decisions.jsonl",
+        [
+            {
+                "review_id": "test:doc1:abc",
+                "status": "done",
+                "choice": "manual",
+                "correct_label": "org.ent.pressagency.ats-sda",
+                "accepted_spans": [
+                    {
+                        "token_start": 2,
+                        "token_stop": 3,
+                        "label": "org.ent.pressagency.ats-sda",
+                        "surface": "HnviiH",
+                    }
+                ],
+                "notes": "",
+                "reviewer": "tester",
+                "reviewed_at": "2026-05-31T12:00:00+02:00",
+            }
+        ],
+    )
+
+    apply_curation(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        disagreements_path=tmp_path / "disagreements.jsonl",
+        decisions_path=tmp_path / "decisions.jsonl",
+        splits=["test"],
+        require_complete=True,
+    )
+
+    revised = json.loads((output_dir / "test.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert revised["token_labels"] == ["O", "O", "B-org.ent.pressagency.ats-sda", "O"]
+    assert revised["entities"][0]["surface"] == "HnviiH"
+
+
 def test_apply_neither_without_correction_removes_gold(tmp_path: Path) -> None:
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -180,6 +251,62 @@ def test_apply_neither_without_correction_removes_gold(tmp_path: Path) -> None:
     revised = json.loads((output_dir / "validation.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert revised["token_labels"] == ["O", "O", "O", "O", "O", "O"]
     assert revised["entities"] == []
+
+
+def test_apply_grouped_gold_choice_removes_all_overlapping_predictions(tmp_path: Path) -> None:
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    source = row(
+        "doc1",
+        ["Agence", "Wolff", "annonce"],
+        ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff", "O"],
+    )
+    write_jsonl(input_dir / "validation.jsonl", [source])
+    write_jsonl(
+        tmp_path / "disagreements.jsonl",
+        [
+            {
+                "review_id": "validation:doc1:grouped",
+                "split": "validation",
+                "document": {"id": "doc1"},
+                "gold": source["entities"][0],
+                "prediction": None,
+                "gold_spans": [source["entities"][0]],
+                "prediction_spans": [
+                    {"token_start": 0, "token_stop": 1, "label": "org.ent.pressagency.reuters"},
+                    {"token_start": 1, "token_stop": 2, "label": "org.ent.pressagency.wolff"},
+                ],
+            }
+        ],
+    )
+    write_jsonl(
+        tmp_path / "decisions.jsonl",
+        [
+            {
+                "review_id": "validation:doc1:grouped",
+                "status": "done",
+                "choice": "gold",
+                "correct_label": "org.ent.pressagency.wolff",
+                "reviewer": "tester",
+                "reviewed_at": "2026-06-30T12:00:00+02:00",
+            }
+        ],
+    )
+
+    apply_curation(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        disagreements_path=tmp_path / "disagreements.jsonl",
+        decisions_path=tmp_path / "decisions.jsonl",
+        splits=["validation"],
+        require_complete=True,
+    )
+
+    revised = json.loads((output_dir / "validation.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert revised["token_labels"] == ["B-org.ent.pressagency.wolff", "I-org.ent.pressagency.wolff", "O"]
+    assert [(entity["token_start"], entity["token_stop"], entity["label"]) for entity in revised["entities"]] == [
+        (0, 2, "org.ent.pressagency.wolff")
+    ]
 
 
 def test_apply_empty_prediction_removes_gold(tmp_path: Path) -> None:

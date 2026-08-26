@@ -149,14 +149,21 @@ def context_window(content: str, start: int, stop: int, radius: int, *, rng: ran
         max_context = radius * 2
         min_context = min(max_context, 100)
         total_context = rng.randint(min_context, max_context)
-        min_before = max(0, min(radius // 2, total_context))
-        max_before = min(total_context, radius + radius // 2)
+        min_side = min(radius // 2, total_context // 4)
+        min_before = min_side
+        max_before = total_context - min_side
         if min_before > max_before:
-            min_before = 0
+            min_before = max_before = total_context // 2
         before = rng.randint(min_before, max_before)
         after = total_context - before
     left = max(0, start - before)
     right = min(len(content), stop + after)
+    missing_left = before - (start - left)
+    missing_right = after - (right - stop)
+    if missing_left > 0 and right < len(content):
+        right = min(len(content), right + missing_left)
+    if missing_right > 0 and left > 0:
+        left = max(0, left - missing_right)
     while left > 0 and not content[left - 1].isspace():
         left -= 1
     while right < len(content) and not content[right].isspace():
@@ -205,17 +212,22 @@ def expand_candidate_with_full_content(
 
 def clean_aliases(row: dict[str, Any], languages: list[str]) -> list[str]:
     aliases: list[str] = []
-    for value in row.get("aliases") or []:
-        if isinstance(value, str) and value.strip():
-            aliases.append(value.strip())
-    aliases_by_language = row.get("aliases_by_language") or {}
+    search_aliases = row.get("search_aliases") or []
+    search_aliases_by_language = row.get("search_aliases_by_language") or {}
+    has_search_aliases = bool(search_aliases or search_aliases_by_language)
+    alias_fields = [search_aliases] if has_search_aliases else [row.get("aliases") or []]
+    for values in alias_fields:
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                aliases.append(value.strip())
+    aliases_by_language = search_aliases_by_language or ({} if has_search_aliases else row.get("aliases_by_language") or {})
     if isinstance(aliases_by_language, dict):
         for language in languages:
             values = aliases_by_language.get(language) or []
             for value in values:
                 if isinstance(value, str) and value.strip():
                     aliases.append(value.strip())
-    if isinstance(row.get("display_name"), str) and row["display_name"].strip():
+    if not has_search_aliases and isinstance(row.get("display_name"), str) and row["display_name"].strip():
         aliases.append(row["display_name"].strip())
     seen = set()
     out = []
@@ -226,7 +238,14 @@ def clean_aliases(row: dict[str, Any], languages: list[str]) -> list[str]:
     return out
 
 
-def load_seed_queries(path: Path, *, languages: list[str], labels: set[str] | None, max_queries_per_label: int) -> list[dict[str, str]]:
+def load_seed_queries(
+    path: Path,
+    *,
+    languages: list[str],
+    labels: set[str] | None,
+    max_queries_per_label: int,
+    rng: random.Random | None = None,
+) -> list[dict[str, str]]:
     rows = json.loads(path.read_text(encoding="utf-8"))
     queries: list[dict[str, str]] = []
     for row in rows:
@@ -238,8 +257,9 @@ def load_seed_queries(path: Path, *, languages: list[str], labels: set[str] | No
         if row.get("trainable") is False:
             continue
         aliases = clean_aliases(row, languages)
-        if max_queries_per_label > 0:
-            aliases = aliases[:max_queries_per_label]
+        if rng is not None:
+            aliases = list(aliases)
+            rng.shuffle(aliases)
         canonical_id = str(row.get("canonical_id") or label.rsplit(".", 1)[-1])
         for alias in aliases:
             queries.append(
@@ -251,6 +271,54 @@ def load_seed_queries(path: Path, *, languages: list[str], labels: set[str] | No
                 }
             )
     return queries
+
+
+def load_sampling_plan_queries(path: Path, *, family: str = "pressagency", labels: set[str] | None = None) -> tuple[list[dict[str, Any]], dict[tuple[str, str, str], int]]:
+    if not path.is_file():
+        raise SystemExit(f"Sampling plan does not exist: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise SystemExit(f"Sampling plan has no rows array: {path}")
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    bucket_targets: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        if not isinstance(row, dict) or row.get("family") != family:
+            continue
+        label = str(row.get("label") or "")
+        if labels is not None and label not in labels:
+            continue
+        query = str(row.get("query") or "").strip()
+        language = str(row.get("language") or "").strip()
+        planned_new = int(row.get("planned_new") or 0)
+        if not label or not query or not language or planned_new <= 0:
+            continue
+        key = (label, query)
+        item = grouped.setdefault(
+            key,
+            {
+                "query": query,
+                "label": label,
+                "canonical_id": str(row.get("canonical_id") or label.rsplit(".", 1)[-1]),
+                "display_name": str(row.get("display_name") or query),
+                "planned_languages": {},
+            },
+        )
+        item["planned_languages"][language] = planned_new
+        bucket_targets[(label, query, language)] = planned_new
+    queries = list(grouped.values())
+    queries.sort(key=lambda item: (str(item["label"]), str(item["query"]).casefold()))
+    return queries, bucket_targets
+
+
+def successful_alias_limit_reached(
+    successful_aliases: Counter[tuple[str, str]],
+    *,
+    label: str,
+    language: str,
+    max_queries_per_label: int,
+) -> bool:
+    return max_queries_per_label > 0 and successful_aliases[(label, language)] >= max_queries_per_label
 
 
 def extract_candidate(
@@ -351,10 +419,43 @@ def is_auth_error(exc: Exception) -> bool:
     return status == 401 or "401" in text or "unauthorized" in text or "jwt expired" in text
 
 
-def sleep_backoff(attempt: int) -> None:
+def is_rate_limit_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    status = getattr(exc, "status", None)
+    return status == 429 or "429" in text or "rate limit" in text
+
+
+class RateLimitThrottle:
+    def __init__(
+        self,
+        *,
+        cooldown_seconds: float = 30.0,
+        steady_pause_seconds: float = 3.0,
+        sleep_fn: Any = time.sleep,
+    ) -> None:
+        self.cooldown_seconds = cooldown_seconds
+        self.steady_pause_seconds = steady_pause_seconds
+        self.sleep_fn = sleep_fn
+        self.enabled = False
+
+    def before_request(self, request_label: str = "request") -> None:
+        if self.enabled and self.steady_pause_seconds > 0:
+            print(f"rate-limit throttle -> sleeping {self.steady_pause_seconds:.1f}s before {request_label}")
+            self.sleep_fn(self.steady_pause_seconds)
+
+    def after_rate_limit(self) -> None:
+        if self.cooldown_seconds > 0:
+            print(f"rate limit detected -> sleeping {self.cooldown_seconds:.1f}s")
+            self.sleep_fn(self.cooldown_seconds)
+        if self.steady_pause_seconds > 0 and not self.enabled:
+            print(f"rate-limit throttle enabled: {self.steady_pause_seconds:.1f}s between requests")
+        self.enabled = True
+
+
+def sleep_backoff(attempt: int, *, sleep_fn: Any = time.sleep) -> None:
     wait = min(20.0, 2.0**attempt) + 0.2
     print(f"search error -> sleeping {wait:.1f}s")
-    time.sleep(wait)
+    sleep_fn(wait)
 
 
 def safe_search(
@@ -369,9 +470,12 @@ def safe_search(
     year_end: int,
     max_retries: int,
     connect_fn: Any,
+    throttle: RateLimitThrottle | None = None,
 ) -> tuple[Any, Any]:
     for attempt in range(max_retries):
         try:
+            if throttle:
+                throttle.before_request(f"search request ({term!r}, {language}, offset={offset})")
             result = client.search.find(
                 term=term,
                 language=language,
@@ -383,6 +487,9 @@ def safe_search(
             return result, client
         except Exception as exc:
             print(f"search failed ({term!r}, {language}, offset={offset}) attempt {attempt + 1}/{max_retries}: {exc}")
+            if throttle and is_rate_limit_error(exc):
+                throttle.after_rate_limit()
+                continue
             if is_auth_error(exc):
                 print("Authentication problem detected; reconnecting Impresso client...")
                 try:
@@ -391,6 +498,17 @@ def safe_search(
                     print(f"Reconnect failed: {reconnect_exc}")
             sleep_backoff(attempt)
     return None, client
+
+
+def safe_content_text(client: Any, document_id: str, *, throttle: RateLimitThrottle | None = None) -> str:
+    try:
+        if throttle:
+            throttle.before_request(f"full-content request ({document_id})")
+        return content_text_from_raw(client.content_items.get(document_id).raw)
+    except Exception as exc:
+        if throttle and is_rate_limit_error(exc):
+            throttle.after_rate_limit()
+        raise
 
 
 def collect_pool_for_bucket(
@@ -412,16 +530,22 @@ def collect_pool_for_bucket(
     context_source: str = "match",
     context_chars: int = DEFAULT_CONTEXT_CHARS,
     existing_sample_pairs: set[tuple[str, str]] | None = None,
+    existing_sample_issues: set[str] | None = None,
     rng: random.Random | None = None,
+    throttle: RateLimitThrottle | None = None,
 ) -> tuple[list[dict[str, Any]], Any]:
     pool: list[dict[str, Any]] = []
     seen = set()
     existing_sample_pairs = existing_sample_pairs or set()
+    existing_sample_issues = existing_sample_issues or set()
     offset = 0
     pages_seen = 0
     empty_pages = 0
     while len(pool) < target_pool_size and pages_seen < max_pages and empty_pages < max_empty_pages:
-        print(f"  search query={query['query']!r} lang={search_language} offset={offset} pool={len(pool)}/{target_pool_size}")
+        print(
+            f"  search query={query['query']!r} lang={search_language} "
+            f"offset={offset} candidate_pool={len(pool)}/{target_pool_size}"
+        )
         result, client = safe_search(
             client=client,
             date_range_cls=date_range_cls,
@@ -433,6 +557,7 @@ def collect_pool_for_bucket(
             year_end=year_end,
             max_retries=max_retries,
             connect_fn=connect_fn,
+            throttle=throttle,
         )
         time.sleep(pause)
         pages_seen += 1
@@ -451,12 +576,15 @@ def collect_pool_for_bucket(
             row = extract_candidate(hit, query=query, search_language=search_language, require_matches=require_matches)
             if row is None:
                 continue
+            enrich_sample_identity(row)
+            if row.get("sample_issue_id") in existing_sample_issues:
+                continue
             if sample_pair_key(row) in existing_sample_pairs:
                 continue
             rows = [row]
             if context_source == "full-content":
                 try:
-                    content = content_text_from_raw(client.content_items.get(row["id"]).raw)
+                    content = safe_content_text(client, row["id"], throttle=throttle)
                     if content:
                         rows = expand_candidate_with_full_content(row, content, context_chars=context_chars, rng=rng)
                 except Exception as exc:
@@ -480,6 +608,8 @@ def collect_pool_for_bucket(
                 row["text_source"] = "snippet"
             for candidate in rows:
                 enrich_sample_identity(candidate)
+                if candidate.get("sample_issue_id") in existing_sample_issues:
+                    continue
                 if candidate["id"] in seen:
                     continue
                 seen.add(candidate["id"])
@@ -498,12 +628,15 @@ def balanced_select(
     pools: dict[tuple[str, str, str], list[dict[str, Any]]],
     *,
     target_per_bucket: int,
+    target_per_bucket_by_key: dict[tuple[str, str, str], int] | None = None,
     rng: random.Random,
     max_per_label: int,
     existing_sample_pairs: set[tuple[str, str]] | None = None,
+    existing_sample_issues: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     del rng
     existing_sample_pairs = existing_sample_pairs or set()
+    existing_sample_issues = existing_sample_issues or set()
     bucket_order = list(pools)
     indexes = {bucket: 0 for bucket in bucket_order}
     counts: Counter[tuple[str, str, str]] = Counter()
@@ -514,7 +647,8 @@ def balanced_select(
     while made_progress:
         made_progress = False
         for bucket in bucket_order:
-            if counts[bucket] >= target_per_bucket:
+            bucket_target = target_per_bucket_by_key.get(bucket, target_per_bucket) if target_per_bucket_by_key else target_per_bucket
+            if counts[bucket] >= bucket_target:
                 continue
             label = bucket[0]
             if max_per_label > 0 and counts_by_label[label] >= max_per_label:
@@ -525,6 +659,8 @@ def balanced_select(
                 row = pool[idx]
                 idx += 1
                 enrich_sample_identity(row)
+                if row.get("sample_issue_id") in existing_sample_issues:
+                    continue
                 dedupe_key = sample_pair_key(row)
                 if dedupe_key in seen:
                     continue
@@ -538,16 +674,20 @@ def balanced_select(
     summary = {
         "total_selected": len(selected),
         "target_per_query_language": target_per_bucket,
+        "target_per_label_query_language": {
+            f"{label} || {query} || {lang}": (target_per_bucket_by_key.get((label, query, lang), target_per_bucket) if target_per_bucket_by_key else target_per_bucket)
+            for label, query, lang in bucket_order
+        },
         "counts_by_label_query_language": {f"{label} || {query} || {lang}": counts[(label, query, lang)] for label, query, lang in bucket_order},
         "pool_sizes_by_label_query_language": {f"{label} || {query} || {lang}": len(pools[(label, query, lang)]) for label, query, lang in bucket_order},
         "unfilled_label_query_languages": {
             f"{label} || {query} || {lang}": {
                 "selected": counts[(label, query, lang)],
-                "target": target_per_bucket,
+                "target": (target_per_bucket_by_key.get((label, query, lang), target_per_bucket) if target_per_bucket_by_key else target_per_bucket),
                 "pool_size": len(pools[(label, query, lang)]),
             }
             for label, query, lang in bucket_order
-            if counts[(label, query, lang)] < target_per_bucket
+            if counts[(label, query, lang)] < (target_per_bucket_by_key.get((label, query, lang), target_per_bucket) if target_per_bucket_by_key else target_per_bucket)
         },
         "max_per_label": max_per_label,
         "counts_by_label_selected": dict(sorted(counts_by_label.items())),
@@ -572,6 +712,10 @@ def load_undercovered_labels(path: Path, *, family: str = "pressagency", min_mis
 
 
 def load_undercovered_buckets(path: Path, *, family: str = "pressagency", min_missing: int = 1) -> set[tuple[str, str]]:
+    return set(load_undercovered_bucket_missing(path, family=family, min_missing=min_missing))
+
+
+def load_undercovered_bucket_missing(path: Path, *, family: str = "pressagency", min_missing: int = 1) -> dict[tuple[str, str], int]:
     if not path.is_file():
         raise SystemExit(
             f"Coverage JSON does not exist: {path}\n"
@@ -581,7 +725,7 @@ def load_undercovered_buckets(path: Path, *, family: str = "pressagency", min_mi
     rows = payload.get("rows") if isinstance(payload, dict) else None
     if not isinstance(rows, list):
         raise SystemExit(f"Coverage JSON has no rows array: {path}")
-    buckets: set[tuple[str, str]] = set()
+    buckets: dict[tuple[str, str], int] = {}
     for row in rows:
         if not isinstance(row, dict) or row.get("family") != family:
             continue
@@ -592,14 +736,28 @@ def load_undercovered_buckets(path: Path, *, family: str = "pressagency", min_mi
         if isinstance(languages, dict) and languages:
             for language, item in languages.items():
                 if isinstance(item, dict) and int(item.get("missing_to_target") or 0) >= min_missing:
-                    buckets.add((label, str(language)))
+                    buckets[(label, str(language))] = int(item.get("missing_to_target") or 0)
         elif int(row.get("missing_to_target") or 0) >= min_missing:
-            buckets.add((label, "*"))
+            buckets[(label, "*")] = int(row.get("missing_to_target") or 0)
     return buckets
 
 
 def bucket_is_undercovered(label: str, language: str, undercovered_buckets: set[tuple[str, str]]) -> bool:
     return (label, language) in undercovered_buckets or (label, "*") in undercovered_buckets
+
+
+def missing_for_bucket(label: str, language: str, undercovered_missing: dict[tuple[str, str], int]) -> int | None:
+    if (label, language) in undercovered_missing:
+        return undercovered_missing[(label, language)]
+    if (label, "*") in undercovered_missing:
+        return undercovered_missing[(label, "*")]
+    return None
+
+
+def filter_buckets_for_labels(buckets: set[tuple[str, str]], labels: set[str] | None) -> set[tuple[str, str]]:
+    if labels is None:
+        return buckets
+    return {bucket for bucket in buckets if bucket[0] in labels}
 
 
 def iter_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -637,6 +795,25 @@ def load_sample_pairs(paths: list[Path]) -> set[tuple[str, str]]:
     return pairs
 
 
+def load_sample_issues(paths: list[Path]) -> set[str]:
+    issues: set[str] = set()
+    for path in paths:
+        for row in iter_jsonl(path):
+            issue_id = str(row.get("sample_issue_id") or row.get("issue_id") or "")
+            if not issue_id:
+                document_id = row.get("sample_document_id")
+                if not document_id and isinstance(row.get("legacy"), dict):
+                    document_id = row["legacy"].get("source_document_id") or row["legacy"].get("source_id")
+                if not document_id and isinstance(row.get("source"), dict):
+                    document_id = row["source"].get("document_id")
+                if not document_id:
+                    document_id = row.get("document_id") or row.get("id")
+                issue_id = sample_issue_id(document_id)
+            if issue_id:
+                issues.add(issue_id)
+    return issues
+
+
 def write_sample_registry(path: Path, rows: list[dict[str, Any]], existing_pairs: set[tuple[str, str]]) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -670,9 +847,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--languages", nargs="+", default=DEFAULT_LANGUAGES)
     parser.add_argument("--labels", default="", help="Optional whitespace-separated canonical labels to sample.")
     parser.add_argument("--coverage-json", type=Path, help="Annotation coverage JSON from make annotation-stats.")
+    parser.add_argument("--sampling-plan", type=Path, help="Focused sampling plan JSON from make plan-media-sampling.")
     parser.add_argument("--only-under-target", action="store_true", help="Only sample labels still below the target in --coverage-json.")
     parser.add_argument("--min-missing", type=int, default=1, help="Minimum missing_to_target needed when --only-under-target is set.")
-    parser.add_argument("--max-queries-per-label", type=int, default=3)
+    parser.add_argument(
+        "--max-queries-per-label",
+        type=int,
+        default=3,
+        help="Maximum non-empty alias searches to keep per label/language; empty-result aliases do not consume this limit. Use 0 for no limit.",
+    )
     parser.add_argument("--year-start", type=int, default=DEFAULT_YEAR_START)
     parser.add_argument("--year-end", type=int, default=DEFAULT_YEAR_END)
     parser.add_argument("--target-per-query-lang", type=int, default=DEFAULT_TARGET_PER_QUERY_LANG)
@@ -682,7 +865,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-empty-pages", type=int, default=DEFAULT_MAX_EMPTY_PAGES)
     parser.add_argument("--pause", type=float, default=DEFAULT_PAUSE)
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
-    parser.add_argument("--random-seed", type=int, default=DEFAULT_RANDOM_SEED)
+    parser.add_argument("--rate-limit-cooldown", type=float, default=30.0, help="Seconds to sleep immediately after an HTTP 429/rate-limit response.")
+    parser.add_argument("--rate-limit-pause", type=float, default=3.0, help="Seconds to sleep before each later request after the first 429/rate-limit response.")
+    parser.add_argument("--random-seed", type=int, default=None, help="Optional seed for reproducible alias shuffling and context windows.")
+    parser.add_argument("--shuffle-aliases", action=argparse.BooleanOptionalAction, default=True, help="Shuffle alias search order; enabled by default.")
     parser.add_argument("--context-source", choices=["match", "snippet", "full-content"], default=DEFAULT_CONTEXT_SOURCE)
     parser.add_argument(
         "--context-chars",
@@ -702,134 +888,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         help="Additional existing candidate JSONL to read as already-sampled issue/entity pairs. Can be repeated.",
     )
+    parser.add_argument(
+        "--existing-issue-jsonl",
+        type=Path,
+        action="append",
+        default=[],
+        help="Existing dataset JSONL to read as already-sampled newspaper-date issues. Can be repeated.",
+    )
     parser.add_argument("--allow-snippet-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
-    languages = [language.strip() for language in args.languages if language.strip()]
-    labels = parse_labels(args.labels)
-    undercovered_buckets: set[tuple[str, str]] = set()
-    if args.only_under_target:
-        if not args.coverage_json:
-            raise SystemExit("--only-under-target requires --coverage-json")
-        undercovered_buckets = load_undercovered_buckets(args.coverage_json, min_missing=args.min_missing)
-        undercovered = {label for label, _language in undercovered_buckets}
-        labels = undercovered if labels is None else labels & undercovered
-    queries = load_seed_queries(args.seeds, languages=languages, labels=labels, max_queries_per_label=args.max_queries_per_label)
-    print("Seed file:", args.seeds)
-    print("Queries:", len(queries))
-    print("Languages:", languages)
-    if args.only_under_target:
-        print("Under-target labels:", len(labels or []))
-        print("Under-target label-language buckets:", len(undercovered_buckets))
-    print("Output:", args.out)
-    print(f"Context source: {args.context_source} (context chars: {args.context_chars})")
-    existing_sample_paths = [args.sample_registry, args.out, *args.existing_sample_jsonl]
-    existing_sample_pairs = load_sample_pairs(existing_sample_paths)
-    print("Existing issue/entity pairs:", len(existing_sample_pairs))
-    if args.dry_run:
-        for query in queries[:50]:
-            print(f"  {query['label']} || {query['query']}")
-        if len(queries) > 50:
-            print(f"  ... {len(queries) - 50} more")
-        return 0
+    from .sample_media_snippets import run_family_sampler
 
-    date_range_cls, connect_fn = import_runtime()
-    client = connect_fn()
-    rng = random.Random(args.random_seed)
-    require_matches = not args.allow_snippet_only
-    target_pool_size = args.target_per_query_lang * args.pool_factor
-    pools: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
-    for query in queries:
-        print(f"\n=== QUERY: {query['query']} [{query['label']}] ===")
-        for language in languages:
-            if args.only_under_target and not bucket_is_undercovered(query["label"], language, undercovered_buckets):
-                continue
-            bucket = (query["label"], query["query"], language)
-            pool, client = collect_pool_for_bucket(
-                client=client,
-                date_range_cls=date_range_cls,
-                connect_fn=connect_fn,
-                query=query,
-                search_language=language,
-                target_pool_size=target_pool_size,
-                page_size=args.page_size,
-                max_pages=args.max_pages,
-                max_empty_pages=args.max_empty_pages,
-                pause=args.pause,
-                year_start=args.year_start,
-                year_end=args.year_end,
-                max_retries=args.max_retries,
-                require_matches=require_matches,
-                context_source=args.context_source,
-                context_chars=args.context_chars,
-                existing_sample_pairs=existing_sample_pairs,
-                rng=rng,
-            )
-            pools[bucket] = pool
-            print(f"  collected pool: {len(pool)}")
-
-    selected, summary = balanced_select(
-        pools,
-        target_per_bucket=args.target_per_query_lang,
-        rng=rng,
-        max_per_label=args.max_per_label,
-        existing_sample_pairs=existing_sample_pairs,
-    )
-    write_jsonl(args.out, selected)
-    registry_written = write_sample_registry(args.sample_registry, selected, existing_sample_pairs)
-    summary["counts_by_label"] = dict(sorted(Counter(row["candidate_label"] for row in selected).items()))
-    summary["counts_by_label_language"] = dict(
-        sorted(Counter(f"{row.get('candidate_label')} || {row.get('search_language')}" for row in selected).items())
-    )
-    summary["counts_by_query"] = dict(sorted(Counter(row["query"] for row in selected).items()))
-    summary["counts_by_search_language"] = dict(sorted(Counter(row["search_language"] for row in selected).items()))
-    summary["settings"] = {
-        "seeds": str(args.seeds),
-        "languages": languages,
-        "labels": sorted(parse_labels(args.labels) or []),
-        "coverage_json": str(args.coverage_json) if args.coverage_json else "",
-        "only_under_target": args.only_under_target,
-        "undercovered_label_languages": [f"{label} || {language}" for label, language in sorted(undercovered_buckets)],
-        "min_missing": args.min_missing,
-        "max_queries_per_label": args.max_queries_per_label,
-        "year_start": args.year_start,
-        "year_end": args.year_end,
-        "target_per_query_lang": args.target_per_query_lang,
-        "pool_factor": args.pool_factor,
-        "page_size": args.page_size,
-        "max_pages": args.max_pages,
-        "max_empty_pages": args.max_empty_pages,
-        "pause": args.pause,
-        "random_seed": args.random_seed,
-        "require_matches": require_matches,
-        "context_source": args.context_source,
-        "context_chars": args.context_chars,
-        "max_per_label": args.max_per_label,
-        "sample_registry": str(args.sample_registry),
-        "existing_sample_jsonl": [str(path) for path in args.existing_sample_jsonl],
-        "existing_issue_entity_pairs": len(existing_sample_pairs) - registry_written,
-        "registry_pairs_added": registry_written,
-        "deduplication": "global_by_issue_id_and_candidate_label",
-    }
-    args.summary_out.parent.mkdir(parents=True, exist_ok=True)
-    args.summary_out.write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(
-        json.dumps(
-            {"rows": len(selected), "output": str(args.out), "summary": str(args.summary_out), "registry_pairs_added": registry_written},
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-    )
-    return 0
+    return run_family_sampler(parse_args(argv), family="pressagency", load_seed_queries=load_seed_queries)
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        print("\nInterrupted by user.", file=sys.stderr)
+        print("\nInterrupted by user before sampler output could be finalized.", file=sys.stderr)
         raise SystemExit(130)

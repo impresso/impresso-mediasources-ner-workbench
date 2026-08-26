@@ -6,18 +6,26 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
 from .score_newsagency_snippets import (
+    all_generic_alias_spans,
     attach_surfaces,
     device_for,
     import_runtime,
     is_unclosed_dotted_acronym,
     labels_to_spans,
+    load_generic_label_metadata,
+    merge_adjacent_same_label_spans,
     normalize_dotted_acronym_spans,
     resolve_model_ref,
     score_tokens,
-    suppress_contained_same_label_spans,
+    suppress_overlapping_spans,
+    validate_model_inference_metadata,
 )
+from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_jsonl
+from .temporal_verification import verify_entity_start_year
+
+
+PATTERN_MATCH_CONFIDENCE = 0.51
 
 
 def normalize_station_id(value: Any) -> str:
@@ -133,7 +141,11 @@ def has_word_char(value: str) -> bool:
 
 def alias_matches_hyphenated_suffix(tokens: list[str], start: int, stop: int, alias: str) -> bool:
     alias_words = re.findall(r"\w+", alias, flags=re.UNICODE)
-    if not alias_words or stop - start != len(alias_words):
+    if not alias_words:
+        return False
+    if stop - start == len(alias_words) + 2 and tokens[stop - 2] == "-":
+        return all(compact(tokens[start + offset]) == compact(word) for offset, word in enumerate(alias_words))
+    if stop - start != len(alias_words):
         return False
     for offset, alias_word in enumerate(alias_words[:-1]):
         if compact(tokens[start + offset]) != compact(alias_word):
@@ -153,7 +165,7 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
         for alias in aliases
         if compact(alias)
     ]
-    max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) for alias in aliases), default=1)
+    max_len = max((len(re.findall(r"\w+|[^\w\s]", alias, flags=re.UNICODE)) for alias in aliases), default=1) + 2
     for start in range(len(tokens)):
         for stop in range(start + 1, min(len(tokens), start + max_len) + 1):
             if not has_word_char(tokens[start]):
@@ -161,9 +173,12 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
             surface = token_window_surface(tokens, start, stop)
             surface_compact = compact(surface)
             for alias, alias_compact, alias_token_len in alias_forms:
+                alias_tail = alias.rstrip()[-1:]
+                if has_word_char(tokens[stop - 1]) and not has_word_char(alias_tail) and stop < len(tokens) and tokens[stop] == alias_tail:
+                    continue
                 if not has_word_char(tokens[stop - 1]) and has_word_char(alias.rstrip()[-1:]):
                     continue
-                if not has_word_char(tokens[stop - 1]) and not has_word_char(alias.rstrip()[-1:]) and stop - start != alias_token_len:
+                if not has_word_char(tokens[stop - 1]) and not has_word_char(alias_tail) and tokens[stop - 1] != alias_tail:
                     continue
                 if (
                     not has_word_char(tokens[stop - 1])
@@ -178,6 +193,12 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
                         continue
                     matcher = "alias_hyphenated_suffix"
                 else:
+                    if len(re.findall(r"\w+", surface, flags=re.UNICODE)) != len(
+                        re.findall(r"\w+", alias, flags=re.UNICODE)
+                    ):
+                        continue
+                    if any(token in {"(", ")", "[", "]", "{", "}"} for token in tokens[start:stop]):
+                        continue
                     matcher = "alias_compact"
                 actual_stop = stop
                 if alias.rstrip().endswith(".") and stop < len(tokens) and tokens[stop] == "." and is_unclosed_dotted_acronym(tokens, start, stop):
@@ -192,8 +213,8 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
                         "token_stop": actual_stop,
                         "label": label,
                         "surface": token_window_surface(tokens, start, actual_stop),
-                        "confidence": 1.0,
-                        "margin": 1.0,
+                        "confidence": PATTERN_MATCH_CONFIDENCE,
+                        "margin": PATTERN_MATCH_CONFIDENCE,
                         "matcher": matcher,
                         "alias": alias,
                     }
@@ -257,17 +278,34 @@ def find_all_press_alias_spans(tokens: list[str], metadata: dict[str, dict[str, 
 def find_contextual_source_formula_spans(tokens: list[str], seed: dict[str, Any], label: str) -> list[dict[str, Any]]:
     spans: list[dict[str, Any]] = []
     for item in seed.get("contextual_aliases") or []:
-        if not isinstance(item, dict) or item.get("use") != "dispatch_source_formula":
+        if not isinstance(item, dict):
             continue
+        use = str(item.get("use") or "")
         alias = str(item.get("alias") or "").strip()
         if not alias:
             continue
         for span in find_alias_spans(tokens, [alias], label):
             start = int(span["token_start"])
             stop = int(span["token_stop"])
-            if start > 0 and stop < len(tokens) and tokens[start - 1] == "(" and tokens[stop] == ")":
+            if use == "dispatch_source_formula":
+                closes_formula = stop < len(tokens) and tokens[stop] == ")"
+                closes_after_period = stop + 1 < len(tokens) and tokens[stop] == "." and tokens[stop + 1] == ")"
+                matches_context = start > 0 and tokens[start - 1] == "(" and (closes_formula or closes_after_period)
+                matcher = "contextual_dispatch_source_formula"
+            elif use == "reporting_verb_context":
+                reporting_words = {
+                    "added", "said", "reported", "stated", "announced",
+                    "ajoute", "ajouté", "annonce", "annoncé", "déclare", "déclaré", "indique", "indiqué", "rapporte", "rapporté", "révèle", "révélé",
+                    "berichtete", "berichtet", "erklärte", "erklart", "meldete", "meldet",
+                }
+                context = {token.casefold() for token in tokens[max(0, start - 3) : min(len(tokens), stop + 3)]}
+                matches_context = bool(context & reporting_words)
+                matcher = "contextual_reporting_verb"
+            else:
+                continue
+            if matches_context:
                 contextual = dict(span)
-                contextual["matcher"] = "contextual_dispatch_source_formula"
+                contextual["matcher"] = matcher
                 spans.append(contextual)
     return spans
 
@@ -322,6 +360,7 @@ def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, An
     device = device_for(str(getattr(args, "device", "auto")), torch)
     tokenizer = tokenizer_cls.from_pretrained(model_ref)
     model = model_cls.from_pretrained(model_ref).to(device)
+    validate_model_inference_metadata(model.config, model_name)
     model.eval()
     return torch, tokenizer, model, device, model_name
 
@@ -329,6 +368,13 @@ def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, An
 def score_rows(args: argparse.Namespace) -> dict[str, Any]:
     metadata = load_station_metadata(Path(args.radiostations))
     press_metadata = load_pressagency_metadata(Path(getattr(args, "newsagencies", "resources/newsagency_seeds.json")))
+    newspapers_path = Path(getattr(args, "newspapers", "resources/newspaper_seeds.json"))
+    newspaper_metadata = load_generic_label_metadata(newspapers_path, expected_prefix="org.ent.newspaper.")
+    label_metadata = {
+        str(seed.get("label")): seed
+        for seed in [*metadata.values(), *press_metadata.values()]
+        if str(seed.get("label") or "").startswith("org.ent.")
+    }
     alias_index = build_alias_index(metadata)
     model_runtime = load_model_runtime(args)
     rows = []
@@ -339,11 +385,25 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         candidate_alias_spans = find_alias_spans(tokens, aliases, label) if label else []
         all_alias_spans = find_all_seed_alias_spans(tokens, metadata)
         press_alias_spans = find_all_press_alias_spans(tokens, press_metadata)
-        alias_spans = attach_offsets(dedupe_spans(candidate_alias_spans + all_alias_spans + press_alias_spans), starts, stops, text)
+        newspaper_alias_spans = all_generic_alias_spans(tokens, newspaper_metadata)
+        alias_spans = attach_offsets(
+            dedupe_spans(candidate_alias_spans + all_alias_spans + press_alias_spans + newspaper_alias_spans),
+            starts,
+            stops,
+            text,
+        )
         model_spans: list[dict[str, Any]] = []
         if model_runtime is not None:
             torch, tokenizer, model, device, _model_name = model_runtime
-            labels, confidences, margins = score_tokens(tokens, tokenizer, model, torch, device, int(getattr(args, "max_sequence_len", 512)))
+            labels, confidences, margins = score_tokens(
+                tokens,
+                tokenizer,
+                model,
+                torch,
+                device,
+                int(getattr(args, "max_sequence_len", 512)),
+                float(getattr(args, "suggest_non_o_min_confidence", 0.33)),
+            )
             model_spans = normalize_dotted_acronym_spans(
                 attach_surfaces(labels_to_spans(labels, confidences, margins), tokens, starts, stops, text),
                 tokens,
@@ -352,7 +412,9 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
                 text,
             )
             model_spans = suppress_model_spans_covered_by_aliases(model_spans, alias_spans)
-        spans = suppress_contained_same_label_spans(dedupe_spans(alias_spans + model_spans))
+        spans = merge_adjacent_same_label_spans(
+            suppress_overlapping_spans(dedupe_spans(alias_spans + model_spans)), text
+        )
         out = dict(row)
         out["id"] = candidate_id(row, index)
         out["candidate_label"] = label or None
@@ -363,9 +425,14 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
         out["token_end_offsets"] = stops
         out["model"] = {
             "repo_id": str(getattr(args, "model", "") or "alias-matcher"),
-            "scorers": ["radiostation_alias_matcher", "pressagency_alias_matcher"] + (["token_classifier"] if model_runtime is not None else []),
+            "suggest_non_o_min_confidence": float(getattr(args, "suggest_non_o_min_confidence", 0.33)),
+            "scorers": ["radiostation_alias_matcher", "pressagency_alias_matcher"]
+            + (["newspaper_alias_matcher"] if newspapers_path.is_file() else [])
+            + (["token_classifier"] if model_runtime is not None else []),
             "predicted_spans": spans,
         }
+        temporal_verification = verify_entity_start_year(row=row, label=label or None, label_metadata=label_metadata)
+        out["temporal_verification"] = temporal_verification
         reasons = []
         if not label:
             reasons.append("unresolved_radiostation_label")
@@ -373,6 +440,8 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
             reasons.append("no_alias_span_match")
         if model_runtime is not None and model_spans:
             reasons.append("model_predicted_mediaagency_span")
+        if temporal_verification["status"] == "suspicious_before_start":
+            reasons.append("suspicious_before_entity_start")
         out["curation"] = {
             "status": "needs_review",
             "label": out["candidate_label"],
@@ -399,9 +468,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--radiostations", default="resources/radiostation_seeds.json")
     parser.add_argument("--newsagencies", default="resources/newsagency_seeds.json")
+    parser.add_argument("--newspapers", default="resources/newspaper_seeds.json")
     parser.add_argument("--model", default="")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-sequence-len", type=int, default=512)
+    parser.add_argument("--suggest-non-o-min-confidence", type=float, default=0.33)
+    parser.add_argument("--auto-accept-min-confidence", type=float, default=0.99)
+    parser.add_argument("--auto-accept-min-margin", type=float, default=0.30)
+    parser.add_argument("--auto-accept-multiple-min-confidence", type=float, default=0.99)
+    parser.add_argument("--auto-accept", action=argparse.BooleanOptionalAction, default=False)
     return parser.parse_args(argv)
 
 

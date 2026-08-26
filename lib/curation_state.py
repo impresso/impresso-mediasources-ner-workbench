@@ -70,6 +70,14 @@ def training_counts(path: Path) -> dict[str, Any]:
     }
 
 
+def row_document_id(row: dict[str, Any]) -> str:
+    return str(row.get("document_id") or row.get("id") or "")
+
+
+def document_ids(path: Path) -> set[str]:
+    return {row_document_id(row) for row in jsonl_rows(path) if row_document_id(row)}
+
+
 def status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     for row in rows:
@@ -100,6 +108,79 @@ def span_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def latest_status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    return status_counts(rows)
+
+
+TERMINAL_SNIPPET_STATUSES = {"accepted", "auto_accepted", "rejected", "removed"}
+
+
+def snippet_workflow_state(
+    *,
+    candidates_rows: int,
+    scored_rows: list[dict[str, Any]],
+    reviewed_rows: list[dict[str, Any]],
+    split_rows: int,
+    split_entities: int,
+    split_document_ids: set[str],
+    promoted_document_ids: set[str],
+) -> dict[str, Any]:
+    scored_statuses = latest_status_counts(scored_rows)
+    reviewed_statuses = latest_status_counts(reviewed_rows)
+    terminal_reviewed_ids = {
+        row_document_id(row)
+        for row in reviewed_rows
+        if str((row.get("curation") or {}).get("status") or "") in TERMINAL_SNIPPET_STATUSES
+    }
+    reviewable_scored_ids = {
+        row_document_id(row)
+        for row in scored_rows
+        if str((row.get("curation") or {}).get("status") or "") in {"needs_review", "auto_accepted"}
+    }
+    pending_review = len(reviewable_scored_ids - terminal_reviewed_ids)
+    positive = sum(
+        1
+        for row in reviewed_rows
+        if str((row.get("curation") or {}).get("status") or "") in {"accepted", "auto_accepted"}
+        and bool(row.get("accepted_spans"))
+    )
+    negative = reviewed_statuses.get("rejected", 0)
+    trainable = positive + negative
+    not_usable = reviewed_statuses.get("removed", 0)
+    skipped = reviewed_statuses.get("skipped", 0)
+    curated = positive + negative + not_usable
+    promoted_rows = len(split_document_ids & promoted_document_ids)
+    unpromoted_rows = max(split_rows - promoted_rows, 0)
+
+    if candidates_rows and not scored_rows:
+        next_action = "suggest spans"
+    elif pending_review:
+        next_action = "review snippets"
+    elif trainable and split_rows < trainable:
+        next_action = "split snippets"
+    elif unpromoted_rows:
+        next_action = "promote snippets"
+    else:
+        next_action = "up to date" if split_rows else "sample snippets"
+
+    return {
+        "sampled": candidates_rows,
+        "suggested": len(scored_rows),
+        "pending_review": pending_review,
+        "curated": curated,
+        "accepted_for_dataset": positive,
+        "negative_for_dataset": negative,
+        "trainable_for_dataset": trainable,
+        "not_usable": not_usable,
+        "skipped": skipped,
+        "split_rows": split_rows,
+        "split_entities": split_entities,
+        "promoted_rows": promoted_rows,
+        "unpromoted_rows": unpromoted_rows,
+        "next_action": next_action,
+    }
+
+
 def snippet_family_state(
     *,
     family: str,
@@ -109,16 +190,37 @@ def snippet_family_state(
     reviewed: Path,
     decisions: Path,
     train_jsonl: Path,
+    validation_jsonl: Path,
     test_jsonl: Path,
+    dataset_source_dir: Path,
 ) -> dict[str, Any]:
     candidate_rows = count_jsonl(candidates)
     scored_rows = jsonl_rows(scored)
     reviewed_rows = jsonl_rows(reviewed)
     sample_summary_data = safe_load_json(sample_summary)
-    exported_train = training_counts(train_jsonl)
-    exported_test = training_counts(test_jsonl)
+    split_train = training_counts(train_jsonl)
+    split_validation = training_counts(validation_jsonl)
+    split_test = training_counts(test_jsonl)
+    split_rows = split_train["rows"] + split_validation["rows"] + split_test["rows"]
+    split_entities = split_train["entities"] + split_validation["entities"] + split_test["entities"]
+    split_document_ids = document_ids(train_jsonl) | document_ids(validation_jsonl) | document_ids(test_jsonl)
+    promoted_document_ids = (
+        document_ids(dataset_source_dir / "train.jsonl")
+        | document_ids(dataset_source_dir / "validation.jsonl")
+        | document_ids(dataset_source_dir / "test.jsonl")
+    )
+    workflow = snippet_workflow_state(
+        candidates_rows=candidate_rows,
+        scored_rows=scored_rows,
+        reviewed_rows=reviewed_rows,
+        split_rows=split_rows,
+        split_entities=split_entities,
+        split_document_ids=split_document_ids,
+        promoted_document_ids=promoted_document_ids,
+    )
     return {
         "family": family,
+        "workflow": workflow,
         "candidates": {**path_state(candidates), "rows": candidate_rows},
         "sample_summary": {
             **path_state(sample_summary),
@@ -137,11 +239,19 @@ def snippet_family_state(
             **span_counts(reviewed_rows),
         },
         "decisions": {**path_state(decisions), "rows": count_jsonl(decisions)},
+        "split": {
+            "train": split_train,
+            "validation": split_validation,
+            "test": split_test,
+            "total_rows": split_rows,
+            "total_entities": split_entities,
+        },
         "exported": {
-            "train": exported_train,
-            "test": exported_test,
-            "total_rows": exported_train["rows"] + exported_test["rows"],
-            "total_entities": exported_train["entities"] + exported_test["entities"],
+            "train": split_train,
+            "validation": split_validation,
+            "test": split_test,
+            "total_rows": split_rows,
+            "total_entities": split_entities,
         },
     }
 
@@ -214,7 +324,9 @@ def build_state(args: argparse.Namespace) -> dict[str, Any]:
             reviewed=Path(args.newsagency_reviewed_snippets),
             decisions=Path(args.newsagency_snippet_decisions),
             train_jsonl=Path(args.newsagency_snippet_train_jsonl),
+            validation_jsonl=Path(args.newsagency_snippet_validation_jsonl),
             test_jsonl=Path(args.newsagency_snippet_test_jsonl),
+            dataset_source_dir=Path(args.dataset_source_dir),
         ),
         "radiostations": snippet_family_state(
             family="radiostations",
@@ -224,7 +336,9 @@ def build_state(args: argparse.Namespace) -> dict[str, Any]:
             reviewed=Path(args.radiostation_reviewed_snippets),
             decisions=Path(args.radiostation_snippet_decisions),
             train_jsonl=Path(args.radiostation_snippet_train_jsonl),
+            validation_jsonl=Path(args.radiostation_snippet_validation_jsonl),
             test_jsonl=Path(args.radiostation_snippet_test_jsonl),
+            dataset_source_dir=Path(args.dataset_source_dir),
         ),
     }
     return {
@@ -243,22 +357,29 @@ def fmt_count(value: Any) -> str:
 
 def print_snippet_state(state: dict[str, Any]) -> None:
     print("Snippet curation")
-    print("family          candidates  scored  reviewed  decisions  exported  entities  statuses")
-    print("-" * 92)
+    print("family          sampled  suggested  to_review  reviewed  trainable  dataset_rows  in_dataset  entities  next")
+    print("-" * 103)
     for family, item in state["snippets"].items():
-        exported = item["exported"]
-        statuses = item["reviewed"]["statuses"] or item["scored"]["statuses"]
-        status_text = ", ".join(f"{key}={value}" for key, value in statuses.items()) or "-"
+        workflow = item.get("workflow") or {}
         print(
             f"{family:<14}  "
-            f"{item['candidates']['rows']:>10}  "
-            f"{item['scored']['rows']:>6}  "
-            f"{item['reviewed']['rows']:>8}  "
-            f"{item['decisions']['rows']:>9}  "
-            f"{exported['total_rows']:>8}  "
-            f"{exported['total_entities']:>8}  "
-            f"{status_text}"
+            f"{workflow.get('sampled', item['candidates']['rows']):>7}  "
+            f"{workflow.get('suggested', item['scored']['rows']):>9}  "
+            f"{workflow.get('pending_review', 0):>9}  "
+            f"{workflow.get('curated', item['reviewed']['rows']):>8}  "
+            f"{workflow.get('trainable_for_dataset', workflow.get('accepted_for_dataset', 0)):>9}  "
+            f"{workflow.get('split_rows', item['split']['total_rows']):>12}  "
+            f"{workflow.get('promoted_rows', 0):>10}  "
+            f"{workflow.get('split_entities', item['split']['total_entities']):>8}  "
+            f"{workflow.get('next_action', '-')}"
         )
+    print()
+    print("Meaning: to_review = suggested snippets still needing manual audit; reviewed =")
+    print("snippets with a final keep/reject/remove decision; trainable = reviewed snippets")
+    print("used for training, including positive rows with accepted spans and rejected rows")
+    print("as confirmed negative examples; dataset_rows/entities = rows/entities produced from")
+    print("trainable snippets;")
+    print("in_dataset = produced snippet rows already present in the configured dataset splits.")
 
 
 def print_dataset_state(state: dict[str, Any]) -> None:
@@ -333,6 +454,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--newsagency-reviewed-snippets", default="data/curated/snippets/newsagencies/reviewed.jsonl")
     parser.add_argument("--newsagency-snippet-decisions", default="data/curated/snippets/newsagencies/decisions.jsonl")
     parser.add_argument("--newsagency-snippet-train-jsonl", default="data/curated/snippets/newsagencies/train.jsonl")
+    parser.add_argument("--newsagency-snippet-validation-jsonl", default="data/curated/snippets/newsagencies/validation.jsonl")
     parser.add_argument("--newsagency-snippet-test-jsonl", default="data/curated/snippets/newsagencies/test.jsonl")
     parser.add_argument("--radiostation-snippets", default="data/candidates/radiostation_search_snippets.jsonl")
     parser.add_argument("--radiostation-snippet-summary", default="data/candidates/radiostation_search_snippets_summary.json")
@@ -340,6 +462,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--radiostation-reviewed-snippets", default="data/curated/snippets/radiostations/reviewed.jsonl")
     parser.add_argument("--radiostation-snippet-decisions", default="data/curated/snippets/radiostations/decisions.jsonl")
     parser.add_argument("--radiostation-snippet-train-jsonl", default="data/curated/snippets/radiostations/train.jsonl")
+    parser.add_argument("--radiostation-snippet-validation-jsonl", default="data/curated/snippets/radiostations/validation.jsonl")
     parser.add_argument("--radiostation-snippet-test-jsonl", default="data/curated/snippets/radiostations/test.jsonl")
     return parser.parse_args(argv)
 

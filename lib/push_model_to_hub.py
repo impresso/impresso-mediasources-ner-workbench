@@ -43,6 +43,12 @@ def copy_if_exists(source: Path, target: Path) -> None:
         shutil.copy2(source, target)
 
 
+def copy_hf_model_sources(out_dir: Path) -> None:
+    source_dir = Path("hf_model")
+    for name in ("pipeline.py", "decoding.py"):
+        copy_if_exists(source_dir / name, out_dir / name)
+
+
 def copy_payload(model_dir: Path, card: Path, requirements: Path, out_dir: Path, *, include_eval_metrics: bool) -> None:
     for name in REQUIRED_MODEL_FILES:
         source = model_dir / name
@@ -51,6 +57,7 @@ def copy_payload(model_dir: Path, card: Path, requirements: Path, out_dir: Path,
 
     shutil.copy2(card, out_dir / "README.md")
     copy_if_exists(requirements, out_dir / "requirements.txt")
+    copy_hf_model_sources(out_dir)
 
     parent = model_dir.parent
     for name in ("label_map.json", "training_args.json", "training_start_report.json", "best_validation_metrics.json"):

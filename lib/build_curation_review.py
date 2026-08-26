@@ -6,8 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-
-Entity = tuple[int, int, str]
+from .entity_alignment import Entity, entity_record, labels_to_entities, natural_text, overlap_components, render_tokens
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -43,84 +42,6 @@ def load_decisions(path: Path | None) -> dict[str, dict[str, Any]]:
     return decisions
 
 
-def strip_bio(label: str) -> str:
-    if label == "O":
-        return "O"
-    if label.startswith(("B-", "I-")):
-        return label[2:]
-    return label
-
-
-def labels_to_entities(labels: list[str]) -> set[Entity]:
-    entities: set[Entity] = set()
-    start: int | None = None
-    active = ""
-
-    def close(stop: int) -> None:
-        nonlocal start, active
-        if start is not None:
-            entities.add((start, stop, active))
-        start = None
-        active = ""
-
-    for index, label in enumerate(labels):
-        if label == "O":
-            close(index)
-            continue
-        prefix = label[:1] if label.startswith(("B-", "I-")) else "B"
-        base = strip_bio(label)
-        if prefix == "B" or start is None or active != base:
-            close(index)
-            start = index
-            active = base
-    close(len(labels))
-    return entities
-
-
-def entity_record(entity: Entity | None, row: dict[str, Any]) -> dict[str, Any] | None:
-    if entity is None:
-        return None
-    start, stop, label = entity
-    token_start_offsets = row.get("token_start_offsets", [])
-    token_end_offsets = row.get("token_end_offsets", [])
-    char_start = token_start_offsets[start] if start < len(token_start_offsets) else None
-    char_stop = token_end_offsets[stop - 1] if stop - 1 < len(token_end_offsets) else None
-    surface = natural_text(row, start, stop)
-    return {
-        "label": label,
-        "token_start": start,
-        "token_stop": stop,
-        "surface": surface,
-        "char_start": char_start,
-        "char_stop": char_stop,
-    }
-
-
-def natural_text(row: dict[str, Any], start: int, stop: int) -> str:
-    token_start_offsets = row.get("token_start_offsets", [])
-    token_end_offsets = row.get("token_end_offsets", [])
-    text = row.get("text")
-    if (
-        isinstance(text, str)
-        and start < len(token_start_offsets)
-        and stop > start
-        and stop - 1 < len(token_end_offsets)
-    ):
-        return text[token_start_offsets[start] : token_end_offsets[stop - 1]]
-    return render_tokens(row["tokens"][start:stop], row.get("token_render", [])[start:stop])
-
-
-def render_tokens(tokens: list[str], token_render: list[str] | None = None) -> str:
-    token_render = token_render or [""] * len(tokens)
-    parts = []
-    for index, token in enumerate(tokens):
-        parts.append(token)
-        render = token_render[index] if index < len(token_render) else ""
-        if "NoSpaceAfter" not in render and index != len(tokens) - 1:
-            parts.append(" ")
-    return "".join(parts)
-
-
 def context(row: dict[str, Any], entities: list[Entity], radius: int) -> dict[str, Any]:
     tokens = row["tokens"]
     if entities:
@@ -136,10 +57,6 @@ def context(row: dict[str, Any], entities: list[Entity], radius: int) -> dict[st
         "token_render": row.get("token_render", [])[start:stop],
         "text": natural_text(row, start, stop),
     }
-
-
-def overlap(left: Entity, right: Entity) -> bool:
-    return left[0] < right[1] and right[0] < left[1]
 
 
 def build_disagreements(
@@ -160,42 +77,41 @@ def build_disagreements(
         if language not in languages:
             continue
         gold_entities = labels_to_entities(pred_row["gold_labels"])
-        pred_entities = labels_to_entities(pred_row["pred_labels"])
+        pred_entities = labels_to_entities(pred_row["pred_labels"], merge_adjacent_same_label=True)
         correct = gold_entities & pred_entities
-        remaining_gold = sorted(gold_entities - correct)
-        remaining_pred = sorted(pred_entities - correct)
-        matched_pred: set[Entity] = set()
-
-        for gold in remaining_gold:
-            overlapping = [pred for pred in remaining_pred if pred not in matched_pred and overlap(gold, pred)]
-            if overlapping:
-                pred = overlapping[0]
-                matched_pred.add(pred)
-                issue_type = "label_mismatch" if gold[:2] == pred[:2] and gold[2] != pred[2] else "span_or_label_mismatch"
-            else:
-                pred = None
+        remaining_gold = gold_entities - correct
+        remaining_pred = pred_entities - correct
+        for gold_spans, prediction_spans in overlap_components(remaining_gold, remaining_pred):
+            if gold_spans and prediction_spans:
+                issue_type = (
+                    "label_mismatch"
+                    if len(gold_spans) == len(prediction_spans) == 1
+                    and gold_spans[0][:2] == prediction_spans[0][:2]
+                    and gold_spans[0][2] != prediction_spans[0][2]
+                    else "span_or_label_mismatch"
+                )
+            elif gold_spans:
                 issue_type = "missing_prediction"
-            out.append(review_item(split, issue_type, source, gold, pred, context_radius, decisions))
-
-        for pred in remaining_pred:
-            if pred in matched_pred:
-                continue
-            out.append(review_item(split, "extra_prediction", source, None, pred, context_radius, decisions))
+            else:
+                issue_type = "extra_prediction"
+            out.append(review_item_group(split, issue_type, source, gold_spans, prediction_spans, context_radius, decisions))
     return out
 
 
-def review_item(
+def review_item_group(
     split: str,
     issue_type: str,
     source: dict[str, Any],
-    gold: Entity | None,
-    pred: Entity | None,
+    gold_spans: list[Entity],
+    prediction_spans: list[Entity],
     context_radius: int,
     decisions: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    entities = [entity for entity in (gold, pred) if entity is not None]
-    review_id = stable_review_id(split, issue_type, source["id"], gold, pred)
+    entities = [*gold_spans, *prediction_spans]
+    review_id = stable_group_review_id(split, issue_type, source["id"], gold_spans, prediction_spans)
     decision = decisions.get(review_id, {})
+    gold_records = [entity_record(entity, source) for entity in gold_spans]
+    prediction_records = [entity_record(entity, source) for entity in prediction_spans]
     return {
         "review_id": review_id,
         "split": split,
@@ -207,8 +123,10 @@ def review_item(
             "source_file": source.get("source_file", ""),
         },
         "issue_type": issue_type,
-        "gold": entity_record(gold, source),
-        "prediction": entity_record(pred, source),
+        "gold": gold_records[0] if len(gold_records) == 1 else None,
+        "prediction": prediction_records[0] if len(prediction_records) == 1 else None,
+        "gold_spans": gold_records,
+        "prediction_spans": prediction_records,
         "context": context(source, entities, context_radius),
         "decision": {
             "status": decision.get("status", "todo"),
@@ -221,6 +139,26 @@ def review_item(
     }
 
 
+def review_item(
+    split: str,
+    issue_type: str,
+    source: dict[str, Any],
+    gold: Entity | None,
+    pred: Entity | None,
+    context_radius: int,
+    decisions: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    return review_item_group(
+        split,
+        issue_type,
+        source,
+        [gold] if gold is not None else [],
+        [pred] if pred is not None else [],
+        context_radius,
+        decisions,
+    )
+
+
 def stable_review_id(split: str, issue_type: str, doc_id: str, gold: Entity | None, pred: Entity | None) -> str:
     payload = {
         "split": split,
@@ -228,6 +166,32 @@ def stable_review_id(split: str, issue_type: str, doc_id: str, gold: Entity | No
         "issue_type": issue_type,
         "gold": entity_key(gold),
         "prediction": entity_key(pred),
+    }
+    digest = hashlib.sha1(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:16]
+    return f"{split}:{doc_id}:{digest}"
+
+
+def stable_group_review_id(
+    split: str,
+    issue_type: str,
+    doc_id: str,
+    gold_spans: list[Entity],
+    prediction_spans: list[Entity],
+) -> str:
+    if len(gold_spans) <= 1 and len(prediction_spans) <= 1:
+        return stable_review_id(
+            split,
+            issue_type,
+            doc_id,
+            gold_spans[0] if gold_spans else None,
+            prediction_spans[0] if prediction_spans else None,
+        )
+    payload = {
+        "split": split,
+        "doc_id": doc_id,
+        "issue_type": issue_type,
+        "gold_spans": [entity_key(entity) for entity in gold_spans],
+        "prediction_spans": [entity_key(entity) for entity in prediction_spans],
     }
     digest = hashlib.sha1(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:16]
     return f"{split}:{doc_id}:{digest}"
@@ -256,6 +220,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build manual curation review JSONL from evaluation predictions.")
+    parser.add_argument("--train-jsonl", default="")
+    parser.add_argument("--train-predictions", default="")
     parser.add_argument("--validation-jsonl", default="")
     parser.add_argument("--validation-predictions", default="")
     parser.add_argument("--test-jsonl", default="")
@@ -264,12 +230,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--decisions-jsonl", default="")
     parser.add_argument("--languages", default="de fr")
     parser.add_argument("--context-radius", type=int, default=20)
-    parser.add_argument("--splits", default="validation test", help='Whitespace-separated subset, e.g. "validation" or "test".')
+    parser.add_argument("--splits", default="train validation test", help='Whitespace-separated subset, e.g. "train", "validation", or "test".')
     return parser.parse_args(argv)
 
 
 def selected_split_inputs(args: argparse.Namespace) -> list[tuple[str, Path, Path]]:
     available = {
+        "train": (args.train_jsonl, args.train_predictions),
         "validation": (args.validation_jsonl, args.validation_predictions),
         "test": (args.test_jsonl, args.test_predictions),
     }

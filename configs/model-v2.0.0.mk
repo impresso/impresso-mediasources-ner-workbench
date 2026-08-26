@@ -1,24 +1,27 @@
-# Active prerelease config for dataset-v2.0.0.
+# Released dataset config for dataset-v2.0.0.
 #
-# v2.x.x extends the published v1 press-agency baseline with radio stations and
-# corrected HIPE-derived agency data. It is not the published HF revision yet.
+# v2.x.x is self-contained: it uses the immutable v2 release dataset, v2 model
+# artifact, and v2 checker label map.
 
-include configs/model-v1.0.0.mk
+include configs/common.mk
 
 MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0
-DATASET_SOURCE_DIR = data/prereleases/dataset-v2.0.0
-DATASET_REVISION = v1.0.0
+SELECTED_MODEL = models.d/newsagency_radiostation_modernbert_v2.0.0/best
+DATASET_REVISION = v2.0.0
+DATASET_TSV_COMPARE_VERSION = v1.0.0
+DATASET_SOURCE_DIR = data/releases/dataset-v2.0.0
+TRAIN_JSONL = $(DATASET_SOURCE_DIR)/train.jsonl
+VALIDATION_JSONL = $(DATASET_SOURCE_DIR)/validation.jsonl
+TEST_JSONL = $(DATASET_SOURCE_DIR)/test.jsonl
+LABEL_MAP = $(DATASET_SOURCE_DIR)/label_map.json
+HF_MODEL = $(SELECTED_MODEL)
+CURATION_MODEL = $(SELECTED_MODEL)
+CURATION_LABEL_MAP = $(LABEL_MAP)
+CURATION_INPUT_DIR = $(DATASET_SOURCE_DIR)
+CURATION_APPLIED_DIR = $(DATASET_SOURCE_DIR)
 
-EMPTY_TRAIN_SOURCE_JSONL = data/prereleases/dataset-v2.0.0/train.jsonl
-EMPTY_TRAIN_LABEL_MAP = data/prereleases/dataset-v2.0.0/label_map.json
-EMPTY_TRAIN_AUDIT_DIR = audit.d/empty-training-docs/dataset-v2.0.0
-SPAN_PATCH_AUDIT_ID = empty-training-docs-v2.0.0
-SPAN_PATCH_CANDIDATES = $(EMPTY_TRAIN_AUDIT_DIR)/empty_train_prediction_candidates.jsonl
-SPAN_PATCH_DECISIONS = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/decisions.jsonl
-SPAN_PATCH_QUEUE_JSONL = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/queue.jsonl
-SPAN_PATCH_SUMMARY_JSON = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/summary.json
-SPAN_PATCH_SOURCE_JSONL = $(EMPTY_TRAIN_SOURCE_JSONL)
-SPAN_PATCH_OUTPUT_JSONL = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/patched.jsonl
-SPAN_PATCH_CHANGES_JSONL = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/changes.jsonl
-SPAN_PATCH_CHANGES_TSV = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/changes.tsv
-SPAN_PATCH_APPLY_SUMMARY_JSON = data/curated/span-patches/$(SPAN_PATCH_AUDIT_ID)/apply_summary.json
+# Supervise every model subtoken and convert B-X continuation labels to I-X.
+# Validation and test comparisons against first-subtoken-only training favored B.
+LABEL_ALL_TOKENS = true
+
+EMPTY_DOC_AUDIT_ROOT = audit.d/empty-docs/dataset-v2.0.0
