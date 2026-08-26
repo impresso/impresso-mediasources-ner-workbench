@@ -7,8 +7,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
-from huggingface_hub import CommitOperationAdd, HfApi
-
 from .env import load_dotenv_if_available
 from .dataset_statistics import write_report
 
@@ -186,6 +184,10 @@ def dataset_summary(*, dataset_dir: Path, repo_id: str, audit_files: list[str]) 
 
 def upload_dataset(output_dir: Path, repo_id: str, *, create_pr: bool) -> None:
     load_dotenv_if_available()
+    try:
+        from huggingface_hub import CommitOperationAdd, HfApi
+    except ImportError as exc:
+        raise SystemExit('Hugging Face publishing requires huggingface-hub. Install with: python -m pip install -e ".[hf]"') from exc
     operations = [
         CommitOperationAdd(path_in_repo=str(path.relative_to(output_dir)), path_or_fileobj=str(path))
         for path in sorted(output_dir.rglob("*"))

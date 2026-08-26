@@ -4,6 +4,8 @@ This is the operational release checklist for agents working in the workbench.
 
 The policy is defined in `RELEASE_MANAGEMENT_PLAN.md`. This document tells you what to do.
 
+## Prepare
+
 ## 1. Start A Release Branch
 
 Create one branch per target dataset release:
@@ -55,18 +57,22 @@ data/prereleases/dataset-v2.0.0/
 
 Update this folder in place. Do not create `rc.1`, `rc.2`, or date-stamped prerelease folders for the same target release. In-place updates make the candidate reviewable with normal git diffs.
 
-The prerelease folder must be Hugging Face-shaped:
+The prerelease folder must use the compact public training schema, but it is a flat source snapshot. `make publish-dataset` later converts it into the Hugging Face payload shape under `staging.d/datasets/...`.
 
 ```text
 data/prereleases/dataset-v2.0.0/
-  README.md
-  data/
-    train.jsonl
-    validation.jsonl
-    test.jsonl
+  train.jsonl
+  validation.jsonl
+  test.jsonl
   label_map.json
   dataset_summary.json
   manifest.json
+  DATASET_STATISTICS.md
+  DATASET_QUALITY.md
+  tsv/
+    train.tsv
+    validation.tsv
+    test.tsv
 ```
 
 Rows must use the public dataset projection, not the local import schema. Do not include local-only fields such as:
@@ -90,6 +96,7 @@ Before committing prerelease updates, check:
 - JSON and JSONL files parse cleanly
 - labels are present in canonical metadata
 - split counts and language counts are plausible
+- `label_map.json` is BIO-complete and includes canonical seed metadata labels
 - JSONL rows are sorted by `document_id`/`id`
 - JSON object keys are written alphabetically
 - no file is above 100 MiB
@@ -100,9 +107,17 @@ Run the available project checks:
 
 ```bash
 make smoke
-make validate-labels
-make curation-state CFG=configs/model-v2.0.0.mk
+make data-housekeeping CFG=configs/model-v2.0.0.mk
+make anno-housekeeping CFG=configs/model-v2.0.0.mk
+make prepare-dataset-release CFG=configs/model-v2.0.0.mk
 ```
+
+`make prepare-dataset-release` refreshes the configured prerelease's
+`label_map.json`, `DATASET_STATISTICS.md`, TSV views, `dataset_summary.json`,
+and `manifest.json`, validates the split files, and removes accidental
+`.DS_Store` files from the prerelease tree. It leaves the manifest in
+`prerelease` status by default. Use `DATASET_RELEASE_STATUS=ready` only after
+the exact candidate has been reviewed and accepted for publication.
 
 Inspect git state:
 
@@ -110,6 +125,8 @@ Inspect git state:
 git status --short
 git status --ignored --short data/prereleases data/releases audit.d release-work.d staging.d
 ```
+
+## Review And Freeze
 
 ## 5. Commit Prerelease Work For Review
 
@@ -122,9 +139,23 @@ git commit -m "Prepare dataset-v2.0.0 prerelease"
 
 Collaborators should review the release branch diff. If curation changes, regenerate the prerelease snapshot in the same folder and commit another update on the same branch.
 
-## 6. Archive Full Audit Material
+When the exact candidate is accepted, freeze it explicitly:
 
-Before publication, copy the full audit hierarchy to S3 or another approved external store.
+```bash
+make prepare-dataset-release CFG=configs/model-v2.0.0.mk DATASET_RELEASE_STATUS=ready
+git add data/prereleases/dataset-v2.0.0
+git commit -m "Freeze dataset-v2.0.0 prerelease"
+```
+
+This `ready` commit is the source snapshot for staging, publication, audit archival, and final release promotion. "Frozen" means that this committed Git snapshot is accepted for publication. It does not mean that the files are filesystem read-only.
+
+After this point, do not run annotation, sampling, snippet integration, TSV repair, or other source-content-changing targets against this release candidate. If a content issue is found, return the candidate to normal prerelease work, fix it, rerun `make prepare-dataset-release` with the default `prerelease` status, review the diff, and create a new `ready` commit.
+
+## Publish
+
+## 6. Prepare Audit Material
+
+Before publication, prepare the full audit hierarchy for S3 or another approved external store.
 
 Use this shape:
 
@@ -136,27 +167,55 @@ s3://<audit-bucket>/impresso-mediaagencies-workbench/prereleases/dataset-v2.0.0/
   checks/
 ```
 
-The `hf/` folder should contain the exact prerelease payload. The `audit/` and `sources/` folders may contain full local conversion, sampling, review, and curation provenance.
+The `hf/` folder should contain the exact staged Hugging Face payload. The `audit/` and `sources/` folders may contain full local conversion, sampling, review, and curation provenance.
 
-Record the S3 prefix in `manifest.json`.
+Large provenance material can be uploaded before publication, but the archive is not final until the published Hugging Face revision metadata has been added.
 
 ## 7. Publish The Dataset
+
+Before publishing, verify that the ready candidate has not changed locally:
+
+```bash
+git status --short data/prereleases/dataset-v2.0.0
+```
+
+The intended publishing invariant is:
+
+- `manifest.json` has `status: ready`
+- the dataset source path is clean relative to Git
+- staging and upload derive from the committed ready snapshot
 
 Stage and inspect the accepted prerelease payload:
 
 ```bash
-make publish-dataset CFG=configs/model-v2.0.0.mk DATASET_SOURCE_DIR=data/prereleases/dataset-v2.0.0 ARGS="--dry-run"
+make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--dry-run"
 ```
+
+The dry run is intentionally dependency-light. It should work even when the active Python environment does not have `huggingface_hub` installed, because it does not upload.
+
+Create the local staged Hugging Face payload for inspection:
+
+```bash
+make publish-dataset CFG=configs/model-v2.0.0.mk
+```
+
+Inspect `staging.d/datasets/impresso-mediaagencies-ner-dataset/`. This directory is generated and ignored; do not commit it.
 
 Then publish or open a Hugging Face PR according to the release decision:
 
 ```bash
-make publish-dataset CFG=configs/model-v2.0.0.mk DATASET_SOURCE_DIR=data/prereleases/dataset-v2.0.0 ARGS="--upload --create-pr"
+make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--upload --create-pr"
 ```
 
 After publication, record the Hugging Face commit SHA and final status in `manifest.json`.
 
-## 8. Promote To Final Release
+## Finalize
+
+## 8. Finalize Audit Archive
+
+Finalize the audit archive with the published Hugging Face revision metadata and record the S3 prefix in `manifest.json`, if available.
+
+## 9. Promote To Final Release
 
 Copy the accepted prerelease to the final release folder:
 
@@ -164,13 +223,19 @@ Copy the accepted prerelease to the final release folder:
 data/releases/dataset-v2.0.0/
 ```
 
-The final release folder must contain the same HF-shaped payload that was published, plus the final `manifest.json` with:
+The final release folder should contain the same flat committed dataset content and generated metadata that were used to stage the Hugging Face payload. Publication metadata in `manifest.json` may be finalized during promotion.
+
+Final release IDs are immutable. Standard release tooling must refuse promotion if `data/releases/dataset-v2.0.0/` already exists. If the published content is wrong, create a patch release such as `dataset-v2.0.1`; do not overwrite `dataset-v2.0.0`.
+
+The final `manifest.json` should include:
 
 - `status: published`
 - Hugging Face dataset repo
 - Hugging Face commit SHA
 - S3 audit prefix, if available
 - source prerelease path
+
+The generated Hugging Face-shaped payload remains under `staging.d/datasets/...` and is not committed.
 
 Remove the prerelease folder before merging to `main`:
 
@@ -180,7 +245,9 @@ git add data/releases/dataset-v2.0.0
 git commit -m "Publish dataset-v2.0.0 release snapshot"
 ```
 
-## 9. Merge Back To Main
+## Finish
+
+## 10. Merge Back To Main
 
 Only final release material should land on `main`:
 
@@ -199,7 +266,7 @@ staging.d/
 
 The release branch and PR history remain the collaboration record for prerelease changes.
 
-## 10. Clean Local Workbench State
+## 11. Clean Local Workbench State
 
 After the final release is committed and audit material is archived externally:
 
