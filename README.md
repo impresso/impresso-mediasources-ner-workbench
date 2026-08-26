@@ -152,7 +152,7 @@ Local Apple MPS training uses memory-conservative defaults: `BATCH=1`, `GRADIENT
 
 Validation is run after each epoch for early stopping. The default monitors `entity_f1` with `EARLY_STOPPING_PATIENCE=2` and writes the best checkpoint to `models.d/newsagency_radiostation_modernbert_v2.0.0/best`.
 
-At startup, training prints and writes `training_start_report.json` with the model source, device, optimizer, trainable/frozen parameter counts, batch and window settings, early-stopping configuration, and train/validation dataset summaries. During validation and test evaluation, the trainer prints a compact NER summary with exact entity precision/recall/F1, non-`O` token precision/recall/F1, token accuracy, and the most frequent gold/predicted entity labels. The full metrics and prediction JSONL files are still written under the model output directory.
+At startup, training prints and writes `training_start_report.json` with the model source, workbench Git commit/dirty status, device, optimizer, trainable/frozen parameter counts, batch and window settings, early-stopping configuration, and train/validation dataset summaries. During validation and test evaluation, the trainer prints a compact NER summary with exact entity precision/recall/F1, non-`O` token precision/recall/F1, token accuracy, and the most frequent gold/predicted entity labels. The full metrics and prediction JSONL files are still written under the model output directory.
 
 To continue from an existing classifier checkpoint, pass `CHECKPOINT`. This loads the model weights but starts a fresh optimizer state, so use a lower learning rate for continuation runs. Prefer writing to a new `MODEL` directory unless you intentionally want to overwrite the previous output:
 
@@ -268,6 +268,8 @@ See [docs/curation.md](docs/curation.md) for full curation workflows, path selec
 | Review sampled snippet spans. | `make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"` | Usually yes, to read/write the matching configured snippet files. |
 | Put accepted/rejected reviewed snippets into train only. | `make split-media-snippets MEDIA_FAMILY=pressagency SNIPPET_VALIDATION_FRACTION=0.0 SNIPPET_TEST_FRACTION=0.0 HOLDOUT_MIN_PER_LABEL=0` | Yes, split outputs and holdout sources follow the config. |
 | Promote split snippets into the configured dataset. | `make integrate-snippets` | Yes, because it changes the configured dataset splits. |
+| Materialize the exact published HF dataset locally. | `make download-hf-dataset CFG=configs/model-v2.0.0-4layers-hf-verification.mk` | Yes, use the HF-verification config to pin the dataset commit. |
+| Compare the local HF dataset materialization with the immutable Git release. | `make compare-hf-dataset-release CFG=configs/model-v2.0.0-4layers-hf-verification.mk` | Yes, use the same config used for HF materialization. |
 | Evaluate the configured model into model-local diagnostics. | `make test EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
 | Evaluate the official test split into model-local diagnostics. | `make test-official EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
 | Evaluate train/validation/test into shared curation disagreement inputs. | `make curation-eval` | Yes, to choose the curation checker model/dataset. |
@@ -277,6 +279,7 @@ See [docs/curation.md](docs/curation.md) for full curation workflows, path selec
 | Train the default v2 model. | `make train` | Yes, use `CFG=...` to train a model variant. |
 | Remove the configured model directory and train from scratch. | `make train-fresh` | Yes, use `CFG=...` to choose which model directory is cleaned and trained. |
 | Train the v2 variant that adapts the final 4 ModernBERT layers. | `make train-fresh CFG=configs/model-v2.0.0-4layers.mk` | Already supplied. |
+| Train a fresh 4-layer verification model from the pinned HF v2.0.0 dataset. | `make train-fresh CFG=configs/model-v2.0.0-4layers-hf-verification.mk` | Already supplied. |
 
 ## Common Commands
 

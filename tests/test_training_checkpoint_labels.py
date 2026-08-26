@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from mediaagency_modernbert.train import label_compatibility_summary, label_map_from_model_config
+from mediaagency_modernbert.train import git_provenance, label_compatibility_summary, label_map_from_model_config
 
 
 def test_label_map_from_model_config_preserves_checkpoint_head_labels() -> None:
@@ -89,3 +89,55 @@ def test_label_compatibility_summary_reports_dataset_and_checkpoint_drift() -> N
     assert summary["shared_labels"] == 3
     assert summary["dataset_only_entity_types"] == ["org.ent.pressagency.belga"]
     assert summary["checkpoint_only_entity_types"] == ["org.ent.pressagency.domei"]
+
+
+def test_git_provenance_reports_clean_commit(monkeypatch) -> None:
+    def fake_run(args, **_kwargs):
+        command = tuple(args[1:])
+        if command == ("rev-parse", "HEAD"):
+            return SimpleNamespace(stdout="a" * 40 + "\n")
+        if command == ("rev-parse", "--short", "HEAD"):
+            return SimpleNamespace(stdout="aaaaaaa\n")
+        if command == ("status", "--short"):
+            return SimpleNamespace(stdout="")
+        raise AssertionError(command)
+
+    monkeypatch.setattr("mediaagency_modernbert.train.subprocess.run", fake_run)
+
+    assert git_provenance() == {
+        "commit": "a" * 40,
+        "dirty": False,
+        "short_commit": "aaaaaaa",
+        "status": "clean",
+    }
+
+
+def test_git_provenance_reports_dirty_commit(monkeypatch) -> None:
+    def fake_run(args, **_kwargs):
+        command = tuple(args[1:])
+        if command == ("rev-parse", "HEAD"):
+            return SimpleNamespace(stdout="b" * 40 + "\n")
+        if command == ("rev-parse", "--short", "HEAD"):
+            return SimpleNamespace(stdout="bbbbbbb\n")
+        if command == ("status", "--short"):
+            return SimpleNamespace(stdout=" M Makefile\n")
+        raise AssertionError(command)
+
+    monkeypatch.setattr("mediaagency_modernbert.train.subprocess.run", fake_run)
+
+    assert git_provenance()["status"] == "dirty"
+    assert git_provenance()["dirty"] is True
+
+
+def test_git_provenance_is_best_effort(monkeypatch) -> None:
+    def fake_run(*_args, **_kwargs):
+        raise OSError("git unavailable")
+
+    monkeypatch.setattr("mediaagency_modernbert.train.subprocess.run", fake_run)
+
+    assert git_provenance() == {
+        "commit": None,
+        "dirty": None,
+        "short_commit": None,
+        "status": "unknown",
+    }

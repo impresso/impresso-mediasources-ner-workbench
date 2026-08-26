@@ -3,6 +3,7 @@ from pathlib import Path
 
 from lib.publish_dataset import prepare_dataset_repo
 from lib.finalize_dataset_release import finalize_manifest
+from lib.compare_dataset_projection import compare_files
 from lib.promote_dataset_release import copy_projection
 
 
@@ -393,3 +394,75 @@ def test_finalize_dataset_release_rejects_different_publication_metadata(tmp_pat
         assert "different publication metadata" in str(exc)
     else:
         raise AssertionError("expected changed publication metadata to fail")
+
+
+def test_compare_dataset_projection_checks_hf_layout_against_git_release(tmp_path: Path) -> None:
+    hf_dir = tmp_path / "hf"
+    git_dir = tmp_path / "git"
+    (hf_dir / "data").mkdir(parents=True)
+    git_dir.mkdir()
+    (hf_dir / "data" / "train.jsonl").write_text('{"id":"a"}\n', encoding="utf-8")
+    (git_dir / "train.jsonl").write_text('{"id":"a"}\n', encoding="utf-8")
+    (hf_dir / "label_map.json").write_text('{"label2id":{"O":0}}\n', encoding="utf-8")
+    (git_dir / "label_map.json").write_text('{"label2id":{"O":0}}\n', encoding="utf-8")
+
+    summary = compare_files(
+        hf_dir=hf_dir,
+        git_dir=git_dir,
+        comparisons=[("data/train.jsonl", "train.jsonl"), ("label_map.json", "label_map.json")],
+    )
+
+    assert summary["ok"] is True
+    assert [item["status"] for item in summary["comparisons"]] == ["projection_match", "match"]
+
+
+def test_compare_dataset_projection_ignores_git_only_public_fields(tmp_path: Path) -> None:
+    hf_dir = tmp_path / "hf"
+    git_dir = tmp_path / "git"
+    (hf_dir / "data").mkdir(parents=True)
+    git_dir.mkdir()
+    hf_row = {
+        "document_id": "a",
+        "entities": [
+            {
+                "label": "org.ent.pressagency.havas",
+                "start": 0,
+                "stop": 5,
+                "surface": "Havas",
+                "token_start": 0,
+                "token_stop": 1,
+            }
+        ],
+    }
+    git_row = {
+        **hf_row,
+        "legacy": {"source_file": "x.tsv"},
+        "entities": [
+            {
+                **hf_row["entities"][0],
+                "ocr_correction": {"max_levenshtein": 0.2, "surface": "Hauas"},
+                "status": "accepted",
+            }
+        ],
+    }
+    (hf_dir / "data" / "train.jsonl").write_text(json.dumps(hf_row) + "\n", encoding="utf-8")
+    (git_dir / "train.jsonl").write_text(json.dumps(git_row) + "\n", encoding="utf-8")
+
+    summary = compare_files(hf_dir=hf_dir, git_dir=git_dir, comparisons=[("data/train.jsonl", "train.jsonl")])
+
+    assert summary["ok"] is True
+    assert summary["comparisons"][0]["status"] == "projection_match"
+
+
+def test_compare_dataset_projection_reports_differences(tmp_path: Path) -> None:
+    hf_dir = tmp_path / "hf"
+    git_dir = tmp_path / "git"
+    (hf_dir / "data").mkdir(parents=True)
+    git_dir.mkdir()
+    (hf_dir / "data" / "train.jsonl").write_text('{"id":"a"}\n', encoding="utf-8")
+    (git_dir / "train.jsonl").write_text('{"id":"b"}\n', encoding="utf-8")
+
+    summary = compare_files(hf_dir=hf_dir, git_dir=git_dir, comparisons=[("data/train.jsonl", "train.jsonl")])
+
+    assert summary["ok"] is False
+    assert summary["errors"][0]["status"] == "projection_differs"

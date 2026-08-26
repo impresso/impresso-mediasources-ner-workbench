@@ -5,6 +5,7 @@ import json
 import math
 import random
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -151,6 +152,34 @@ def resolve_model_ref(value: str) -> str:
     if value.startswith("hf://"):
         return value[len("hf://") :]
     return value
+
+
+def git_provenance(repo: Path | str = ".") -> dict[str, Any]:
+    repo_path = Path(repo)
+
+    def run_git(*args: str) -> str | None:
+        try:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=repo_path,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        return result.stdout.strip()
+
+    commit = run_git("rev-parse", "HEAD")
+    short_commit = run_git("rev-parse", "--short", "HEAD") if commit else None
+    status = run_git("status", "--short")
+    return {
+        "commit": commit,
+        "short_commit": short_commit,
+        "dirty": None if status is None else bool(status),
+        "status": "unknown" if commit is None or status is None else ("dirty" if status else "clean"),
+    }
 
 
 def label_map_from_model_config(config: Any) -> dict[str, dict[str, Any]]:
@@ -478,6 +507,7 @@ def train(args: argparse.Namespace, runtime: Runtime) -> None:
     write_json(output_dir / "label_map.json", label_map)
     startup_report = {
         "event": "training_start",
+        "git": git_provenance(),
         "model_source": resolve_model_ref(args.model_name_or_path),
         "checkpoint": resolve_model_ref(args.checkpoint) if args.checkpoint else "",
         "output_dir": str(output_dir),
