@@ -41,6 +41,14 @@ def validate_git_release_files(root: Path, files: list[str]) -> None:
         raise FileNotFoundError(f"git release projection is missing source files: {missing}")
 
 
+def normalize_manifest_files(files: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(files)
+    if "release_snapshot" in normalized:
+        legacy_snapshot = normalized.pop("release_snapshot")
+        normalized.setdefault("prerelease_snapshot", legacy_snapshot)
+    return normalized
+
+
 def finalize_manifest(
     *,
     root: Path,
@@ -89,7 +97,7 @@ def finalize_manifest(
     manifest["dataset_repo"] = repo_id
     manifest["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     manifest["files"] = {
-        **dict(manifest.get("files") or {}),
+        **normalize_manifest_files(dict(manifest.get("files") or {})),
         "git_release": git_release_files,
         "hf_payload_generated_by": "make publish-dataset",
         "hf_release": hf_release_files,

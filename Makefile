@@ -6,6 +6,8 @@ CFG ?= configs/model-v2.0.0.mk
 
 include $(CFG)
 
+RELEASE_AUDIT_S3_PREFIX ?=
+
 ifneq ($(wildcard $(LOCAL_CONFIG)),)
 $(info Loading local config overrides from $(LOCAL_CONFIG))
 include $(LOCAL_CONFIG)

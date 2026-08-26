@@ -255,6 +255,74 @@ def test_finalize_dataset_release_records_publication_metadata(tmp_path: Path) -
     assert manifest["files"]["hf_release"] == ["train.jsonl", "label_map.json"]
 
 
+def test_finalize_dataset_release_migrates_legacy_release_snapshot(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    for name in ("train.jsonl", "label_map.json"):
+        (source_dir / name).write_text("", encoding="utf-8")
+    original_snapshot = ["train.jsonl", "DATASET_QUALITY.md", "tsv/train.tsv"]
+    (source_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "files": {"release_snapshot": original_snapshot},
+                "release_id": "dataset-v2.0.0",
+                "status": "ready",
+                "version": "v2.0.0",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = finalize_manifest(
+        root=source_dir,
+        release_id="dataset-v2.0.0",
+        version="v2.0.0",
+        repo_id="org/dataset",
+        hf_commit_sha="a" * 40,
+        hf_revision="v2.0.0",
+        hf_release_files=["train.jsonl", "label_map.json"],
+        git_release_files=["train.jsonl", "label_map.json"],
+    )
+
+    assert "release_snapshot" not in manifest["files"]
+    assert manifest["files"]["prerelease_snapshot"] == original_snapshot
+
+
+def test_finalize_dataset_release_preserves_existing_prerelease_snapshot(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    for name in ("train.jsonl", "label_map.json"):
+        (source_dir / name).write_text("", encoding="utf-8")
+    (source_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "files": {
+                    "prerelease_snapshot": ["current.jsonl"],
+                    "release_snapshot": ["legacy.jsonl"],
+                },
+                "release_id": "dataset-v2.0.0",
+                "status": "ready",
+                "version": "v2.0.0",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = finalize_manifest(
+        root=source_dir,
+        release_id="dataset-v2.0.0",
+        version="v2.0.0",
+        repo_id="org/dataset",
+        hf_commit_sha="a" * 40,
+        hf_revision="v2.0.0",
+        hf_release_files=["train.jsonl", "label_map.json"],
+        git_release_files=["train.jsonl", "label_map.json"],
+    )
+
+    assert "release_snapshot" not in manifest["files"]
+    assert manifest["files"]["prerelease_snapshot"] == ["current.jsonl"]
+
+
 def test_finalize_dataset_release_is_idempotent_for_same_publication(tmp_path: Path) -> None:
     source_dir = tmp_path / "source"
     source_dir.mkdir()
