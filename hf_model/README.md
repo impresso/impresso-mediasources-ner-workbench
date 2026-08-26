@@ -29,12 +29,15 @@ The repository name uses "media sources" because the label space may later grow 
 - Dataset: `impresso-project/impresso-mediaagencies-ner-dataset`
 - Dataset revision: `v2.0.0`
 - Dataset commit: `a7ac5dc1ec0dd92ae848dbccd258aa0361830da3`
-- Training code/workbench commit: recorded in release provenance at publication time
+- Training code commit: not recorded by this completed run
+- Publication/workbench commit: `429a3767288abd16a43b2f7996453f73df350c7c`
+- Model revision: `v2.0.0`
+- Model commit: `9899ad960b9bc310ee51cd7ee658fd3882b6b140`
 - Base model: `impresso-project/mmbert-multilingual-impresso-continued-mlm`
 - Upstream base: `jhu-clsp/mmBERT-base`
 - License: MIT
 
-The model was trained from the pinned published Hugging Face dataset commit above. The selected checkpoint was chosen on validation performance, not on the held-out test set.
+The model was trained from the pinned published Hugging Face dataset commit above. The selected checkpoint was chosen on validation performance, not on the held-out test set. The completed training run did not record a Git SHA in `training_start_report.json`; the publication/workbench commit is therefore recorded separately and should not be treated as the exact training-code commit.
 
 ## Training Setup
 

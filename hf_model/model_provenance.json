@@ -1,0 +1,42 @@
+{
+  "base_model": "impresso-project/mmbert-multilingual-impresso-continued-mlm",
+  "dataset": {
+    "commit": "a7ac5dc1ec0dd92ae848dbccd258aa0361830da3",
+    "repository": "impresso-project/impresso-mediaagencies-ner-dataset",
+    "revision": "v2.0.0"
+  },
+  "decoder": "first_subtoken_viterbi",
+  "evaluation": {
+    "held_out_test": {
+      "entity_correct": 529,
+      "entity_f1": 0.8981324278438031,
+      "entity_gold": 612,
+      "entity_predicted": 566,
+      "entity_precision": 0.9346289752650176,
+      "entity_recall": 0.8643790849673203
+    },
+    "selected_checkpoint_validation": {
+      "entity_correct": 500,
+      "entity_f1": 0.9285051067780873,
+      "entity_gold": 545,
+      "entity_predicted": 519,
+      "entity_precision": 0.9398496240601504,
+      "entity_recall": 0.9174311926605505
+    }
+  },
+  "label_supervision": {
+    "label_all_tokens": true,
+    "subtoken_labeling": "all_subtokens_b_to_i"
+  },
+  "model": {
+    "commit": "9899ad960b9bc310ee51cd7ee658fd3882b6b140",
+    "repository": "impresso-project/mmbert-impresso-mediasources-ner",
+    "revision": "v2.0.0"
+  },
+  "publication_workbench_commit": "429a3767288abd16a43b2f7996453f73df350c7c",
+  "selected_checkpoint": "models.d/newsagency_radiostation_modernbert_v2.0.0-hf-verification/best",
+  "training_code_commit": null,
+  "training_code_commit_note": "The completed v2.0.0 training run did not record a Git SHA in training_start_report.json; do not treat the publication/workbench commit as the exact training-code commit.",
+  "training_config": "configs/model-v2.0.0-4layers-hf-verification.mk",
+  "unfreeze_top_layers": 4
+}

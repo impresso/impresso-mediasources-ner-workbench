@@ -29,6 +29,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--run-dir")
     parser.add_argument("--card", default="hf_model/README.md")
     parser.add_argument("--requirements", default="hf_model/requirements.txt")
+    parser.add_argument("--provenance", default="hf_model/model_provenance.json")
     parser.add_argument("--private", action="store_true")
     parser.add_argument("--include-eval-metrics", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
@@ -62,6 +63,7 @@ def copy_payload(
     run_dir: Path,
     card: Path,
     requirements: Path,
+    provenance: Path,
     out_dir: Path,
     *,
     include_eval_metrics: bool,
@@ -74,6 +76,7 @@ def copy_payload(
 
     shutil.copy2(card, out_dir / "README.md")
     copy_if_exists(requirements, out_dir / "requirements.txt")
+    copy_if_exists(provenance, out_dir / "model_provenance.json")
     copy_hf_model_sources(out_dir)
 
     for name in ("label_map.json", "training_args.json", "training_start_report.json", "best_validation_metrics.json"):
@@ -90,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     run_dir = Path(args.run_dir) if args.run_dir else model_dir.parent
     card = Path(args.card)
     requirements = Path(args.requirements)
+    provenance = Path(args.provenance)
     if not model_dir.is_dir():
         raise SystemExit(f"model directory does not exist: {model_dir}")
     if not run_dir.is_dir():
@@ -108,7 +112,15 @@ def main(argv: list[str] | None = None) -> int:
     api.create_repo(repo_id=args.repo_id, repo_type="model", private=args.private, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="media-source-ner-upload-") as tmp:
         upload_dir = Path(tmp)
-        copy_payload(model_dir, run_dir, card, requirements, upload_dir, include_eval_metrics=args.include_eval_metrics)
+        copy_payload(
+            model_dir,
+            run_dir,
+            card,
+            requirements,
+            provenance,
+            upload_dir,
+            include_eval_metrics=args.include_eval_metrics,
+        )
         commit_info = api.upload_folder(
             repo_id=args.repo_id,
             repo_type="model",

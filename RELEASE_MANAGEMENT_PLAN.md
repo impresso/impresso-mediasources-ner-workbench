@@ -270,6 +270,8 @@ Released model provenance should record:
 
 Training should write to a fresh model output directory for the release candidate. Evaluation should use the checkpoint's own configured label vocabulary as the decoder contract and validate dataset/model compatibility explicitly.
 
+Future training runs should write the workbench Git commit SHA and dirty/clean state into `training_start_report.json`. For runs created before that field existed, record the training-code commit as unknown instead of substituting a later publication commit.
+
 ## Release Workflow
 
 1. Build and iteratively review a prerelease.

@@ -370,6 +370,8 @@ Prepare the model card and publication payload from the selected checkpoint. Rec
 - validation and test metrics
 - Hugging Face model repository and model commit SHA after publication
 
+For v2.0.0, the completed training run did not record a training-code Git SHA in `training_start_report.json`. Record that value as unknown rather than substituting the later publication/workbench commit. Future training runs should record the workbench Git commit and dirty/clean status automatically in `training_start_report.json`.
+
 Publish the selected checkpoint using the configured model publication workflow. The publication command must upload the selected checkpoint, model card, label configuration, decoding metadata, and training provenance. If no model publication target exists yet, finalize that target before treating this checklist step as complete.
 
 After model publication, commit the model-release metadata and merge the model release branch through the normal PR/review path.
