@@ -14,7 +14,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release promote-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release finalize-dataset-release promote-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -23,7 +23,8 @@ help:
 	@echo "  make anno-housekeeping  Refresh annotation checks, coverage, profiles, and curation state"
 	@echo "  make data-housekeeping  Refresh dataset checks, TSV views, statistics, and quality reports"
 	@echo "  make prepare-dataset-release  Refresh release metadata for the configured dataset prerelease"
-	@echo "  make promote-dataset-release  Project a ready prerelease into immutable data/releases"
+	@echo "  make finalize-dataset-release  Record HF publication metadata after upload"
+	@echo "  make promote-dataset-release  Project a published prerelease into immutable data/releases"
 	@echo ""
 	@echo "Main help groups:"
 	@echo "  make help-anno               Annotation sampling, review, audit, and promotion"
@@ -161,7 +162,8 @@ help-data:
 	@echo "  make dataset-subword-stats                 Measure tokenizer expansion and window coverage"
 	@echo "  make materialize-dataset-tsv               Write ignored TOKEN/NERTAG TSV views for diffing"
 	@echo "  make prepare-dataset-release               Refresh release metadata for the configured dataset prerelease"
-	@echo "  make promote-dataset-release               Project a ready prerelease into immutable data/releases"
+	@echo "  make finalize-dataset-release              Record HF publication metadata after upload"
+	@echo "  make promote-dataset-release               Project a published prerelease into immutable data/releases"
 	@echo "  make dataset-state                         Summarize staging and configured published dataset state"
 	@echo "  make curation-state-json                   Write $(CURATION_STATE_JSON)"
 	@echo ""
@@ -272,13 +274,21 @@ data-housekeeping:
 
 prepare-dataset-release: sync-label-map validate-labels validate-jsonl-format validate-dataset-splits dataset-statistics materialize-dataset-tsv-quiet
 	@echo "Preparing release metadata for $(DATASET_RELEASE_ID) from $(DATASET_SOURCE_DIR)."
-	$(PYTHON) -m lib.prepare_dataset_release --dataset-source-dir "$(DATASET_SOURCE_DIR)" --release-id "$(DATASET_RELEASE_ID)" --version "$(DATASET_REVISION)" --repo-id "$(DATASET)" --status "$(DATASET_RELEASE_STATUS)" $(ARGS)
+	$(PYTHON) -m lib.prepare_dataset_release --dataset-source-dir "$(DATASET_SOURCE_DIR)" --release-id "$(DATASET_RELEASE_ID)" --version "$(DATASET_REVISION)" --repo-id "$(DATASET)" --status "$(DATASET_RELEASE_STATUS)" --hf-release-files "$(HF_RELEASE_FILES)" --git-release-files "$(GIT_RELEASE_FILES)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Inspect the release metadata and staged dataset payload."
 	@echo "  make publish-dataset ARGS=\"--dry-run\""
 
+finalize-dataset-release:
+	@echo "Recording Hugging Face publication metadata for $(DATASET_RELEASE_ID)."
+	$(if $(strip $(HF_COMMIT_SHA)),,$(error HF_COMMIT_SHA is required, e.g. make finalize-dataset-release HF_COMMIT_SHA=<40-character-hf-commit-sha>))
+	$(PYTHON) -m lib.finalize_dataset_release --dataset-source-dir "$(DATASET_SOURCE_DIR)" --release-id "$(DATASET_RELEASE_ID)" --version "$(DATASET_REVISION)" --repo-id "$(DATASET)" --hf-revision "$(DATASET_REVISION)" --hf-release-files "$(HF_RELEASE_FILES)" --git-release-files "$(GIT_RELEASE_FILES)" --hf-commit-sha "$(HF_COMMIT_SHA)" $(if $(strip $(RELEASE_AUDIT_S3_PREFIX)),--audit-s3-prefix "$(RELEASE_AUDIT_S3_PREFIX)",) $(ARGS)
+	@echo "Next step:"
+	@echo "  # Promote the published release metadata into the immutable Git release projection."
+	@echo "  make promote-dataset-release"
+
 promote-dataset-release:
-	@echo "Projecting ready prerelease $(DATASET_SOURCE_DIR) into immutable $(DATASET_RELEASE_DIR)."
+	@echo "Projecting published prerelease $(DATASET_SOURCE_DIR) into immutable $(DATASET_RELEASE_DIR)."
 	$(PYTHON) -m lib.promote_dataset_release --source-dir "$(DATASET_SOURCE_DIR)" --release-dir "$(DATASET_RELEASE_DIR)" --release-files "$(GIT_RELEASE_FILES)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Commit the immutable final release snapshot."

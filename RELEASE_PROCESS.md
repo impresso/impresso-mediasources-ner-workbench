@@ -209,7 +209,15 @@ Then publish or open a Hugging Face PR according to the release decision:
 make publish-dataset CFG=configs/model-v2.0.0.mk ARGS="--upload --create-pr"
 ```
 
-After publication, record the Hugging Face commit SHA and final status in `manifest.json`.
+After publication, record the Hugging Face commit SHA and final status in `manifest.json`:
+
+```bash
+make finalize-dataset-release CFG=configs/model-v2.0.0.mk HF_COMMIT_SHA=<40-character-hf-commit-sha>
+git add data/prereleases/dataset-v2.0.0/manifest.json
+git commit -m "Record dataset-v2.0.0 publication metadata"
+```
+
+This changes the manifest from `ready` to `published`. Running the same command again with the same publication metadata is allowed; using a different Hugging Face commit SHA for an already published manifest must fail.
 
 ## Finalize
 
@@ -219,7 +227,7 @@ Finalize the audit archive with the published Hugging Face revision metadata and
 
 ## 9. Promote To Final Release
 
-Project the accepted prerelease to the final release folder:
+Project the published prerelease to the final release folder:
 
 ```text
 data/releases/dataset-v2.0.0/

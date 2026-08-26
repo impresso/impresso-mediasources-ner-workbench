@@ -32,6 +32,27 @@ DEFAULT_RELEASE_FILES = (
 )
 
 
+DEFAULT_HF_RELEASE_FILES = (
+    "train.jsonl",
+    "validation.jsonl",
+    "test.jsonl",
+    "label_map.json",
+    "README.md",
+    "DATASET_STATISTICS.md",
+)
+
+
+DEFAULT_GIT_RELEASE_FILES = (
+    "train.jsonl",
+    "validation.jsonl",
+    "test.jsonl",
+    "label_map.json",
+    "manifest.json",
+    "dataset_summary.json",
+    "DATASET_STATISTICS.md",
+)
+
+
 def read_json(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {}
@@ -63,6 +84,13 @@ def entity_label_counts(rows_by_split: dict[str, list[dict[str, Any]]]) -> Count
 
 def existing_release_files(root: Path) -> list[str]:
     return [name for name in DEFAULT_RELEASE_FILES if (root / name).is_file()]
+
+
+def parse_file_list(value: str | None, default: tuple[str, ...]) -> list[str]:
+    if not value:
+        return list(default)
+    files = [item.strip() for item in value.split() if item.strip()]
+    return files or list(default)
 
 
 def build_dataset_summary(root: Path, *, repo_id: str, release: str) -> dict[str, Any]:
@@ -136,6 +164,8 @@ def build_manifest(
     repo_id: str,
     dataset_summary: dict[str, Any],
     base: dict[str, Any],
+    hf_release_files: list[str],
+    git_release_files: list[str],
 ) -> dict[str, Any]:
     manifest = dict(base)
     manifest["release_id"] = release_id
@@ -145,8 +175,10 @@ def build_manifest(
     manifest["updated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     manifest["summary"] = manifest_summary(dataset_summary)
     manifest["files"] = {
-        "release_snapshot": dataset_summary["files"],
+        "git_release": git_release_files,
+        "hf_release": hf_release_files,
         "hf_payload_generated_by": "make publish-dataset",
+        "prerelease_snapshot": dataset_summary["files"],
     }
     manifest["created_from"] = {
         **dict(manifest.get("created_from") or {}),
@@ -184,6 +216,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--version", required=True)
     parser.add_argument("--repo-id", required=True)
     parser.add_argument("--status", default="prerelease", choices=("prerelease", "ready", "published"))
+    parser.add_argument("--hf-release-files", default=" ".join(DEFAULT_HF_RELEASE_FILES))
+    parser.add_argument("--git-release-files", default=" ".join(DEFAULT_GIT_RELEASE_FILES))
     parser.add_argument("--remove-ds-store", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--max-git-file-mb", type=int, default=50)
     return parser.parse_args(argv)
@@ -195,6 +229,8 @@ def main(argv: list[str] | None = None) -> int:
     if not root.is_dir():
         raise SystemExit(f"dataset source directory does not exist: {root}")
 
+    hf_release_files = parse_file_list(args.hf_release_files, DEFAULT_HF_RELEASE_FILES)
+    git_release_files = parse_file_list(args.git_release_files, DEFAULT_GIT_RELEASE_FILES)
     removed = remove_ds_store(root) if args.remove_ds_store else []
     dataset_summary = build_dataset_summary(root, repo_id=args.repo_id, release=args.version)
     write_json(root / "dataset_summary.json", dataset_summary)
@@ -207,6 +243,8 @@ def main(argv: list[str] | None = None) -> int:
         repo_id=args.repo_id,
         dataset_summary=dataset_summary,
         base=read_json(root / "manifest.json"),
+        hf_release_files=hf_release_files,
+        git_release_files=git_release_files,
     )
     write_json(root / "manifest.json", manifest)
 

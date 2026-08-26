@@ -20,6 +20,14 @@ def parse_file_list(value: str) -> list[str]:
     return files
 
 
+def validate_published_manifest(manifest: dict[str, Any]) -> None:
+    if manifest.get("status") != "published":
+        raise ValueError(f"release promotion requires manifest status 'published', found {manifest.get('status')!r}")
+    publication = manifest.get("publication") or {}
+    if not publication.get("hf_commit_sha"):
+        raise ValueError("release promotion requires publication.hf_commit_sha in manifest")
+
+
 def copy_projection(*, source_dir: Path, release_dir: Path, release_files: list[str]) -> list[str]:
     if not source_dir.is_dir():
         raise FileNotFoundError(f"source directory does not exist: {source_dir}")
@@ -29,8 +37,7 @@ def copy_projection(*, source_dir: Path, release_dir: Path, release_files: list[
         )
 
     manifest = read_json(source_dir / "manifest.json")
-    if manifest.get("status") != "ready":
-        raise ValueError(f"release promotion requires manifest status 'ready', found {manifest.get('status')!r}")
+    validate_published_manifest(manifest)
 
     missing = [name for name in release_files if not (source_dir / name).is_file()]
     if missing:
@@ -52,7 +59,7 @@ def copy_projection(*, source_dir: Path, release_dir: Path, release_files: list[
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Project a ready prerelease into an immutable git release snapshot.")
+    parser = argparse.ArgumentParser(description="Project a published prerelease into an immutable git release snapshot.")
     parser.add_argument("--source-dir", type=Path, required=True)
     parser.add_argument("--release-dir", type=Path, required=True)
     parser.add_argument("--release-files", required=True)
@@ -64,8 +71,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     release_files = parse_file_list(args.release_files)
     manifest = read_json(args.source_dir / "manifest.json")
-    if manifest.get("status") != "ready":
-        raise SystemExit(f"release promotion requires manifest status 'ready', found {manifest.get('status')!r}")
+    try:
+        validate_published_manifest(manifest)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     missing = [name for name in release_files if not (args.source_dir / name).is_file()]
     if missing:
         raise SystemExit(f"release projection is missing source files: {missing}")

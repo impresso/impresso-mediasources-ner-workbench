@@ -29,6 +29,9 @@ ready (frozen Git snapshot)
 publish to Hugging Face
   |
   v
+finalize publication metadata
+  |
+  v
 published
   |
   v
@@ -61,6 +64,8 @@ The accepted prerelease is the complete Git source snapshot for a release operat
 | extensions and migration material | no | no | yes |
 
 `DATASET_STATISTICS.md` is dataset-facing release documentation. `DATASET_QUALITY.md` is model/checkpoint-facing diagnostics and stays in the workbench or audit archive.
+
+The release manifest distinguishes the base release from the current publication. `base_release` records the predecessor used to derive the new release. `publication` records the current release's Hugging Face dataset repo, revision, and commit SHA after upload. `audit_archive` records external audit storage when available.
 
 ## Dataset Version Policy
 
@@ -155,7 +160,7 @@ Dataset lifecycle:
 - `working`: normal private sampling, scoring, review, and curation under ignored work areas.
 - `prerelease`: one committed, mutable candidate exists under `data/prereleases/<release-id>/`.
 - `ready`: the committed prerelease passed validation and review; this exact Git snapshot is accepted for publication and no more data changes are expected before publication.
-- `published`: Hugging Face dataset revision exists and is recorded in the release manifest/config.
+- `published`: Hugging Face dataset revision exists and `publication.hf_commit_sha` is recorded in the release manifest/config.
 
 Audit lifecycle:
 
@@ -169,7 +174,7 @@ Repository location:
 
 There is only one prerelease folder per target release. Update it in place so collaborators can review normal git diffs. Do not create `rc.1`, `rc.2`, etc. directories unless the target release version itself changes.
 
-After publication and S3 audit upload, promote the accepted prerelease to `data/releases/<release-id>/`. Then remove `data/prereleases/<release-id>/` in a cleanup commit so the final published snapshot remains the durable in-repo release record.
+After publication metadata is recorded, promote the published prerelease to `data/releases/<release-id>/`. Then remove `data/prereleases/<release-id>/` in a cleanup commit so the final published snapshot remains the durable in-repo release record.
 
 ## Technical Freeze Semantics
 
@@ -240,7 +245,7 @@ The committed `manifest.json` should reference the S3 audit prefix when availabl
 2. Freeze the accepted candidate as `ready`.
 3. Generate and publish the Hugging Face payload from that snapshot.
 4. Finalize the external audit archive.
-5. Promote the snapshot to an immutable final release.
+5. Promote the published snapshot to an immutable final release.
 6. Merge the final release to `main` and clean local work.
 
 See `RELEASE_PROCESS.md` for commands and the complete operational checklist.
@@ -248,7 +253,8 @@ See `RELEASE_PROCESS.md` for commands and the complete operational checklist.
 ## Implementation Tasks
 
 - `make prepare-dataset-release` is implemented. It refreshes release metadata for the configured flat prerelease snapshot, validates the split files, materializes TSV inspection files, and keeps the manifest in `prerelease` status by default. Pass `DATASET_RELEASE_STATUS=ready` only when freezing an accepted candidate.
-- Add a `promote-release` command that copies an accepted prerelease to immutable `data/releases/<release-id>/`.
+- `make finalize-dataset-release` is implemented. It records Hugging Face publication metadata in a ready prerelease and changes manifest status to `published`.
+- `make promote-dataset-release` is implemented. It copies a published prerelease projection to immutable `data/releases/<release-id>/` and refuses existing release directories.
 - Add explicit freeze metadata, such as the accepted prerelease Git commit SHA, before publication.
 - Extend validation so release preparation also fails on missing manifest-listed files, JSONL sort/key-order drift, unknown labels, and generated files larger than the configured threshold.
 - Add optional S3 audit upload support with a configurable `RELEASE_AUDIT_S3_PREFIX`.
