@@ -219,3 +219,10 @@ def test_all_subtoken_viterbi_keeps_strong_outside_evidence() -> None:
     pred = decode_document(word_subtokens, decoder=DECODER_ALL_SUBTOKEN_VITERBI, id2label=ID2LABEL)
 
     assert [ID2LABEL[index] for index in pred] == ["O"]
+
+
+def test_hf_model_decoder_matches_training_decoder_source() -> None:
+    training_decoder = TRAINING_SRC / "mediaagency_modernbert" / "decoding.py"
+    hf_decoder = ROOT / "hf_model" / "decoding.py"
+
+    assert hf_decoder.read_text() == training_decoder.read_text()

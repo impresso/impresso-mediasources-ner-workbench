@@ -259,7 +259,7 @@ See [docs/curation.md](docs/curation.md) for full curation workflows, path selec
 | Search the materialized TSV by token text. | `make search-tsv TSV_SEARCH="Radio London"` | Yes, if searching TSVs for another config. |
 | Search the materialized TSV by entity tag. | `make search-tsv TSV_SEARCH_TAG="org.ent.pressagency.apa"` | Yes, if searching TSVs for another config. |
 | Create TSV-derived span patches from pasted TOKEN OLD \[NEW\] lines across train/validation/test. | `make create-tsv-span-patches` | Yes, if patching another configured dataset. |
-| Replace an exact TOKEN/NERTAG segment with a clean TOKEN/NERTAG block. | `make replace-tsv-segment TSV_SEGMENT_SPLIT=train TSV_SEGMENT_OLD=/tmp/old.tsv TSV_SEGMENT_NEW=/tmp/new.tsv` | Yes, if patching another configured dataset. |
+| Replace an exact TOKEN/NERTAG segment with a clean TOKEN/NERTAG block; in the replacement block, optional `_` after a row suppresses the default following space. | `make replace-tsv-segment TSV_SEGMENT_SPLIT=train TSV_SEGMENT_OLD=/tmp/old.tsv TSV_SEGMENT_NEW=/tmp/new.tsv` | Yes, if patching another configured dataset. |
 | Apply and promote TSV-derived span patches, then refresh TSV and annotation reports. | `make create-tsv-span-patches integrate-tsv-span-patches materialize-dataset-tsv anno-housekeeping` | Yes, keep the same `CFG=...` across the whole chain. |
 | Sample focused press-agency snippets for under-covered labels. | `make sample-media-snippets MEDIA_FAMILY=pressagency` | Yes, coverage and outputs follow the config. |
 | Sample focused radio-station snippets for under-covered labels. | `make sample-media-snippets MEDIA_FAMILY=radiostation` | Yes, coverage and outputs follow the config. |

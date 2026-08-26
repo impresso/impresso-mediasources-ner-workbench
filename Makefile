@@ -14,7 +14,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh stamp-model-inference-metadata test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -51,6 +51,7 @@ help-anno:
 	@echo "  make curation-dashboard       Run all read-only state/stats targets in sequence"
 	@echo "  make annotation-stats         Summarize annotation coverage by label/language"
 	@echo "  make mention-profiles         Generate empirical entity mention-surface profiles"
+	@echo "  make audit-seed-alias-matches Apply seed alias matchers to annotated data and report TP/FP-style hit quality"
 	@echo "  make entity-surface-frequencies ENTITY_LABEL=org.ent.pressagency.havas"
 	@echo "                                Print case-insensitive surface frequencies by language"
 	@echo "  make semantic-search ARGS='--environment normal --language de --query \"Telegraphen Union\"'"
@@ -134,7 +135,7 @@ help-anno:
 	@echo "  ANNOTATION_MAIN_LANGS='$(ANNOTATION_MAIN_LANGS)', ANNOTATION_SIDE_LANGS='$(ANNOTATION_SIDE_LANGS)'"
 	@echo "  ANNOTATION_MAIN_TARGET_PER_LABEL_LANG=$(ANNOTATION_MAIN_TARGET_PER_LABEL_LANG), ANNOTATION_SIDE_TARGET_PER_LABEL_LANG=$(ANNOTATION_SIDE_TARGET_PER_LABEL_LANG)"
 	@echo "  SUGGEST_NON_O_MIN_CONFIDENCE=0.33 (suggest best non-O label even when O wins)"
-	@echo "  AUTO_ACCEPT_ENABLED=true|false, AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
+	@echo "  AUTO_ACCEPT_ENABLED=false|true (default false), AUTO_ACCEPT_MIN_CONFIDENCE=0.99, AUTO_ACCEPT_MULTIPLE_MIN_CONFIDENCE=\$$(AUTO_ACCEPT_MIN_CONFIDENCE), AUTO_ACCEPT_MIN_MARGIN=0.30"
 	@echo "  CURATION_STATE_JSON=$(CURATION_STATE_JSON)"
 
 help-data:
@@ -346,6 +347,10 @@ mention-profiles:
 entity-surface-frequencies:
 	@test -n "$(ENTITY_LABEL)" || { echo "ENTITY_LABEL is required, e.g. ENTITY_LABEL=org.ent.pressagency.havas"; exit 1; }
 	@$(PYTHON) -m lib.entity_surface_frequencies --label "$(ENTITY_LABEL)" $(foreach input,$(MENTION_PROFILE_JSONL),--input-jsonl "$(input)") --include-examples "$(ENTITY_SURFACE_FREQUENCIES_EXAMPLES)" $(ARGS)
+
+audit-seed-alias-matches:
+	@echo "Auditing seed alias matcher hits against current train/validation/test annotations."
+	$(PYTHON) -m lib.audit_seed_alias_matches --split train="$(TRAIN_JSONL)" --split validation="$(VALIDATION_JSONL)" --split test="$(TEST_JSONL)" --label-metadata "$(NEWSAGENCY_LABEL_METADATA)" --label-metadata "$(RADIOSTATION_LABEL_METADATA)" --details-tsv "$(SEED_ALIAS_AUDIT_DETAILS_TSV)" --summary-json "$(SEED_ALIAS_AUDIT_SUMMARY_JSON)" --report-md "$(SEED_ALIAS_AUDIT_MD)" --context-chars "$(SEED_ALIAS_AUDIT_CONTEXT_CHARS)" --example-limit "$(SEED_ALIAS_AUDIT_EXAMPLE_LIMIT)" $(ARGS)
 
 curation-dashboard:
 	@echo "Running the read-only curation dashboard: coverage, profiles, curation state, snippet state, disagreement state, and dataset state."
@@ -642,6 +647,7 @@ endif
 
 replace-tsv-segment:
 	@echo "Replacing an exact TOKEN/NERTAG segment in $(TSV_SEGMENT_SPLIT) JSONL."
+	@echo "Replacement TSV may use optional '_' as third column to suppress the default following space."
 	@test -n "$(TSV_SEGMENT_OLD)" || { echo "TSV_SEGMENT_OLD is required, e.g. TSV_SEGMENT_OLD=/tmp/old.tsv"; exit 1; }
 	@test -n "$(TSV_SEGMENT_NEW)" || { echo "TSV_SEGMENT_NEW is required, e.g. TSV_SEGMENT_NEW=/tmp/new.tsv"; exit 1; }
 	$(PYTHON) -m lib.replace_tsv_segment --input-jsonl "$(TSV_SEGMENT_SOURCE_JSONL)" --output-jsonl "$(TSV_SEGMENT_OUTPUT_JSONL)" --old-tsv "$(TSV_SEGMENT_OLD)" --new-tsv "$(TSV_SEGMENT_NEW)" $(if $(strip $(TSV_SEGMENT_MATCH_INDEX)),--match-index "$(TSV_SEGMENT_MATCH_INDEX)",) $(if $(filter true,$(TSV_SEGMENT_ALL_MATCHES)),--all-matches,) $(ARGS)

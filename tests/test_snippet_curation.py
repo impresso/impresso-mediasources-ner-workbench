@@ -22,7 +22,6 @@ from lib.review_newsagency_snippets import (
 )
 from lib.sample_radiostations import load_seed_queries as load_radiostation_seed_queries, normalize_radiostation_row
 from lib.sample_radiostations import parse_args as parse_radiostation_sample_args
-from lib.score_radiostation_snippets import parse_args as parse_radiostation_score_args
 from lib.sample_newsagencies import (
     RateLimitThrottle,
     balanced_select,
@@ -44,6 +43,7 @@ from lib.sample_newsagencies import (
 )
 from lib.score_radiostation_snippets import (
     find_alias_spans,
+    parse_args as parse_radiostation_score_args,
     score_rows as score_radiostation_rows,
     suppress_model_spans_covered_by_aliases,
 )
@@ -53,6 +53,7 @@ from lib.score_newsagency_snippets import (
     load_input_rows,
     merge_adjacent_same_label_spans,
     normalize_dotted_acronym_spans,
+    parse_args as parse_newsagency_score_args,
     select_suggested_label,
     score_rows as score_newsagency_rows,
     suppress_contained_same_label_spans,
@@ -216,7 +217,15 @@ def test_newsagency_curation_status_auto_accepts_matching_confident_span() -> No
         }
     ]
 
-    assert curation_status(row, spans, min_confidence=0.95, min_margin=0.30) == ("auto_accepted", [])
+    assert curation_status(row, spans, min_confidence=0.95, min_margin=0.30, auto_accept=True) == ("auto_accepted", [])
+
+
+def test_snippet_scorer_cli_defaults_disable_auto_accept() -> None:
+    news_args = parse_newsagency_score_args(["--input", "in.jsonl", "--output", "out.jsonl"])
+    radio_args = parse_radiostation_score_args(["--input", "in.jsonl", "--output", "out.jsonl"])
+
+    assert news_args.auto_accept is False
+    assert radio_args.auto_accept is False
 
 
 def test_newsagency_curation_status_can_disable_auto_accept() -> None:
@@ -237,7 +246,6 @@ def test_newsagency_curation_status_can_disable_auto_accept() -> None:
         spans,
         min_confidence=0.99,
         min_margin=0.30,
-        auto_accept=False,
     ) == ("needs_review", ["manual_review_required"])
 
 
@@ -467,7 +475,14 @@ def test_newsagency_curation_status_auto_accepts_multiple_very_confident_spans()
         },
     ]
 
-    assert curation_status(row, spans, min_confidence=0.99, min_margin=0.30, multiple_min_confidence=0.99) == (
+    assert curation_status(
+        row,
+        spans,
+        min_confidence=0.99,
+        min_margin=0.30,
+        multiple_min_confidence=0.99,
+        auto_accept=True,
+    ) == (
         "auto_accepted",
         [],
     )
@@ -533,8 +548,8 @@ def test_alias_matcher_keeps_final_period_for_dotted_acronym_alias() -> None:
             "token_stop": 7,
             "label": "org.ent.pressagency.afp",
             "surface": "A . F . P .",
-            "confidence": 1.0,
-            "margin": 1.0,
+            "confidence": 0.51,
+            "margin": 0.51,
             "matcher": "alias_compact",
             "alias": "A.F.P.",
         }
@@ -552,8 +567,8 @@ def test_alias_matcher_keeps_final_period_for_dotted_ats_alias() -> None:
             "token_stop": 10,
             "label": "org.ent.pressagency.ats-sda",
             "surface": "A . T . S .",
-            "confidence": 1.0,
-            "margin": 1.0,
+            "confidence": 0.51,
+            "margin": 0.51,
             "matcher": "alias_compact",
             "alias": "A.T.S.",
         }
@@ -571,8 +586,8 @@ def test_alias_matcher_does_not_absorb_closing_parenthesis() -> None:
             "token_stop": 3,
             "label": "org.ent.pressagency.tanjug",
             "surface": "Tan-Jug .",
-            "confidence": 1.0,
-            "margin": 1.0,
+            "confidence": 0.51,
+            "margin": 0.51,
             "matcher": "alias_compact",
             "alias": "Tan Jug.",
         }
@@ -1017,6 +1032,14 @@ def test_sample_newsagencies_empty_alias_does_not_consume_query_cap(tmp_path: Pa
     output = capsys.readouterr().out
     assert "collected candidates for this alias/language: 0/1 (selection target=1)" in output
     assert "cumulative for org.ent.pressagency.cip lang=de: candidate_pool=1, non_empty_aliases=1/1" in output
+    assert "Search alias diagnostics" in output
+    assert "org.ent.pressagency.cip" in output
+    assert "de" in output
+    assert "aliases tried" in output
+    assert "zero-hit aliases:" in output
+    assert "    dead alias" in output
+    assert "productive aliases:" in output
+    assert "    CIP Belgien raw=1 selected=1" in output
 
 
 def test_sample_newsagencies_sampling_plan_empty_aliases_do_not_consume_query_cap(
@@ -2756,8 +2779,8 @@ def test_radiostation_alias_matching_does_not_swallow_following_word() -> None:
             "token_stop": 1,
             "label": "org.ent.radiostation.vatican-radio",
             "surface": "Radio-Vatican",
-            "confidence": 1.0,
-            "margin": 1.0,
+            "confidence": 0.51,
+            "margin": 0.51,
             "matcher": "alias_compact",
             "alias": "Radio Vatican",
         }

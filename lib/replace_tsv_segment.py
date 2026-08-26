@@ -13,6 +13,13 @@ from .entity_alignment import labels_to_entities
 class TsvSegment:
     tokens: tuple[str, ...]
     labels: tuple[str, ...]
+    no_space_after: tuple[bool, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.no_space_after:
+            object.__setattr__(self, "no_space_after", (False,) * len(self.tokens))
+        elif len(self.no_space_after) != len(self.tokens):
+            raise ValueError("no_space_after must match token count")
 
 
 def normalize_label(value: str) -> str:
@@ -22,9 +29,33 @@ def normalize_label(value: str) -> str:
     return stripped
 
 
+def label_entity_spans(labels: tuple[str, ...]) -> list[tuple[int, int]]:
+    spans = []
+    start: int | None = None
+    active = ""
+    for index, label in enumerate(labels):
+        if label == "O":
+            if start is not None:
+                spans.append((start, index))
+            start = None
+            active = ""
+            continue
+        base = label[2:] if label.startswith(("B-", "I-")) else label
+        prefix = label[:1] if label.startswith(("B-", "I-")) else "B"
+        if start is None or active != base or prefix == "B":
+            if start is not None:
+                spans.append((start, index))
+            start = index
+            active = base
+    if start is not None:
+        spans.append((start, len(labels)))
+    return spans
+
+
 def parse_tsv_segment(path: Path) -> TsvSegment:
     tokens: list[str] = []
     labels: list[str] = []
+    no_space_after: list[bool] = []
     with path.open(encoding="utf-8") as handle:
         for line_number, raw_line in enumerate(handle, start=1):
             line = raw_line.strip()
@@ -33,13 +64,16 @@ def parse_tsv_segment(path: Path) -> TsvSegment:
             columns = line.split()
             if columns[:2] == ["TOKEN", "NERTAG"]:
                 continue
-            if len(columns) != 2:
-                raise ValueError(f"{path}:{line_number}: expected TOKEN TAG columns, got {len(columns)}")
+            if len(columns) not in {2, 3}:
+                raise ValueError(f"{path}:{line_number}: expected TOKEN TAG [_] columns, got {len(columns)}")
+            if len(columns) == 3 and columns[2] != "_":
+                raise ValueError(f"{path}:{line_number}: optional third column must be '_' for no following space")
             tokens.append(columns[0])
             labels.append(normalize_label(columns[1]))
+            no_space_after.append(len(columns) == 3)
     if not tokens:
         raise ValueError(f"{path}: no TOKEN TAG rows found")
-    return TsvSegment(tokens=tuple(tokens), labels=tuple(labels))
+    return TsvSegment(tokens=tuple(tokens), labels=tuple(labels), no_space_after=tuple(no_space_after))
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -98,21 +132,72 @@ def project_new_offsets(row: dict[str, Any], start: int, old: TsvSegment, new: T
         raise ValueError(f"{row.get('id')}: cannot replace tokens without complete text and token offsets")
     old_char_start = int(starts[start])
     old_char_stop = int(stops[start + old_width - 1])
-    search_from = old_char_start
-    new_starts: list[int] = []
-    new_stops: list[int] = []
+    candidates: list[list[tuple[int, int]]] = []
+    entity_spans = label_entity_spans(new.labels)
     for token in new.tokens:
-        found = text.find(token, search_from, old_char_stop)
-        if found < 0:
+        token_candidates = []
+        search_from = old_char_start
+        while True:
+            found = text.find(token, search_from, old_char_stop)
+            if found < 0:
+                break
+            token_candidates.append((found, found + len(token)))
+            search_from = found + 1
+        if not token_candidates:
             surface = text[old_char_start:old_char_stop]
             raise ValueError(
                 f"{row.get('id')}: replacement token {token!r} not found in original character span "
                 f"{old_char_start}:{old_char_stop} ({surface!r})"
             )
-        new_starts.append(found)
-        new_stops.append(found + len(token))
-        search_from = found + len(token)
-    return new_starts, new_stops
+        candidates.append(token_candidates)
+
+    best: list[tuple[int, int]] | None = None
+    best_key: tuple[int, int, int] | None = None
+
+    def visit(index: int, minimum_start: int, path: list[tuple[int, int]]) -> None:
+        nonlocal best, best_key
+        if index == len(candidates):
+            span_start = path[0][0]
+            span_stop = path[-1][1]
+            internal_gap = sum(
+                next_start - previous_stop
+                for (_previous_start, previous_stop), (next_start, _next_stop) in zip(path, path[1:])
+            )
+            entity_span_width = sum(path[stop - 1][1] - path[start][0] for start, stop in entity_spans)
+            key = (entity_span_width, span_stop - span_start, internal_gap, span_start - old_char_start, span_stop)
+            if best_key is None or key < best_key:
+                best = list(path)
+                best_key = key
+            return
+        for candidate_start, candidate_stop in candidates[index]:
+            if candidate_start < minimum_start:
+                continue
+            visit(index + 1, candidate_stop, [*path, (candidate_start, candidate_stop)])
+
+    visit(0, old_char_start, [])
+    if best is None:
+        surface = text[old_char_start:old_char_stop]
+        raise ValueError(
+            f"{row.get('id')}: replacement tokens do not occur in order in original character span "
+            f"{old_char_start}:{old_char_stop} ({surface!r})"
+        )
+    return [start for start, _stop in best], [stop for _start, stop in best]
+
+
+def render_segment(segment: TsvSegment) -> tuple[str, list[int], list[int]]:
+    text_parts: list[str] = []
+    starts: list[int] = []
+    stops: list[int] = []
+    cursor = 0
+    for index, token in enumerate(segment.tokens):
+        starts.append(cursor)
+        text_parts.append(token)
+        cursor += len(token)
+        stops.append(cursor)
+        if index < len(segment.tokens) - 1 and not segment.no_space_after[index]:
+            text_parts.append(" ")
+            cursor += 1
+    return "".join(text_parts), starts, stops
 
 
 def entity_family(label: str) -> str:
@@ -164,11 +249,30 @@ def replace_once(
     out = dict(row)
     old_width = len(old.tokens)
     stop = start + old_width
-    new_starts, new_stops = project_new_offsets(row, start, old, new)
+    old_starts = row.get("token_start_offsets") or []
+    old_stops = row.get("token_end_offsets") or []
+    text = row.get("text")
+    if not (
+        isinstance(text, str)
+        and isinstance(old_starts, list)
+        and isinstance(old_stops, list)
+        and len(old_starts) == len(row.get("tokens") or [])
+        and len(old_stops) == len(row.get("tokens") or [])
+    ):
+        raise ValueError(f"{row.get('id')}: cannot replace tokens without complete text and token offsets")
+    old_char_start = int(old_starts[start])
+    old_char_stop = int(old_stops[stop - 1])
+    replacement_text, relative_starts, relative_stops = render_segment(new)
+    new_starts = [old_char_start + offset for offset in relative_starts]
+    new_stops = [old_char_start + offset for offset in relative_stops]
+    delta = len(replacement_text) - (old_char_stop - old_char_start)
+    shifted_tail_starts = [int(offset) + delta for offset in old_starts[stop:]]
+    shifted_tail_stops = [int(offset) + delta for offset in old_stops[stop:]]
+    out["text"] = text[:old_char_start] + replacement_text + text[old_char_stop:]
     out["tokens"] = list(row["tokens"][:start]) + list(new.tokens) + list(row["tokens"][stop:])
     out["token_labels"] = list(row["token_labels"][:start]) + list(new.labels) + list(row["token_labels"][stop:])
-    out["token_start_offsets"] = list(row["token_start_offsets"][:start]) + new_starts + list(row["token_start_offsets"][stop:])
-    out["token_end_offsets"] = list(row["token_end_offsets"][:start]) + new_stops + list(row["token_end_offsets"][stop:])
+    out["token_start_offsets"] = list(old_starts[:start]) + new_starts + shifted_tail_starts
+    out["token_end_offsets"] = list(old_stops[:start]) + new_stops + shifted_tail_stops
     if "token_render" in out and isinstance(out["token_render"], list):
         out["token_render"] = list(row["token_render"][:start]) + [""] * len(new.tokens) + list(row["token_render"][stop:])
     if label2id is not None:

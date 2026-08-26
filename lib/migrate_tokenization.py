@@ -99,7 +99,19 @@ def audit_split(path: Path, split: str) -> tuple[list[dict[str, Any]], dict[str,
         counters["tokens_before"] += len(row["tokens"])
         for entity in bio_to_character_entities(row):
             labels_before[entity.label] += 1
-        migrated, row_changes = migrate_row(row)
+        try:
+            migrated, row_changes = migrate_row(row)
+        except ValueError as exc:
+            row_id = str(row.get("id") or row.get("document_id") or "<missing-id>")
+            migrated = row
+            row_changes = [
+                {
+                    "id": row_id,
+                    "kind": "tokenization_projection_error",
+                    "error": str(exc),
+                }
+            ]
+            counters["projection_error_rows"] += 1
         migrated_rows.append(migrated)
         changes.extend({"split": split, **change} for change in row_changes)
         counters["tokens_after"] += len(migrated["tokens"])
@@ -130,9 +142,13 @@ def render_markdown(profile: str, summaries: list[dict[str, Any]], changes: list
     ]
     for item in summaries:
         lines.append(
-            f"| {item['split']} | {item['rows']} | {item.get('retokenized_rows', 0)} | "
-            f"{item['tokens_before']} | {item['tokens_after']} | {item.get('french_article_rows', 0)} |"
+        f"| {item['split']} | {item['rows']} | {item.get('retokenized_rows', 0)} | "
+        f"{item['tokens_before']} | {item['tokens_after']} | {item.get('french_article_rows', 0)} |"
         )
+    errors = [change for change in changes if change["kind"] == "tokenization_projection_error"]
+    lines.extend(["", f"Rows with tokenization projection errors: **{len(errors)}**", ""])
+    for change in errors:
+        lines.append(f"- `{change['split']}:{change['id']}`: {change['error']}")
     narrowed = [change for change in changes if change["kind"] == "exclude_french_elided_article"]
     lines.extend(["", f"French elided-article boundaries narrowed: **{len(narrowed)}**", ""])
     for change in narrowed:

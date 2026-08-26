@@ -25,6 +25,9 @@ from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_json
 from .temporal_verification import verify_entity_start_year
 
 
+PATTERN_MATCH_CONFIDENCE = 0.51
+
+
 def normalize_station_id(value: Any) -> str:
     return str(value or "").strip().lower().replace("_", "-")
 
@@ -210,8 +213,8 @@ def find_alias_spans(tokens: list[str], aliases: list[str], label: str) -> list[
                         "token_stop": actual_stop,
                         "label": label,
                         "surface": token_window_surface(tokens, start, actual_stop),
-                        "confidence": 1.0,
-                        "margin": 1.0,
+                        "confidence": PATTERN_MATCH_CONFIDENCE,
+                        "margin": PATTERN_MATCH_CONFIDENCE,
                         "matcher": matcher,
                         "alias": alias,
                     }
@@ -473,7 +476,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--auto-accept-min-confidence", type=float, default=0.99)
     parser.add_argument("--auto-accept-min-margin", type=float, default=0.30)
     parser.add_argument("--auto-accept-multiple-min-confidence", type=float, default=0.99)
-    parser.add_argument("--auto-accept", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--auto-accept", action=argparse.BooleanOptionalAction, default=False)
     return parser.parse_args(argv)
 
 

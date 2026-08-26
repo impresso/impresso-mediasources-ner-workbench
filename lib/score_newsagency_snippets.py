@@ -332,7 +332,7 @@ def curation_status(
     min_confidence: float,
     min_margin: float,
     multiple_min_confidence: float = 0.99,
-    auto_accept: bool = True,
+    auto_accept: bool = False,
 ) -> tuple[str, list[str]]:
     target = candidate_label(row)
     reasons: list[str] = []
@@ -545,7 +545,7 @@ def score_rows(args: argparse.Namespace) -> dict[str, Any]:
             min_confidence=args.auto_accept_min_confidence,
             min_margin=args.auto_accept_min_margin,
             multiple_min_confidence=args.auto_accept_multiple_min_confidence,
-            auto_accept=bool(getattr(args, "auto_accept", True)),
+            auto_accept=bool(getattr(args, "auto_accept", False)),
         )
         if temporal_verification["status"] == "suspicious_before_start":
             reasons.append("suspicious_before_entity_start")
@@ -601,7 +601,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--auto-accept-min-confidence", type=probability, default=0.99)
     parser.add_argument("--auto-accept-min-margin", type=probability, default=0.30)
     parser.add_argument("--auto-accept-multiple-min-confidence", type=probability, default=0.99)
-    parser.add_argument("--auto-accept", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--auto-accept", action=argparse.BooleanOptionalAction, default=False)
     return parser.parse_args(argv)
 
 

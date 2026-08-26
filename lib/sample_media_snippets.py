@@ -18,6 +18,47 @@ def identity_row(row: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def print_alias_diagnostics(
+    *,
+    pools: dict[tuple[str, str, str], list[dict[str, Any]]],
+    selected_counts: dict[str, int],
+) -> None:
+    if not pools:
+        return
+    print("\nSearch alias diagnostics")
+    grouped: dict[tuple[str, str], dict[str, list[tuple[str, int, int]]]] = {}
+    for label, query, language in pools:
+        selected = selected_counts.get(f"{label} || {query} || {language}", 0)
+        grouped.setdefault((label, language), {"zero": [], "productive": []})
+        bucket = (query, len(pools[(label, query, language)]), selected)
+        if bucket[1] == 0:
+            grouped[(label, language)]["zero"].append(bucket)
+        else:
+            grouped[(label, language)]["productive"].append(bucket)
+
+    print("label                         lang  aliases tried  zero-hit  productive  selected")
+    for (label, language), buckets in sorted(grouped.items()):
+        zero = buckets["zero"]
+        productive = buckets["productive"]
+        selected_total = sum(item[2] for item in productive)
+        print(f"{label:<29} {language:<5} {len(zero) + len(productive):>13} {len(zero):>9} {len(productive):>11} {selected_total:>9}")
+
+    for (label, language), buckets in sorted(grouped.items()):
+        zero = buckets["zero"]
+        productive = buckets["productive"]
+        if not zero and not productive:
+            continue
+        print(f"\nAlias diagnostics for {label} lang={language}")
+        if zero:
+            print("  zero-hit aliases:")
+            for query, _pool_size, _selected in zero:
+                print(f"    {query}")
+        if productive:
+            print("  productive aliases:")
+            for query, pool_size, selected in productive:
+                print(f"    {query} raw={pool_size} selected={selected}")
+
+
 def run_family_sampler(
     args: argparse.Namespace,
     *,
@@ -204,6 +245,7 @@ def run_family_sampler(
         existing_sample_pairs=existing_sample_pairs,
         existing_sample_issues=existing_sample_issues,
     )
+    print_alias_diagnostics(pools=pools, selected_counts=summary["counts_by_label_query_language"])
     write_jsonl(args.out, selected)
     registry_written = write_sample_registry(args.sample_registry, selected, existing_sample_pairs)
     summary["counts_by_label"] = dict(sorted(Counter(row["candidate_label"] for row in selected).items()))

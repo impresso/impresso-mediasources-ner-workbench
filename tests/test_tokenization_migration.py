@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from lib.migrate_tokenization import migrate_row
+import json
+
+from lib.migrate_tokenization import audit_split, migrate_row
 from lib.tokenization import TOKENIZATION_PROFILE, tokenize_with_offsets
 
 
@@ -120,3 +122,27 @@ def test_migration_preserves_text_whitespace_through_offsets() -> None:
         cursor = stop
     reconstructed.append(text[cursor:])
     assert "".join(reconstructed) == text
+
+
+def test_audit_split_reports_non_projectable_entities_without_crashing(tmp_path) -> None:
+    path = tmp_path / "train.jsonl"
+    source = row(
+        "Reu Reu--terZwei",
+        ["Reu", "-", "ter", "Zwei"],
+        [0, 7, 9, 12],
+        [3, 8, 12, 16],
+        [
+            "B-org.ent.pressagency.reuters",
+            "I-org.ent.pressagency.reuters",
+            "I-org.ent.pressagency.reuters",
+            "O",
+        ],
+    )
+    path.write_text(json.dumps(source) + "\n", encoding="utf-8")
+
+    migrated, summary, changes = audit_split(path, "train")
+
+    assert migrated == [source]
+    assert summary["projection_error_rows"] == 1
+    assert changes[0]["kind"] == "tokenization_projection_error"
+    assert "does not align with canonical tokens" in changes[0]["error"]
