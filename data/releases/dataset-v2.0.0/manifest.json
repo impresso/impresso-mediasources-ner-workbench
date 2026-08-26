@@ -1,0 +1,79 @@
+{
+  "base_release": {
+    "hf_commit_sha": "d61b20c14342abbeac8e7628941d961f61ed6580",
+    "hf_revision": "v1.0.0",
+    "release_id": "dataset-v1.0.0"
+  },
+  "created_from": {
+    "curated_source_dir": "data/curated/legacy-import-curated",
+    "prerelease_path": "data/prereleases/dataset-v2.0.0",
+    "public_projection": "lib.publish_dataset.public_row",
+    "snippet_newsagencies_dir": "data/curated/snippets/newsagencies",
+    "snippet_radiostations_dir": "data/curated/snippets/radiostations"
+  },
+  "dataset_repo": "impresso-project/impresso-mediaagencies-ner-dataset",
+  "files": {
+    "hf_payload_generated_by": "make publish-dataset",
+    "release_snapshot": [
+      "train.jsonl",
+      "validation.jsonl",
+      "test.jsonl",
+      "label_map.json",
+      "dataset_summary.json",
+      "manifest.json",
+      "DATASET_STATISTICS.md",
+      "DATASET_QUALITY.md",
+      "SUBTOKEN_STRATEGY_REPORT.md",
+      "TOKENIZATION_MIGRATION.md",
+      "curation_summary.json",
+      "curation_changes.jsonl",
+      "curation_changes_tags.tsv",
+      "tokenization_migration_summary.json",
+      "tokenization_migration_changes.jsonl",
+      "tsv/train.tsv",
+      "tsv/validation.tsv",
+      "tsv/test.tsv"
+    ]
+  },
+  "notes": "Committed dataset release-candidate snapshot. The JSONL files use the compact public training schema. Run make publish-dataset to stage the Hugging Face payload with data/train.jsonl, data/validation.jsonl, and data/test.jsonl.",
+  "release_id": "dataset-v2.0.0",
+  "status": "ready",
+  "summary": {
+    "documents_by_split": {
+      "test": 458,
+      "train": 2239,
+      "validation": 483
+    },
+    "entities_by_split": {
+      "test": 612,
+      "train": 2573,
+      "validation": 545
+    },
+    "label_count": 99,
+    "languages_by_split": {
+      "test": {
+        "de": 155,
+        "en": 24,
+        "fr": 269,
+        "it": 2,
+        "lb": 8
+      },
+      "train": {
+        "de": 809,
+        "en": 125,
+        "fr": 1268,
+        "it": 9,
+        "lb": 28
+      },
+      "validation": {
+        "de": 169,
+        "en": 33,
+        "fr": 276,
+        "it": 1,
+        "lb": 4
+      }
+    }
+  },
+  "updated_at": "2026-08-26T17:53:38.192167Z",
+  "version": "v2.0.0"
+}
