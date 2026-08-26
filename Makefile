@@ -839,7 +839,7 @@ test-official: sync-label-map
 check-curation-checker:
 	@test -f "$(CURATION_LABEL_MAP)" || { echo "Missing curation checker label map: $(CURATION_LABEL_MAP)"; echo "Next step:"; echo "  # Train the configured model and write its label_map.json."; echo "  make train"; echo "Or pass both CURATION_MODEL=... and CURATION_LABEL_MAP=... for another checker."; exit 1; }
 
-curation-eval: check-curation-checker
+curation-eval: sync-label-map check-curation-checker
 	@echo "Evaluating train/validation/test to build gold-vs-prediction disagreement inputs."
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TRAIN_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
@@ -848,21 +848,21 @@ curation-eval: check-curation-checker
 	@echo "  # Build the train/validation/test disagreement review queue."
 	@echo "  make curation-review"
 
-curation-eval-train: check-curation-checker
+curation-eval-train: sync-label-map check-curation-checker
 	@echo "Evaluating train to build gold-vs-prediction disagreement inputs."
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TRAIN_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name train --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Build the train disagreement review queue."
 	@echo "  make curation-review-train"
 
-curation-eval-validation: check-curation-checker
+curation-eval-validation: sync-label-map check-curation-checker
 	@echo "Evaluating validation to build gold-vs-prediction disagreement inputs."
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(VALIDATION_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name validation --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	@echo "Next step:"
 	@echo "  # Build the validation disagreement review queue."
 	@echo "  make curation-review-validation"
 
-curation-eval-test: check-curation-checker
+curation-eval-test: sync-label-map check-curation-checker
 	@echo "Evaluating test to build gold-vs-prediction disagreement inputs."
 	PYTHONPATH=$(TRAINING_PKG):$$PYTHONPATH $(PYTHON) -m mediaagency_modernbert.train --do-eval --checkpoint "$(CURATION_MODEL)" --eval-jsonl "$(TEST_JSONL)" --label-map "$(CURATION_LABEL_MAP)" --output-dir "$(CURATION_OUTPUT_DIR)/eval" --split-name test --eval-batch-size "$(EVAL_BATCH)" --max-sequence-len "$(MAX_SEQUENCE_LEN)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" --device "$(DEVICE)" $(EVAL_DECODER_ARGS) $(EVAL_PREDICTION_DIAGNOSTIC_ARGS) $(ARGS)
 	@echo "Next step:"

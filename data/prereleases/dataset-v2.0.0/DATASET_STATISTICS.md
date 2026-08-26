@@ -6,10 +6,10 @@ This report is generated from the released train, validation, and test JSONL fil
 
 | Split | Documents | With mentions | Tokens | Mentions | Newspapers | Date range |
 |---|---:|---:|---:|---:|---:|---|
-| train | 2,239 | 1,590 | 885,433 | 2,570 | 73 | 1840-01-04 to 2000-12-04 |
-| validation | 483 | 371 | 122,219 | 543 | 44 | 1841-09-28 to 2000-12-23 |
+| train | 2,239 | 1,592 | 885,433 | 2,573 | 73 | 1840-01-04 to 2000-12-04 |
+| validation | 483 | 371 | 122,219 | 545 | 44 | 1841-09-28 to 2000-12-23 |
 | test | 458 | 369 | 109,374 | 612 | 39 | 1840-06-16 to 2000-08-22 |
-| **Total** | **3,180** | **2,330** | **1,117,026** | **3,725** | - | - |
+| **Total** | **3,180** | **2,332** | **1,117,026** | **3,730** | - | - |
 
 ## Split Integrity
 
@@ -29,8 +29,8 @@ No document IDs occur in more than one split.
 
 | Value | Train | Validation | Test | Total |
 |---|---:|---:|---:|---:|
-| `press agency` | 2,072 | 408 | 455 | 2,935 |
-| `radio station` | 498 | 135 | 157 | 790 |
+| `press agency` | 2,075 | 409 | 455 | 2,939 |
+| `radio station` | 498 | 136 | 157 | 791 |
 
 ## Mentions by Entity Label
 
@@ -40,10 +40,10 @@ No document IDs occur in more than one split.
 | `org.ent.pressagency.agence-radio` | 15 | 9 | 10 | 34 |
 | `org.ent.pressagency.akp` | 8 | 10 | 14 | 32 |
 | `org.ent.pressagency.ansa` | 22 | 9 | 9 | 40 |
-| `org.ent.pressagency.ap` | 90 | 16 | 16 | 122 |
+| `org.ent.pressagency.ap` | 93 | 16 | 16 | 125 |
 | `org.ent.pressagency.apa` | 29 | 8 | 10 | 47 |
 | `org.ent.pressagency.ata` | 24 | 2 | 4 | 30 |
-| `org.ent.pressagency.ats-sda` | 272 | 40 | 37 | 349 |
+| `org.ent.pressagency.ats-sda` | 272 | 41 | 37 | 350 |
 | `org.ent.pressagency.belga` | 23 | 11 | 10 | 44 |
 | `org.ent.pressagency.cip` | 10 | 0 | 3 | 13 |
 | `org.ent.pressagency.ctk` | 25 | 11 | 10 | 46 |
@@ -83,5 +83,5 @@ No document IDs occur in more than one split.
 | `org.ent.radiostation.rfi` | 19 | 11 | 10 | 40 |
 | `org.ent.radiostation.rtl` | 31 | 9 | 11 | 51 |
 | `org.ent.radiostation.rts` | 21 | 5 | 7 | 33 |
-| `org.ent.radiostation.vatican-radio` | 29 | 8 | 10 | 47 |
+| `org.ent.radiostation.vatican-radio` | 29 | 9 | 10 | 48 |
 | `org.ent.radiostation.voice-of-america` | 40 | 12 | 12 | 64 |
