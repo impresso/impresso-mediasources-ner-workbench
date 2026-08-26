@@ -268,6 +268,8 @@ See [docs/curation.md](docs/curation.md) for full curation workflows, path selec
 | Review sampled snippet spans. | `make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"` | Usually yes, to read/write the matching configured snippet files. |
 | Put accepted/rejected reviewed snippets into train only. | `make split-media-snippets MEDIA_FAMILY=pressagency SNIPPET_VALIDATION_FRACTION=0.0 SNIPPET_TEST_FRACTION=0.0 HOLDOUT_MIN_PER_LABEL=0` | Yes, split outputs and holdout sources follow the config. |
 | Promote split snippets into the configured dataset. | `make integrate-snippets` | Yes, because it changes the configured dataset splits. |
+| Materialize the exact published HF dataset locally. | `make download-hf-dataset CFG=configs/model-v2.0.0-4layers-hf-verification.mk` | Yes, use the HF-verification config to pin the dataset commit. |
+| Compare the local HF dataset materialization with the immutable Git release. | `make compare-hf-dataset-release CFG=configs/model-v2.0.0-4layers-hf-verification.mk` | Yes, use the same config used for HF materialization. |
 | Evaluate the configured model into model-local diagnostics. | `make test EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
 | Evaluate the official test split into model-local diagnostics. | `make test-official EVAL_PREDICTION_DIAGNOSTICS=true` | Yes, to evaluate a model variant such as the 4-layer config. |
 | Evaluate train/validation/test into shared curation disagreement inputs. | `make curation-eval` | Yes, to choose the curation checker model/dataset. |
@@ -277,6 +279,7 @@ See [docs/curation.md](docs/curation.md) for full curation workflows, path selec
 | Train the default v2 model. | `make train` | Yes, use `CFG=...` to train a model variant. |
 | Remove the configured model directory and train from scratch. | `make train-fresh` | Yes, use `CFG=...` to choose which model directory is cleaned and trained. |
 | Train the v2 variant that adapts the final 4 ModernBERT layers. | `make train-fresh CFG=configs/model-v2.0.0-4layers.mk` | Already supplied. |
+| Train a fresh 4-layer verification model from the pinned HF v2.0.0 dataset. | `make train-fresh CFG=configs/model-v2.0.0-4layers-hf-verification.mk` | Already supplied. |
 
 ## Common Commands
 
