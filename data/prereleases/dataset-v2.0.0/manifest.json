@@ -37,7 +37,7 @@
   },
   "notes": "Committed dataset release-candidate snapshot. The JSONL files use the compact public training schema. Run make publish-dataset to stage the Hugging Face payload with data/train.jsonl, data/validation.jsonl, and data/test.jsonl.",
   "release_id": "dataset-v2.0.0",
-  "status": "prerelease",
+  "status": "ready",
   "summary": {
     "documents_by_split": {
       "test": 458,
@@ -74,6 +74,6 @@
       }
     }
   },
-  "updated_at": "2026-08-26T13:35:17.133917Z",
+  "updated_at": "2026-08-26T17:53:38.192167Z",
   "version": "v2.0.0"
 }
