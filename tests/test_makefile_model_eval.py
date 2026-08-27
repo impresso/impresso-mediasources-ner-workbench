@@ -71,6 +71,15 @@ def test_inference_parity_target_uses_overrideable_release_artifact_paths() -> N
     assert '--mismatches-jsonl "$(MODEL_INFERENCE_PARITY_MISMATCHES_JSONL)"' in block
 
 
+def test_smoke_model_inference_target_uses_overrideable_model_source() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+    block = target_block(text, "smoke-model-inference")
+
+    assert '--model "$(MODEL_INFERENCE_SMOKE_MODEL)"' in block
+    assert "MODEL_INFERENCE_SMOKE_REVISION" in block
+    assert '--model "$(SELECTED_MODEL)"' not in block
+
+
 def test_train_passes_configured_decoder_for_checkpoint_selection() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
     block = target_block(text, "train")

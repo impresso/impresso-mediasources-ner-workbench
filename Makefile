@@ -911,7 +911,7 @@ stamp-model-inference-metadata:
 
 smoke-model-inference:
 	@echo "Running a small real-checkpoint inference smoke test."
-	$(PYTHON) -m lib.smoke_model_inference --model "$(SELECTED_MODEL)" $(ARGS)
+	$(PYTHON) -m lib.smoke_model_inference --model "$(MODEL_INFERENCE_SMOKE_MODEL)" $(if $(MODEL_INFERENCE_SMOKE_REVISION),--revision "$(MODEL_INFERENCE_SMOKE_REVISION)",) $(ARGS)
 
 compare-model-inference-parity:
 	@echo "Comparing HF runtime inference with evaluator decoded predictions on the test split."
