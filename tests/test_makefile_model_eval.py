@@ -69,3 +69,28 @@ def test_inference_parity_target_uses_overrideable_release_artifact_paths() -> N
     assert '--evaluator-predictions "$(MODEL_INFERENCE_PARITY_EVALUATOR_PREDICTIONS)"' in block
     assert '--summary-json "$(MODEL_INFERENCE_PARITY_SUMMARY_JSON)"' in block
     assert '--mismatches-jsonl "$(MODEL_INFERENCE_PARITY_MISMATCHES_JSONL)"' in block
+
+
+def test_train_passes_configured_decoder_for_checkpoint_selection() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+    block = target_block(text, "train")
+
+    assert "$(TRAIN_DECODER_ARGS)" in block
+
+
+def test_decoding_experiment_targets_are_wired_through_make_config() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+
+    for target, mode in [
+        ("decoding-experiment-plan", "plan"),
+        ("decoding-experiment-status", "status"),
+        ("decoding-experiment-train", "train"),
+        ("decoding-experiment-evaluate", "evaluate"),
+        ("decoding-experiment-report", "report"),
+    ]:
+        block = target_block(text, target)
+        assert f"lib.decoding_experiment {mode}" in block
+        assert "$(DECODING_EXPERIMENT_ARGS)" in block
+
+    assert "--execute" in target_block(text, "decoding-experiment-train")
+    assert "--execute" in target_block(text, "decoding-experiment-evaluate")
