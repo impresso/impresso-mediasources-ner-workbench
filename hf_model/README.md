@@ -66,6 +66,12 @@ Held-out test metrics:
 - F1: 0.8981
 - Correct/gold/predicted entities: 529 / 612 / 566
 
+Runtime inference validation:
+
+- Release-artifact inference was verified on the complete v2.0.0 held-out test set.
+- The Hugging Face runtime pipeline matched the evaluator's decoded BIO sequence for 458 / 458 documents.
+- Recomputed runtime metrics matched the evaluator exactly, including 529 / 612 / 566 exact entities and F1 0.8981324278.
+
 ## Intended Use
 
 Use this model to identify cited news-agency and radio-station source mentions in historical newspaper text. The model is intended for corpus enrichment and assisted curation workflows, not as a general-purpose named-entity recognizer.

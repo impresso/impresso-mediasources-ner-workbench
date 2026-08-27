@@ -182,9 +182,109 @@ def test_evaluate_rows_writes_token_and_subtoken_diagnostics(tmp_path: Path) -> 
     assert predictions[0]["pred_labels"] == ["O", "B-org.ent.pressagency.havas"]
     assert metrics["windows"] == 1
     assert "Agentur\tO\tO\t" in token_tsv
+    assert "raw_first_subtoken_pred_label\tpred_label" in token_tsv.splitlines()[0]
     assert "absolute_word_index\tword\tsubtoken_index" in subtoken_tsv.splitlines()[0]
     assert "0\tAgentur\t2\t##gentur\t0\t0\t-100\tIGNORED\tB-org.ent.pressagency.havas" in subtoken_tsv
     assert "source_window_index" in token_tsv.splitlines()[0]
+
+
+def test_token_diagnostics_distinguish_raw_first_subtoken_from_decoded_label(tmp_path: Path) -> None:
+    import argparse
+    import torch
+
+    class OneSubtokenEncoding(dict):
+        def __init__(self, token_count: int):
+            super().__init__({"input_ids": list(range(token_count)), "attention_mask": [1] * token_count})
+            self._word_ids = list(range(token_count))
+
+        def word_ids(self) -> list[int]:
+            return self._word_ids
+
+    class OneSubtokenTokenizer:
+        def __call__(self, tokens, **_kwargs):
+            return OneSubtokenEncoding(len(tokens))
+
+        def pad(self, features, padding=True, return_tensors="pt"):
+            return {
+                "input_ids": torch.tensor([feature["input_ids"] for feature in features]),
+                "attention_mask": torch.tensor([feature["attention_mask"] for feature in features]),
+                "labels": torch.tensor([feature["labels"] for feature in features]),
+            }
+
+        def convert_ids_to_tokens(self, token_id):
+            return f"tok-{token_id}"
+
+    class ViterbiFixtureModel:
+        def parameters(self):
+            return iter([FakeParameter()])
+
+        def eval(self):
+            return None
+
+        def __call__(self, **batch):
+            logits = torch.full((1, 4, 5), -10.0)
+            # O, B-AFP, I-AFP, B-Wolff, I-Wolff. I-Wolff is locally best at
+            # Presse but illegal after I-AFP, so Viterbi must choose B-Wolff.
+            logits[0, 0, 1] = 10.0
+            logits[0, 1, 2] = 10.0
+            logits[0, 2, 2] = 10.0
+            logits[0, 3, 4] = 10.0
+            logits[0, 3, 3] = 9.0
+            return FakeOutputs(logits)
+
+    label_map = {
+        "label2id": {
+            "O": 0,
+            "B-org.ent.pressagency.afp": 1,
+            "I-org.ent.pressagency.afp": 2,
+            "B-org.ent.pressagency.wolff": 3,
+            "I-org.ent.pressagency.wolff": 4,
+        },
+        "id2label": {
+            "0": "O",
+            "1": "B-org.ent.pressagency.afp",
+            "2": "I-org.ent.pressagency.afp",
+            "3": "B-org.ent.pressagency.wolff",
+            "4": "I-org.ent.pressagency.wolff",
+        },
+    }
+    args = argparse.Namespace(
+        max_words_per_window=4,
+        stride_words=0,
+        max_sequence_len=512,
+        eval_batch_size=1,
+        train_batch_size=1,
+        label_all_tokens=False,
+        output_dir=str(tmp_path),
+        write_prediction_diagnostics=True,
+        write_token_predictions="",
+        write_subtoken_predictions="",
+        decoder="first_subtoken_viterbi",
+        compare_decoders=False,
+    )
+    rows = [
+        {
+            "id": "doc",
+            "tokens": ["Agence", "France", "-", "Presse"],
+            "token_labels": ["O", "O", "O", "O"],
+            "token_label_ids": [0, 0, 0, 0],
+        }
+    ]
+
+    _metrics, predictions = evaluate_rows(
+        rows,
+        ViterbiFixtureModel(),
+        OneSubtokenTokenizer(),
+        label_map,
+        args,
+        Runtime(torch=torch, Adafactor=None, AutoConfig=None, AutoModelForTokenClassification=None, AutoTokenizer=None),
+        split_name="test",
+        return_predictions=True,
+    )
+
+    token_tsv = (tmp_path / "test_token_predictions.tsv").read_text(encoding="utf-8")
+    assert predictions[0]["pred_labels"][-1] == "B-org.ent.pressagency.wolff"
+    assert "\tPresse\tO\tI-org.ent.pressagency.wolff\tB-org.ent.pressagency.wolff\t" in token_tsv
 
 
 def test_evaluate_rows_uses_model_label_map_for_logits_and_dataset_map_for_gold(tmp_path: Path) -> None:

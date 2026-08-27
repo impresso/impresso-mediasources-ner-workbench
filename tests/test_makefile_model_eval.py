@@ -58,3 +58,14 @@ def test_push_model_uses_selected_checkpoint_and_remote_repo_variable() -> None:
     assert '--run-dir "$(MODEL)"' in block
     assert '--repo-id "$(HF_MODEL)"' not in block
     assert '--model "$(MODEL)"' not in block
+
+
+def test_inference_parity_target_uses_overrideable_release_artifact_paths() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+    block = target_block(text, "compare-model-inference-parity")
+
+    assert '--model "$(MODEL_INFERENCE_PARITY_MODEL)"' in block
+    assert '--input-jsonl "$(MODEL_INFERENCE_PARITY_INPUT_JSONL)"' in block
+    assert '--evaluator-predictions "$(MODEL_INFERENCE_PARITY_EVALUATOR_PREDICTIONS)"' in block
+    assert '--summary-json "$(MODEL_INFERENCE_PARITY_SUMMARY_JSON)"' in block
+    assert '--mismatches-jsonl "$(MODEL_INFERENCE_PARITY_MISMATCHES_JSONL)"' in block

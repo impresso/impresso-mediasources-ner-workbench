@@ -348,7 +348,8 @@ The model config should record the released dataset revision, the pinned Hugging
 Evaluate validation and test with the release decoder:
 
 ```bash
-make CFG=configs/model-v2.0.0-4layers-hf-verification.mk test
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk evaluate-validation
+make CFG=configs/model-v2.0.0-4layers-hf-verification.mk evaluate-test
 ```
 
 Record validation metrics, held-out test metrics, the selected checkpoint path, and any diagnostic outputs used to select the model. The decoder must use the checkpoint's configured BIO label vocabulary; the dataset label map must not silently resize or reinitialize the classifier head.
@@ -374,7 +375,22 @@ For v2.0.0, the completed training run did not record a training-code Git SHA in
 
 Publish the selected checkpoint using the configured model publication workflow. The publication command must upload the selected checkpoint, model card, label configuration, decoding metadata, and training provenance. If no model publication target exists yet, finalize that target before treating this checklist step as complete.
 
-After model publication, commit the model-release metadata and merge the model release branch through the normal PR/review path.
+After model publication, validate runtime inference against the evaluator's decoded predictions. For a local release-artifact verification, point the parity check at the downloaded model artifact, release test split, and evaluator output:
+
+```bash
+make compare-model-inference-parity \
+  MODEL_INFERENCE_PARITY_MODEL=hf.d/model-v2.0.0 \
+  MODEL_INFERENCE_PARITY_INPUT_JSONL=data/releases/dataset-v2.0.0/test.jsonl \
+  MODEL_INFERENCE_PARITY_EVALUATOR_PREDICTIONS=staging.d/v2.0.0-test-eval/test_predictions.jsonl \
+  MODEL_INFERENCE_PARITY_SUMMARY_JSON=staging.d/v2.0.0-test-inference-parity-summary.json \
+  MODEL_INFERENCE_PARITY_MISMATCHES_JSONL=staging.d/v2.0.0-test-inference-parity-mismatches.jsonl
+```
+
+The acceptance criterion is exact parity: all held-out test documents must have identical decoded token-label sequences between evaluator and runtime pipeline, and recomputed entity/token metrics must match. For v2.0.0 this check matched 458 / 458 held-out test documents and reproduced 529 / 612 / 566 exact entities with F1 0.8981324278.
+
+If the Hugging Face model repository still contains an older placeholder `pipeline.py`, publish a runtime-only model update before treating remote consumer inference as complete. This update must not retrain the model or change dataset provenance; it only replaces the runtime files and model card/provenance needed for inference.
+
+After model publication and inference validation, commit the model-release metadata and merge the model release branch through the normal PR/review path.
 
 ## 17. Close The Model Release
 

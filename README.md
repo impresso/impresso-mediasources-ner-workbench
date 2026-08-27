@@ -40,8 +40,9 @@ Dataset and model v2.0.0 were released in August 2026.
 - Selected-checkpoint validation entity F1: `0.9285`
 - Held-out test entity F1: `0.8981`
 - Decoder: `first_subtoken_viterbi`
+- Runtime inference parity: `458/458` held-out test documents matched evaluator decoded BIO sequences exactly; reproduced `529/612/566` exact entities and test F1 `0.8981324278`.
 
-The released model was trained from the pinned published v2.0.0 dataset. Detailed model provenance is recorded in `hf_model/model_provenance.json`.
+The released model was trained from the pinned published v2.0.0 dataset. Runtime parity was validated with the downloaded v2.0.0 model artifact and the v2.0.0 Git release test split. Detailed model provenance is recorded in `hf_model/model_provenance.json`.
 
 ## Scope
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -58,6 +59,17 @@ def copy_hf_model_sources(out_dir: Path) -> None:
         copy_if_exists(source_dir / name, out_dir / name)
 
 
+def stamp_custom_pipeline_config(config_path: Path) -> None:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    custom_pipelines = dict(config.get("custom_pipelines") or {})
+    custom_pipelines["token-classification"] = {
+        "impl": "pipeline.MediaAgenciesPipeline",
+        "pt": ["AutoModelForTokenClassification"],
+    }
+    config["custom_pipelines"] = custom_pipelines
+    config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def copy_payload(
     model_dir: Path,
     run_dir: Path,
@@ -73,6 +85,7 @@ def copy_payload(
         source = model_dir / name
         require_file(source, f"required model file {name}")
         shutil.copy2(source, out_dir / name)
+    stamp_custom_pipeline_config(out_dir / "config.json")
 
     shutil.copy2(card, out_dir / "README.md")
     copy_if_exists(requirements, out_dir / "requirements.txt")

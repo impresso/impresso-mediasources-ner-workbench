@@ -19,7 +19,8 @@ def test_copy_payload_uses_selected_model_and_run_metadata(tmp_path: Path) -> No
     requirements = tmp_path / "requirements.txt"
     provenance = tmp_path / "model_provenance.json"
 
-    for name in ("config.json", "model.safetensors", "tokenizer.json", "tokenizer_config.json"):
+    write(selected_model / "config.json", json.dumps({"model_type": "modernbert"}))
+    for name in ("model.safetensors", "tokenizer.json", "tokenizer_config.json"):
         write(selected_model / name, f"selected {name}")
     write(run_dir / "label_map.json", json.dumps({"label2id": {"O": 0}}))
     write(run_dir / "training_args.json", json.dumps({"decoder": "first_subtoken_viterbi"}))
@@ -33,7 +34,11 @@ def test_copy_payload_uses_selected_model_and_run_metadata(tmp_path: Path) -> No
 
     copy_payload(selected_model, run_dir, card, requirements, provenance, out_dir, include_eval_metrics=True)
 
-    assert (out_dir / "config.json").read_text(encoding="utf-8") == "selected config.json"
+    config = json.loads((out_dir / "config.json").read_text(encoding="utf-8"))
+    assert config["custom_pipelines"]["token-classification"] == {
+        "impl": "pipeline.MediaAgenciesPipeline",
+        "pt": ["AutoModelForTokenClassification"],
+    }
     assert json.loads((out_dir / "label_map.json").read_text(encoding="utf-8")) == {"label2id": {"O": 0}}
     assert json.loads((out_dir / "model_provenance.json").read_text(encoding="utf-8")) == {
         "model": {"revision": "v2.0.0"}
@@ -41,3 +46,5 @@ def test_copy_payload_uses_selected_model_and_run_metadata(tmp_path: Path) -> No
     assert json.loads((out_dir / "eval" / "test_metrics.json").read_text(encoding="utf-8")) == {
         "entity_f1": 0.8981
     }
+    assert (out_dir / "pipeline.py").is_file()
+    assert (out_dir / "decoding.py").is_file()

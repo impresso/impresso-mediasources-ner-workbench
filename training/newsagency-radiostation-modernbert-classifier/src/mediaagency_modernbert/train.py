@@ -683,6 +683,7 @@ def write_prediction_diagnostics(output_dir: Path, split_name: str, token_rows: 
             "token_index",
             "token",
             "gold_label",
+            "raw_first_subtoken_pred_label",
             "pred_label",
             "pred_confidence",
             "source_window_index",
@@ -937,7 +938,9 @@ def evaluate_rows(
         pred_labels = [id2label[int(label_id)] for label_id in pred_ids]
         if write_diagnostics:
             raw_first_subtoken_labels = [id2label[int(label_id)] for label_id in pred_ids_by_doc[doc_index]]
-            for token_index, (token, gold_label, pred_label) in enumerate(zip(row["tokens"], gold_labels, raw_first_subtoken_labels, strict=True)):
+            for token_index, (token, gold_label, raw_pred_label, decoded_pred_label) in enumerate(
+                zip(row["tokens"], gold_labels, raw_first_subtoken_labels, pred_labels, strict=True)
+            ):
                 provenance = token_provenance_by_doc[doc_index][token_index] or {}
                 token_rows.append(
                     {
@@ -949,7 +952,8 @@ def evaluate_rows(
                         "token_index": token_index,
                         "token": token,
                         "gold_label": gold_label,
-                        "pred_label": pred_label,
+                        "raw_first_subtoken_pred_label": raw_pred_label,
+                        "pred_label": decoded_pred_label,
                         "pred_confidence": f"{float(provenance.get('confidence', 0.0)):.6f}",
                         "source_window_index": provenance.get("source_window_index", ""),
                         "source_window_start_word": provenance.get("source_window_start_word", ""),
