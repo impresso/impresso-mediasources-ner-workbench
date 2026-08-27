@@ -29,9 +29,11 @@
     "subtoken_labeling": "all_subtokens_b_to_i"
   },
   "model": {
-    "commit": "9899ad960b9bc310ee51cd7ee658fd3882b6b140",
+    "commit": "5f600305a86b90d5467c5d71b827e0f33872776c",
+    "previous_commit": "9899ad960b9bc310ee51cd7ee658fd3882b6b140",
     "repository": "impresso-project/mmbert-impresso-mediasources-ner",
-    "revision": "v2.0.0"
+    "revision": "v2.0.1",
+    "runtime_update_note": "v2.0.1 updates the Hugging Face custom pipeline runtime for the existing v2.0.0 trained weights; no retraining was performed."
   },
   "publication_workbench_commit": "429a3767288abd16a43b2f7996453f73df350c7c",
   "selected_checkpoint": "models.d/newsagency_radiostation_modernbert_v2.0.0-hf-verification/best",

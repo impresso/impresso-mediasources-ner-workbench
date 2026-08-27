@@ -17,7 +17,7 @@ tags:
 
 Fine-tuned token-classification model for media-source mention recognition in historical Impresso newspaper text.
 
-The v2.0.0 model predicts cited source mentions for:
+The v2.0.1 model predicts cited source mentions for:
 
 - news agencies, labelled as `org.ent.pressagency.<canonical_id>`
 - radio stations, labelled as `org.ent.radiostation.<canonical_id>`
@@ -31,13 +31,14 @@ The repository name uses "media sources" because the label space may later grow 
 - Dataset commit: `a7ac5dc1ec0dd92ae848dbccd258aa0361830da3`
 - Training code commit: not recorded by this completed run
 - Publication/workbench commit: `429a3767288abd16a43b2f7996453f73df350c7c`
-- Model revision: `v2.0.0`
-- Model commit: `9899ad960b9bc310ee51cd7ee658fd3882b6b140`
+- Model revision: `v2.0.1`
+- Model commit: `5f600305a86b90d5467c5d71b827e0f33872776c`
+- Previous model commit: `9899ad960b9bc310ee51cd7ee658fd3882b6b140`
 - Base model: `impresso-project/mmbert-multilingual-impresso-continued-mlm`
 - Upstream base: `jhu-clsp/mmBERT-base`
 - License: MIT
 
-The model was trained from the pinned published Hugging Face dataset commit above. The selected checkpoint was chosen on validation performance, not on the held-out test set. The completed training run did not record a Git SHA in `training_start_report.json`; the publication/workbench commit is therefore recorded separately and should not be treated as the exact training-code commit.
+The model was trained from the pinned published Hugging Face dataset commit above. The selected checkpoint was chosen on validation performance, not on the held-out test set. The completed training run did not record a Git SHA in `training_start_report.json`; the publication/workbench commit is therefore recorded separately and should not be treated as the exact training-code commit. The v2.0.1 revision updates the Hugging Face custom pipeline runtime for the existing v2.0.0 trained weights; no retraining was performed.
 
 ## Training Setup
 
@@ -68,7 +69,7 @@ Held-out test metrics:
 
 Runtime inference validation:
 
-- Release-artifact inference was verified on the complete v2.0.0 held-out test set.
+- Release-artifact inference was verified on the complete v2.0.0 held-out test set for the published v2.0.1 runtime artifact.
 - The Hugging Face runtime pipeline matched the evaluator's decoded BIO sequence for 458 / 458 documents.
 - Recomputed runtime metrics matched the evaluator exactly, including 529 / 612 / 566 exact entities and F1 0.8981324278.
 
