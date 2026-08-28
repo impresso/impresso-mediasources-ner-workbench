@@ -19,6 +19,8 @@ from mediaagency_modernbert.decoding import (  # noqa: E402
     compile_bio_schema,
     decode_bio_viterbi_reference,
     decode_document,
+    semantic_label_margin,
+    semantic_label_probability,
     start_score,
     transition_score,
     viterbi_decode,
@@ -219,6 +221,24 @@ def test_all_subtoken_viterbi_keeps_strong_outside_evidence() -> None:
     pred = decode_document(word_subtokens, decoder=DECODER_ALL_SUBTOKEN_VITERBI, id2label=ID2LABEL)
 
     assert [ID2LABEL[index] for index in pred] == ["O"]
+
+
+def test_semantic_label_probability_uses_entity_type_not_bio_position() -> None:
+    schema = compile_bio_schema(ID2LABEL)
+    probabilities = [0.20, 0.10, 0.60, 0.05, 0.05]
+
+    confidence = semantic_label_probability(log_probs(probabilities), LABEL2ID["B-X"], schema)
+    margin = semantic_label_margin(log_probs(probabilities), LABEL2ID["B-X"], schema)
+
+    assert math.isclose(confidence, 0.70)
+    assert math.isclose(margin, 0.50)
+
+
+def test_semantic_label_probability_for_outside_uses_o_probability() -> None:
+    schema = compile_bio_schema(ID2LABEL)
+    probabilities = [0.72, 0.10, 0.08, 0.05, 0.05]
+
+    assert math.isclose(semantic_label_probability(log_probs(probabilities), LABEL2ID["O"], schema), 0.72)
 
 
 def test_hf_model_decoder_matches_training_decoder_source() -> None:

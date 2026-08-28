@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
-    from .decoding import DECODER_FIRST_SUBTOKEN_VITERBI, compile_bio_schema, decode_document
+    from .decoding import DECODER_FIRST_SUBTOKEN_VITERBI, compile_bio_schema, decode_document, semantic_label_probability
 except ImportError:
-    from decoding import DECODER_FIRST_SUBTOKEN_VITERBI, compile_bio_schema, decode_document
+    from decoding import DECODER_FIRST_SUBTOKEN_VITERBI, compile_bio_schema, decode_document, semantic_label_probability
 
 
 TOKENIZATION_PROFILE = "unicode-word-punctuation-v1"
@@ -66,25 +66,33 @@ def bio_labels_to_entities(
     starts: list[int],
     stops: list[int],
     text: str,
+    confidences: list[float] | None = None,
 ) -> list[dict[str, Any]]:
     entities: list[dict[str, Any]] = []
     active_start: int | None = None
     active_stop: int | None = None
+    active_token_start: int | None = None
+    active_token_stop: int | None = None
     active_label = ""
 
     def close() -> None:
-        nonlocal active_start, active_stop, active_label
+        nonlocal active_start, active_stop, active_token_start, active_token_stop, active_label
         if active_start is None or active_stop is None:
             return
-        entities.append(
-            {
-                "label": active_label,
-                "start": active_start,
-                "stop": active_stop,
-                "surface": text[active_start:active_stop],
-            }
-        )
-        active_start = active_stop = None
+        entity = {
+            "label": active_label,
+            "start": active_start,
+            "stop": active_stop,
+            "surface": text[active_start:active_stop],
+        }
+        if confidences is not None and active_token_start is not None and active_token_stop is not None:
+            span_confidences = confidences[active_token_start:active_token_stop]
+            entity["confidence"] = min(span_confidences) if span_confidences else 0.0
+        entities.append(entity)
+        active_start = None
+        active_stop = None
+        active_token_start = None
+        active_token_stop = None
         active_label = ""
 
     for index, label in enumerate(labels):
@@ -98,8 +106,10 @@ def bio_labels_to_entities(
         if prefix == "B" or active_start is None or active_label != entity_label:
             close()
             active_start = starts[index]
+            active_token_start = index
             active_label = entity_label
         active_stop = stops[index]
+        active_token_stop = index + 1
     close()
     return entities
 
@@ -173,13 +183,18 @@ class MediaAgenciesPipeline:
             schema=self.schema,
         )
         labels = [self.id2label[int(label_id)] for label_id in pred_ids]
+        token_confidences = [
+            semantic_label_probability(subtokens[0], int(label_id), self.schema)
+            for subtokens, label_id in zip(word_log_probs, pred_ids, strict=True)
+        ]
         return {
             "text": text,
             "tokens": tokens,
             "token_start_offsets": starts,
             "token_end_offsets": stops,
             "token_labels": labels,
-            "entities": bio_labels_to_entities(labels, tokens, starts, stops, text),
+            "token_confidences": token_confidences,
+            "entities": bio_labels_to_entities(labels, tokens, starts, stops, text, token_confidences),
         }
 
     def _word_log_probs(self, tokens: list[str]) -> list[list[list[float]]]:

@@ -25,7 +25,7 @@ ID2LABEL = {
 
 
 class FakeEncoding(dict):
-    def __init__(self, tokens: list[str], label_ids: list[int]):
+    def __init__(self, tokens: list[str], label_ids: list[int], logits_by_token: list[list[float]] | None = None):
         super().__init__(
             {
                 "input_ids": torch.tensor([[100 + index for index in range(len(tokens))]]),
@@ -34,19 +34,22 @@ class FakeEncoding(dict):
         )
         self._word_ids = list(range(len(tokens)))
         self.label_ids = label_ids
+        self.logits_by_token = logits_by_token
 
     def word_ids(self) -> list[int]:
         return self._word_ids
 
 
 class FakeTokenizer:
-    def __init__(self, label_by_token: dict[str, int]):
+    def __init__(self, label_by_token: dict[str, int], logits_by_token: dict[str, list[float]] | None = None):
         self.label_by_token = label_by_token
+        self.logits_by_token = logits_by_token or {}
         self.calls: list[list[str]] = []
 
     def __call__(self, tokens: list[str], **_kwargs: object) -> FakeEncoding:
         self.calls.append(list(tokens))
-        return FakeEncoding(tokens, [self.label_by_token.get(token, 0) for token in tokens])
+        logits = [self.logits_by_token[token] for token in tokens] if all(token in self.logits_by_token for token in tokens) else None
+        return FakeEncoding(tokens, [self.label_by_token.get(token, 0) for token in tokens], logits)
 
 
 class FakeModel:
@@ -69,6 +72,9 @@ class FakeModel:
         return self
 
     def __call__(self, **inputs):
+        explicit_logits = inputs.pop("_logits", None)
+        if explicit_logits is not None:
+            return SimpleNamespace(logits=explicit_logits)
         label_ids = inputs.pop("_label_ids")
         logits = torch.full((1, len(label_ids), len(ID2LABEL)), -10.0)
         for token_index, label_id in enumerate(label_ids):
@@ -80,11 +86,13 @@ class PipelineTokenizer(FakeTokenizer):
     def __call__(self, tokens: list[str], **kwargs: object) -> FakeEncoding:
         encoding = super().__call__(tokens, **kwargs)
         encoding["_label_ids"] = encoding.label_ids
+        if encoding.logits_by_token is not None:
+            encoding["_logits"] = torch.tensor([encoding.logits_by_token])
         return encoding
 
 
-def make_pipeline(label_by_token: dict[str, int], **kwargs) -> MediaAgenciesPipeline:
-    return MediaAgenciesPipeline(FakeModel(), PipelineTokenizer(label_by_token), **kwargs)
+def make_pipeline(label_by_token: dict[str, int], logits_by_token: dict[str, list[float]] | None = None, **kwargs) -> MediaAgenciesPipeline:
+    return MediaAgenciesPipeline(FakeModel(), PipelineTokenizer(label_by_token, logits_by_token), **kwargs)
 
 
 def test_tokenizer_matches_unicode_word_punctuation_profile() -> None:
@@ -105,6 +113,7 @@ def test_single_string_inference_returns_exact_character_offsets() -> None:
             "start": 0,
             "stop": 7,
             "surface": "Reuters",
+            "confidence": pytest.approx(1.0),
         }
     ]
     assert result["text"][0:7] == "Reuters"
@@ -132,8 +141,19 @@ def test_multi_token_entity_is_decoded_with_viterbi() -> None:
             "start": 4,
             "stop": 21,
             "surface": "BBC World Service",
+            "confidence": pytest.approx(1.0),
         }
     ]
+
+
+def test_viterbi_entity_confidence_uses_semantic_type_probability() -> None:
+    pipe = make_pipeline({}, logits_by_token={"Reuters": [0.0, 2.0, 4.0, -10.0, -10.0]})
+
+    result = pipe("Reuters")
+
+    assert result["token_labels"] == ["B-org.ent.pressagency.reuters"]
+    assert result["token_confidences"][0] > 0.98
+    assert result["entities"][0]["confidence"] == pytest.approx(result["token_confidences"][0])
 
 
 def test_long_input_uses_first_covering_window_for_overlaps() -> None:

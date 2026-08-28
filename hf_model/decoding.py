@@ -314,3 +314,28 @@ def decode_document(
         emissions = all_subtoken_emissions(word_subtoken_log_probs, schema)
         return viterbi_decode_with_schema(emissions, schema)
     raise ValueError(f"unsupported decoder: {decoder}")
+
+
+def semantic_label_probability(log_probabilities: Sequence[float], label_id: int, schema: BioDecoderSchema) -> float:
+    """Probability of the decoded semantic label, independent of B/I structure."""
+    probabilities = [math.exp(float(value)) for value in log_probabilities]
+    if label_id == schema.o_id:
+        return probabilities[schema.o_id]
+    entity_index = schema.entity_index_by_id[label_id]
+    if entity_index < 0:
+        raise ValueError(f"label ID is not part of a BIO entity: {label_id}")
+    return probabilities[schema.b_ids[entity_index]] + probabilities[schema.i_ids[entity_index]]
+
+
+def semantic_label_margin(log_probabilities: Sequence[float], label_id: int, schema: BioDecoderSchema) -> float:
+    """Margin between the decoded semantic label bucket and the strongest alternative."""
+    probabilities = [math.exp(float(value)) for value in log_probabilities]
+    buckets = [probabilities[schema.o_id]]
+    buckets.extend(
+        probabilities[b_id] + probabilities[i_id]
+        for b_id, i_id in zip(schema.b_ids, schema.i_ids, strict=True)
+    )
+    selected_bucket = 0 if label_id == schema.o_id else schema.entity_index_by_id[label_id] + 1
+    selected_probability = buckets[selected_bucket]
+    competitor = max((value for index, value in enumerate(buckets) if index != selected_bucket), default=0.0)
+    return selected_probability - competitor
