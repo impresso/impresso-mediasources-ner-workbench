@@ -18,6 +18,7 @@ from .decoding import (
     DECODER_FIRST_SUBTOKEN_VITERBI,
     compile_bio_schema,
     decode_document,
+    semantic_label_probability,
 )
 from .metrics import entity_metrics, entity_metrics_by_label, token_metrics
 
@@ -931,6 +932,7 @@ def evaluate_rows(
             for word_log_probs in normalized_word_log_probs_by_doc
         ]
     selected_pred_ids_by_doc = decoded_by_name[decoder]
+    confidence_schema = decoder_schema or (compile_bio_schema(id2label) if write_diagnostics else None)
 
     predictions: list[dict[str, Any]] = []
     for doc_index, (row, pred_ids) in enumerate(zip(rows, selected_pred_ids_by_doc, strict=True)):
@@ -942,6 +944,12 @@ def evaluate_rows(
                 zip(row["tokens"], gold_labels, raw_first_subtoken_labels, pred_labels, strict=True)
             ):
                 provenance = token_provenance_by_doc[doc_index][token_index] or {}
+                decoded_pred_id = int(pred_ids[token_index])
+                decoded_confidence = semantic_label_probability(
+                    normalized_word_log_probs_by_doc[doc_index][token_index][0],
+                    decoded_pred_id,
+                    confidence_schema,
+                )
                 token_rows.append(
                     {
                         "split": split_name,
@@ -954,7 +962,7 @@ def evaluate_rows(
                         "gold_label": gold_label,
                         "raw_first_subtoken_pred_label": raw_pred_label,
                         "pred_label": decoded_pred_label,
-                        "pred_confidence": f"{float(provenance.get('confidence', 0.0)):.6f}",
+                        "pred_confidence": f"{decoded_confidence:.6f}",
                         "source_window_index": provenance.get("source_window_index", ""),
                         "source_window_start_word": provenance.get("source_window_start_word", ""),
                         "source_subtoken_index": provenance.get("source_subtoken_index", ""),

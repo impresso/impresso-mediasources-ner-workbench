@@ -10,12 +10,21 @@ from .snippet_data import candidate_id, candidate_tokens, load_jsonl, write_json
 from .temporal_verification import verify_entity_start_year
 
 try:
-    from mediaagency_modernbert.decoding import DECODER_FIRST_SUBTOKEN, DECODER_FIRST_SUBTOKEN_VITERBI, compile_bio_schema, decode_document
+    from mediaagency_modernbert.decoding import (
+        DECODER_FIRST_SUBTOKEN,
+        DECODER_FIRST_SUBTOKEN_VITERBI,
+        compile_bio_schema,
+        decode_document,
+        semantic_label_margin,
+        semantic_label_probability,
+    )
 except ImportError:
     DECODER_FIRST_SUBTOKEN = "first_subtoken"
     DECODER_FIRST_SUBTOKEN_VITERBI = "first_subtoken_viterbi"
     compile_bio_schema = None
     decode_document = None
+    semantic_label_probability = None
+    semantic_label_margin = None
 
 DEFAULT_SEARCH_SNIPPETS = Path("data/candidates/newsagency_search_snippets.jsonl")
 DEFAULT_LEGACY_SNIPPETS = Path("data/candidates/newsagency_legacy_snippets.jsonl")
@@ -149,7 +158,6 @@ def score_tokens(
         probs = torch.softmax(logits, dim=-1).detach().cpu()
 
     id2label = model.config.id2label
-    label2id = model.config.label2id
     decoder = str(getattr(model.config, "subtoken_decoding", DECODER_FIRST_SUBTOKEN))
     labels = ["O"] * len(tokens)
     confidences = [0.0] * len(tokens)
@@ -172,9 +180,14 @@ def score_tokens(
         labels[word_id] = label
         confidences[word_id] = confidence
         margins[word_id] = margin
-    if decoder == DECODER_FIRST_SUBTOKEN_VITERBI and decode_document is not None and compile_bio_schema is not None:
+    if (
+        decoder == DECODER_FIRST_SUBTOKEN_VITERBI
+        and decode_document is not None
+        and compile_bio_schema is not None
+        and semantic_label_probability is not None
+        and semantic_label_margin is not None
+    ):
         normalized_id2label = {int(index): str(label) for index, label in id2label.items()}
-        normalized_label2id = {str(label): int(index) for label, index in label2id.items()}
         decoder_schema = compile_bio_schema(normalized_id2label)
         decoded_ids = decode_document(
             [subtokens or [[0.0] + [-1.0e9 for _label in range(len(normalized_id2label) - 1)]] for subtokens in word_subtoken_log_probs],
@@ -187,11 +200,9 @@ def score_tokens(
             first_subtoken_index = first_subtoken_index_by_word.get(word_id)
             if first_subtoken_index is None:
                 continue
-            probability_values = [float(value) for value in probs[first_subtoken_index].tolist()]
-            confidence_id = normalized_label2id.get(label, 0)
-            competitor = max((index for index in range(len(probability_values)) if index != confidence_id), key=lambda index: probability_values[index])
-            confidences[word_id] = probability_values[confidence_id]
-            margins[word_id] = probability_values[confidence_id] - probability_values[competitor]
+            log_probability_values = [float(value) for value in log_probs[first_subtoken_index].tolist()]
+            confidences[word_id] = semantic_label_probability(log_probability_values, int(decoded_id), decoder_schema)
+            margins[word_id] = semantic_label_margin(log_probability_values, int(decoded_id), decoder_schema)
     return labels, confidences, margins
 
 
