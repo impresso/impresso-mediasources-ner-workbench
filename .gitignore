@@ -2,7 +2,7 @@
 *.d/
 
 impresso-newsagencies-cookbook/
-
+imppresso-pipelines/
 # Tool/runtime directories we do not control.
 .venv/
 .agents/

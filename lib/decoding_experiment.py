@@ -261,12 +261,53 @@ def aggregate(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def paired_decoder_deltas(rows: list[dict[str, Any]], *, baseline_decoder: str) -> list[dict[str, Any]]:
+    by_key = {
+        (str(row["training_supervision"]), int(row["seed"]), str(row["decoder"])): row
+        for row in rows
+    }
+    out: list[dict[str, Any]] = []
+    for supervision, seed in sorted({(str(row["training_supervision"]), int(row["seed"])) for row in rows}):
+        baseline = by_key.get((supervision, seed, baseline_decoder))
+        if not baseline or baseline.get("entity_f1") is None:
+            continue
+        item: dict[str, Any] = {
+            "training_supervision": supervision,
+            "seed": seed,
+            "baseline_decoder": baseline_decoder,
+            "baseline_entity_f1": baseline["entity_f1"],
+        }
+        for decoder in sorted({str(row["decoder"]) for row in rows if str(row["decoder"]) != baseline_decoder}):
+            compared = by_key.get((supervision, seed, decoder))
+            if compared and compared.get("entity_f1") is not None:
+                item[f"{decoder}_minus_{baseline_decoder}"] = float(compared["entity_f1"]) - float(baseline["entity_f1"])
+        if len(item) > 4:
+            out.append(item)
+    if out:
+        mean: dict[str, Any] = {
+            "training_supervision": "mean",
+            "seed": "mean",
+            "baseline_decoder": baseline_decoder,
+            "baseline_entity_f1": "",
+        }
+        for key in sorted({key for row in out for key in row if key.endswith(f"_minus_{baseline_decoder}")}):
+            values = [float(row[key]) for row in out if key in row]
+            if values:
+                mean[key] = statistics.fmean(values)
+        out.append(mean)
+    return out
+
+
 def write_tsv(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
         path.write_text("", encoding="utf-8")
         return
     columns = list(rows[0])
+    for row in rows[1:]:
+        for column in row:
+            if column not in columns:
+                columns.append(column)
     with path.open("w", encoding="utf-8") as handle:
         handle.write("\t".join(columns) + "\n")
         for row in rows:
@@ -289,6 +330,41 @@ def write_markdown_report(path: Path, summary: dict[str, Any]) -> None:
                 **row
             )
         )
+    delta_keys = sorted(
+        {
+            key
+            for row in summary["paired_decoder_deltas"]
+            for key in row
+            if key not in {"training_supervision", "seed", "baseline_decoder", "baseline_entity_f1"}
+        }
+    )
+    lines.extend(["", "## Paired Decoder Deltas", ""])
+    if not delta_keys:
+        lines.append("No paired decoder deltas available.")
+    else:
+        lines.append(
+            "| Training supervision | Seed | Baseline decoder | Baseline F1 | "
+            + " | ".join(delta_keys)
+            + " |"
+        )
+        lines.append("| --- | --- | --- | ---: | " + " | ".join("---:" for _key in delta_keys) + " |")
+        for row in summary["paired_decoder_deltas"]:
+            values = [f"{float(row[key]):.6f}" if key in row else "" for key in delta_keys]
+            baseline_f1 = row.get("baseline_entity_f1", "")
+            baseline_f1_text = f"{float(baseline_f1):.6f}" if baseline_f1 != "" else ""
+            lines.append(
+                "| "
+                + str(row.get("training_supervision", ""))
+                + " | "
+                + str(row.get("seed", ""))
+                + " | "
+                + str(row.get("baseline_decoder", ""))
+                + " | "
+                + baseline_f1_text
+                + " | "
+                + " | ".join(values)
+                + " |"
+            )
     lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -304,10 +380,12 @@ def report(args: argparse.Namespace) -> int:
         "experiment": args.experiment_id,
         "rows": len(rows),
         "summary": aggregate(rows),
+        "paired_decoder_deltas": paired_decoder_deltas(rows, baseline_decoder=args.baseline_decoder),
     }
     report_dir = Path(args.report_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     write_tsv(report_dir / "results.tsv", rows)
+    write_tsv(report_dir / "paired_decoder_deltas.tsv", summary["paired_decoder_deltas"])
     write_outputs(args, manifest(args))
     (report_dir / "results.json").write_text(
         json.dumps(rows, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -331,6 +409,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--supervisions", default=os.environ.get("EXPERIMENT_SUPERVISION", "first_subtoken all_subtokens_b_to_i"))
     parser.add_argument("--decoders", default=os.environ.get("EXPERIMENT_DECODERS", "first_subtoken first_subtoken_viterbi all_subtoken_viterbi"))
     parser.add_argument("--train-decoder", default=os.environ.get("EXPERIMENT_TRAIN_DECODER", "first_subtoken_viterbi"))
+    parser.add_argument("--baseline-decoder", default=os.environ.get("EXPERIMENT_BASELINE_DECODER", os.environ.get("EXPERIMENT_TRAIN_DECODER", "first_subtoken_viterbi")))
     parser.add_argument("--experiment-root", default=os.environ.get("EXPERIMENT_ROOT", "models.d/experiments/decoding-v2.0.0"))
     parser.add_argument("--report-dir", default=os.environ.get("EXPERIMENT_REPORT_DIR", "reports.d/experiments/decoding-v2.0.0"))
     parser.add_argument("--supervision", choices=sorted(SUPERVISION_TO_LABEL_ALL_TOKENS), default=os.environ.get("EXPERIMENT_CELL_SUPERVISION"))

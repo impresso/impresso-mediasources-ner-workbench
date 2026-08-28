@@ -102,6 +102,22 @@ def test_manifest_header_preserves_configured_dimensions(tmp_path: Path) -> None
 def test_report_writes_machine_and_markdown_outputs(tmp_path: Path) -> None:
     args = parse_args(tmp_path, "--supervision", "first_subtoken", "--seed", "17")
     cell = decoding_experiment.cells(args)[0]
+    first_subtoken_dir = cell.run_dir / "eval" / "first_subtoken"
+    first_subtoken_dir.mkdir(parents=True)
+    (first_subtoken_dir / "validation_metrics.json").write_text(
+        json.dumps(
+            {
+                "entity_precision": 0.86,
+                "entity_recall": 0.77,
+                "entity_f1": 0.812,
+                "token_non_o_f1": 0.78,
+                "entity_correct": 9,
+                "entity_gold": 12,
+                "entity_pred": 10,
+            }
+        ),
+        encoding="utf-8",
+    )
     eval_dir = cell.run_dir / "eval" / "first_subtoken_viterbi"
     eval_dir.mkdir(parents=True)
     (eval_dir / "validation_metrics.json").write_text(
@@ -122,8 +138,11 @@ def test_report_writes_machine_and_markdown_outputs(tmp_path: Path) -> None:
     assert decoding_experiment.report(args) == 0
 
     assert (tmp_path / "reports" / "results.tsv").is_file()
+    assert (tmp_path / "reports" / "paired_decoder_deltas.tsv").is_file()
     assert (tmp_path / "reports" / "results.json").is_file()
     assert (tmp_path / "reports" / "summary.json").is_file()
-    assert "first_subtoken_viterbi" in (tmp_path / "reports" / "REPORT.md").read_text(
-        encoding="utf-8"
-    )
+    summary = json.loads((tmp_path / "reports" / "summary.json").read_text(encoding="utf-8"))
+    assert summary["paired_decoder_deltas"][0]["first_subtoken_minus_first_subtoken_viterbi"] == -0.03499999999999992
+    report = (tmp_path / "reports" / "REPORT.md").read_text(encoding="utf-8")
+    assert "first_subtoken_viterbi" in report
+    assert "Paired Decoder Deltas" in report
