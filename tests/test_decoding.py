@@ -11,6 +11,7 @@ TRAINING_SRC = ROOT / "training" / "newsagency-radiostation-modernbert-classifie
 sys.path.insert(0, str(TRAINING_SRC))
 
 from mediaagency_modernbert.decoding import (  # noqa: E402
+    DECODER_ALL_SUBTOKEN,
     DECODER_ALL_SUBTOKEN_VITERBI,
     DECODER_FIRST_SUBTOKEN,
     DECODER_FIRST_SUBTOKEN_VITERBI,
@@ -208,6 +209,29 @@ def test_all_subtoken_viterbi_uses_continuation_evidence() -> None:
 
     assert [ID2LABEL[index] for index in first] == ["O"]
     assert [ID2LABEL[index] for index in all_subtokens] == ["B-X"]
+
+
+def test_all_subtoken_argmax_uses_continuation_evidence_without_sequence_constraints() -> None:
+    word_subtokens = [
+        [
+            log_probs([0.51, 0.47, 0.01, 0.005, 0.005]),
+            log_probs([0.02, 0.005, 0.96, 0.005, 0.01]),
+        ]
+    ]
+
+    pred = decode_document(word_subtokens, decoder=DECODER_ALL_SUBTOKEN, id2label=ID2LABEL)
+
+    assert [ID2LABEL[index] for index in pred] == ["B-X"]
+
+
+def test_all_subtoken_argmax_can_emit_bio_invalid_sequence() -> None:
+    word_subtokens = [
+        [log_probs([0.05, 0.10, 0.80, 0.03, 0.02])],
+    ]
+
+    pred = decode_document(word_subtokens, decoder=DECODER_ALL_SUBTOKEN, id2label=ID2LABEL)
+
+    assert [ID2LABEL[index] for index in pred] == ["I-X"]
 
 
 def test_all_subtoken_viterbi_keeps_strong_outside_evidence() -> None:

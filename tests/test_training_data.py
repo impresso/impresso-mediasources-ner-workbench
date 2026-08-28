@@ -386,9 +386,14 @@ def test_evaluate_rows_can_compare_decoders(tmp_path: Path) -> None:
 
     comparison_tsv = (tmp_path / "test_decoder_comparison.tsv").read_text(encoding="utf-8")
     assert metrics["decoder"] == "first_subtoken_viterbi"
-    assert set(metrics["decoder_comparison"]) == {"first_subtoken", "first_subtoken_viterbi", "all_subtoken_viterbi"}
+    assert set(metrics["decoder_comparison"]) == {
+        "first_subtoken",
+        "first_subtoken_viterbi",
+        "all_subtoken",
+        "all_subtoken_viterbi",
+    }
     assert predictions[0]["pred_labels"] == ["O", "B-org.ent.pressagency.havas"]
-    assert "first_subtoken\tfirst_subtoken_viterbi\tall_subtoken_viterbi" in comparison_tsv.splitlines()[0]
+    assert "first_subtoken\tfirst_subtoken_viterbi\tall_subtoken\tall_subtoken_viterbi" in comparison_tsv.splitlines()[0]
 
 
 def test_load_jsonl_derives_label_ids_from_minimal_rows(tmp_path: Path) -> None:

@@ -7,10 +7,12 @@ from dataclasses import dataclass
 
 DECODER_FIRST_SUBTOKEN = "first_subtoken"
 DECODER_FIRST_SUBTOKEN_VITERBI = "first_subtoken_viterbi"
+DECODER_ALL_SUBTOKEN = "all_subtoken"
 DECODER_ALL_SUBTOKEN_VITERBI = "all_subtoken_viterbi"
 DECODER_CHOICES = (
     DECODER_FIRST_SUBTOKEN,
     DECODER_FIRST_SUBTOKEN_VITERBI,
+    DECODER_ALL_SUBTOKEN,
     DECODER_ALL_SUBTOKEN_VITERBI,
 )
 
@@ -306,10 +308,12 @@ def decode_document(
         return argmax_decode(first_subtoken_emissions(word_subtoken_log_probs))
     if schema is None:
         if id2label is None:
-            raise ValueError("Viterbi decoding requires id2label or schema")
+            raise ValueError("all-subtoken decoding requires id2label or schema")
         schema = compile_bio_schema(id2label)
     if decoder == DECODER_FIRST_SUBTOKEN_VITERBI:
         return viterbi_decode_with_schema(first_subtoken_emissions(word_subtoken_log_probs), schema)
+    if decoder == DECODER_ALL_SUBTOKEN:
+        return argmax_decode(all_subtoken_emissions(word_subtoken_log_probs, schema))
     if decoder == DECODER_ALL_SUBTOKEN_VITERBI:
         emissions = all_subtoken_emissions(word_subtoken_log_probs, schema)
         return viterbi_decode_with_schema(emissions, schema)

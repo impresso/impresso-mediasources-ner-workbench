@@ -13,6 +13,7 @@ from typing import Any
 from .data import labels_to_entities, load_jsonl, load_label_map, make_windows, write_json, write_jsonl
 from .decoding import (
     DECODER_ALL_SUBTOKEN_VITERBI,
+    DECODER_ALL_SUBTOKEN,
     DECODER_CHOICES,
     DECODER_FIRST_SUBTOKEN,
     DECODER_FIRST_SUBTOKEN_VITERBI,
@@ -730,12 +731,14 @@ def write_decoder_comparison(
     comparison_rows: list[dict[str, Any]] = []
     first_subtoken = decoded_by_name[DECODER_FIRST_SUBTOKEN]
     word_viterbi = decoded_by_name[DECODER_FIRST_SUBTOKEN_VITERBI]
+    all_subtoken = decoded_by_name[DECODER_ALL_SUBTOKEN]
     all_subtoken_viterbi = decoded_by_name[DECODER_ALL_SUBTOKEN_VITERBI]
     for doc_index, row in enumerate(rows):
         for token_index, (token, gold_label) in enumerate(zip(row["tokens"], row["token_labels"], strict=True)):
             first_label = id2label[first_subtoken[doc_index][token_index]]
             word_viterbi_label = id2label[word_viterbi[doc_index][token_index]]
-            all_subtoken_label = id2label[all_subtoken_viterbi[doc_index][token_index]]
+            all_subtoken_label = id2label[all_subtoken[doc_index][token_index]]
+            all_subtoken_viterbi_label = id2label[all_subtoken_viterbi[doc_index][token_index]]
             comparison_rows.append(
                 {
                     "split": split_name,
@@ -748,9 +751,11 @@ def write_decoder_comparison(
                     "gold_label": gold_label,
                     DECODER_FIRST_SUBTOKEN: first_label,
                     DECODER_FIRST_SUBTOKEN_VITERBI: word_viterbi_label,
-                    DECODER_ALL_SUBTOKEN_VITERBI: all_subtoken_label,
+                    DECODER_ALL_SUBTOKEN: all_subtoken_label,
+                    DECODER_ALL_SUBTOKEN_VITERBI: all_subtoken_viterbi_label,
                     "changed_by_word_viterbi": int(word_viterbi_label != first_label),
-                    "changed_by_subtoken_viterbi": int(all_subtoken_label != first_label),
+                    "changed_by_all_subtoken": int(all_subtoken_label != first_label),
+                    "changed_by_subtoken_viterbi": int(all_subtoken_viterbi_label != first_label),
                 }
             )
     write_tsv(
@@ -766,8 +771,10 @@ def write_decoder_comparison(
             "gold_label",
             DECODER_FIRST_SUBTOKEN,
             DECODER_FIRST_SUBTOKEN_VITERBI,
+            DECODER_ALL_SUBTOKEN,
             DECODER_ALL_SUBTOKEN_VITERBI,
             "changed_by_word_viterbi",
+            "changed_by_all_subtoken",
             "changed_by_subtoken_viterbi",
         ],
         comparison_rows,
@@ -990,6 +997,7 @@ def evaluate_rows(
     metrics["decoder_description"] = {
         DECODER_FIRST_SUBTOKEN: "Raw argmax on the first subtoken of each word; first covering window wins.",
         DECODER_FIRST_SUBTOKEN_VITERBI: "BIO-constrained Viterbi over first-subtoken emissions; first covering window wins.",
+        DECODER_ALL_SUBTOKEN: "Raw argmax over legal word-expansion emissions from all subtokens; first covering window wins.",
         DECODER_ALL_SUBTOKEN_VITERBI: "BIO-constrained Viterbi over legal word-expansion emissions from all subtokens; first covering window wins.",
     }[decoder]
     if getattr(args, "compare_decoders", False):
