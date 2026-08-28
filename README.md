@@ -263,6 +263,27 @@ Matched train/inference context results:
 
 A separate `context-inference-v2.0.0` matrix evaluated already trained 512-, 1024-, and 2048-context models under 512, 1024, and 2048 inference windows. The crossed train/inference matrix separates the effect of training with longer windows from the effect of merely presenting longer windows at inference. Increasing inference context did not improve performance for the longer-context models, and the 512-trained model also did not benefit from larger inference windows. Mean validation entity F1 ranged from `0.924440` to `0.934203`, so quality remained reasonably stable across the tested window configurations. The default `512/256/32` window is therefore the best validation setting and the most efficient conservative deployment choice.
 
+### Layer Adaptation Experiment
+
+The `layers-v2.0.0` experiment keeps the best 512-context protocol fixed and varies only the number of unfrozen top ModernBERT layers. This tests whether adapting the top 8 layers improves over the released top-4-layer setup without changing supervision, decoder, or window parameters.
+
+```bash
+make layer-experiment-plan CFG=configs/experiments/layers-v2.0.0.mk
+make layer-experiment-train CFG=configs/experiments/layers-v2.0.0.mk
+make layer-experiment-evaluate CFG=configs/experiments/layers-v2.0.0.mk
+make layer-experiment-report CFG=configs/experiments/layers-v2.0.0.mk
+```
+
+Fixed protocol:
+
+- training supervision: `all_subtokens_b_to_i`
+- decoder: `first_subtoken_viterbi`
+- window: `512/256/32`
+- seeds: `17`, `42`, `73`
+- layer settings: `4`, `8`
+
+The 4-layer cells reuse the `decoding-v2.0.0` all-subtoken B-to-I baseline metrics. The experiment trains only the 8-layer cells and reports paired seed deltas against the 4-layer baseline.
+
 For basic curation of the existing HIPE-derived French/German dev and test folds, run the configured v2 model over both splits and build disagreement records for manual review:
 
 ```bash

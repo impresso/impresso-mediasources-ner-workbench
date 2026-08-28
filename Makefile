@@ -233,6 +233,10 @@ help-finetune:
 	@echo "  make context-experiment-train CFG=...      Train context cells; optionally pass CONTEXT_EXPERIMENT_CELL_*"
 	@echo "  make context-experiment-evaluate CFG=...   Evaluate trained context cells on validation"
 	@echo "  make context-experiment-report CFG=...     Summarize context-length validation metrics"
+	@echo "  make layer-experiment-plan CFG=...         Print the layer-adaptation experiment matrix"
+	@echo "  make layer-experiment-train CFG=...        Train layer cells; optionally pass LAYER_EXPERIMENT_CELL_*"
+	@echo "  make layer-experiment-evaluate CFG=...     Evaluate trained layer cells on validation"
+	@echo "  make layer-experiment-report CFG=...       Summarize layer-adaptation validation metrics"
 	@echo "  make stamp-model-inference-metadata       Stamp tokenization/training/decoding policy into config.json"
 	@echo "  make smoke-model-inference CFG=...        Run a small real-checkpoint inference smoke test"
 	@echo "  make compare-model-inference-parity CFG=... Compare HF runtime predictions with evaluator decoded predictions"
@@ -928,6 +932,26 @@ context-experiment-evaluate:
 context-experiment-report:
 	@echo "Writing context-length experiment report."
 	$(PYTHON) -m lib.context_experiment report $(CONTEXT_EXPERIMENT_ARGS)
+
+layer-experiment-plan:
+	@echo "Planning the layer-adaptation validation experiment."
+	$(PYTHON) -m lib.layer_experiment plan $(LAYER_EXPERIMENT_ARGS)
+
+layer-experiment-status:
+	@echo "Summarizing layer-adaptation experiment status."
+	$(PYTHON) -m lib.layer_experiment status $(LAYER_EXPERIMENT_ARGS)
+
+layer-experiment-train:
+	@echo "Training layer-adaptation experiment cells."
+	$(PYTHON) -m lib.layer_experiment train --execute $(LAYER_EXPERIMENT_ARGS)
+
+layer-experiment-evaluate:
+	@echo "Evaluating trained layer-adaptation experiment cells on validation."
+	$(PYTHON) -m lib.layer_experiment evaluate --execute $(LAYER_EXPERIMENT_ARGS)
+
+layer-experiment-report:
+	@echo "Writing layer-adaptation experiment report."
+	$(PYTHON) -m lib.layer_experiment report $(LAYER_EXPERIMENT_ARGS)
 
 stamp-model-inference-metadata:
 	@echo "Stamping annotation tokenization and subtoken policies into the trained model config."

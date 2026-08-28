@@ -414,6 +414,17 @@ make context-experiment-evaluate CFG=configs/experiments/context-inference-v2.0.
 make context-experiment-report CFG=configs/experiments/context-inference-v2.0.0.mk
 ```
 
+For layer-adaptation robustness under the selected 512-context protocol:
+
+```bash
+make layer-experiment-plan CFG=configs/experiments/layers-v2.0.0.mk
+make layer-experiment-train CFG=configs/experiments/layers-v2.0.0.mk
+make layer-experiment-evaluate CFG=configs/experiments/layers-v2.0.0.mk
+make layer-experiment-report CFG=configs/experiments/layers-v2.0.0.mk
+```
+
+This experiment should vary only `UNFREEZE_TOP_LAYERS`, with all-subtoken B-to-I supervision, `first_subtoken_viterbi` decoding, and the `512/256/32` window held fixed. Reuse the released 4-layer validation baseline when available, and train/evaluate the new layer setting against validation only.
+
 Record the resulting summaries in the workbench README and, when they justify release defaults, in the model card. Keep the model card concise: include conclusions and key validation numbers, not every intermediate artifact. These reports are post-release validation evidence unless they are run before selecting a new model release candidate.
 
 ## 18. Close The Model Release
