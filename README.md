@@ -210,6 +210,37 @@ make test-official
 
 Metrics and prediction JSONL files are written under `models.d/newsagency_radiostation_modernbert_v2.0.0/eval/`.
 
+### Decoder And Supervision Experiment
+
+The `decoding-v2.0.0` experiment compares two subtoken-supervision regimes across three random seeds and three validation-time decoders. This is a validation-only model-selection experiment; the held-out test set is intentionally not part of the matrix.
+
+```bash
+make decoding-experiment-plan CFG=configs/experiments/decoding-v2.0.0.mk
+make decoding-experiment-train CFG=configs/experiments/decoding-v2.0.0.mk
+make decoding-experiment-evaluate CFG=configs/experiments/decoding-v2.0.0.mk
+make decoding-experiment-report CFG=configs/experiments/decoding-v2.0.0.mk
+```
+
+The factorial design is:
+
+- training supervision: `first_subtoken`, `all_subtokens_b_to_i`
+- seeds: `17`, `42`, `73`
+- validation decoders: `first_subtoken`, `first_subtoken_viterbi`, `all_subtoken_viterbi`
+- checkpoint-selection decoder during training: `first_subtoken_viterbi`
+
+Validation results:
+
+| Training supervision | Decoder | Runs | Entity F1 mean | F1 stdev | Precision mean | Recall mean |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `all_subtokens_b_to_i` | `all_subtoken_viterbi` | 3 | 0.931488 | 0.005875 | 0.953285 | 0.910703 |
+| `all_subtokens_b_to_i` | `first_subtoken` | 3 | 0.909763 | 0.012638 | 0.920152 | 0.899694 |
+| `all_subtokens_b_to_i` | `first_subtoken_viterbi` | 3 | 0.934203 | 0.006402 | 0.952969 | 0.916208 |
+| `first_subtoken` | `all_subtoken_viterbi` | 3 | 0.862078 | 0.018103 | 0.934897 | 0.800000 |
+| `first_subtoken` | `first_subtoken` | 3 | 0.895961 | 0.008436 | 0.907963 | 0.884404 |
+| `first_subtoken` | `first_subtoken_viterbi` | 3 | 0.921399 | 0.002280 | 0.944217 | 0.899694 |
+
+The strongest validation setting is `all_subtokens_b_to_i` training with `first_subtoken_viterbi` decoding: mean entity F1 `0.934203`. This supports keeping all-subtoken B-to-I supervision and the `first_subtoken_viterbi` decoder as the preferred v2 protocol before any final held-out test evaluation of a selected checkpoint.
+
 For basic curation of the existing HIPE-derived French/German dev and test folds, run the configured v2 model over both splits and build disagreement records for manual review:
 
 ```bash
