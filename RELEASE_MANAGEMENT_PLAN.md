@@ -272,6 +272,22 @@ Training should write to a fresh model output directory for the release candidat
 
 Future training runs should write the workbench Git commit SHA and dirty/clean state into `training_start_report.json`. For runs created before that field existed, record the training-code commit as unknown instead of substituting a later publication commit.
 
+## Post-Release Model Experiments
+
+Validation-only experiments may be attached to a released dataset/model cycle after publication. These experiments are evidence for future model choices; they do not change the immutable dataset release and should not reinterpret held-out test results used for the published model.
+
+Post-release model experiments should record:
+
+- the released dataset revision and commit used for validation
+- the model checkpoints or training runs being compared
+- the training supervision policy
+- the decoder policy
+- context/window parameters
+- random seeds
+- validation metrics and paired deltas
+
+Decoder experiments should document compatibility between supervision and decoding. In particular, all-subtoken decoders consume all-subtoken word-expansion emissions and should be evaluated separately from first-subtoken decoders. Raw argmax decoders are useful ablations, but the deployed runtime should follow the model-configured decoder when validation shows a material quality cost for changing it.
+
 ## Release Workflow
 
 1. Build and iteratively review a prerelease.
@@ -282,6 +298,7 @@ Future training runs should write the workbench Git commit SHA and dirty/clean s
 6. Merge the final release to `main` and clean local work.
 7. Verify the published Hugging Face dataset projection against the Git final release.
 8. Train, evaluate, and publish model releases from the pinned published dataset.
+9. Attach validation-only post-release experiments when they justify or refine future model defaults.
 
 See `RELEASE_PROCESS.md` for commands and the complete operational checklist.
 

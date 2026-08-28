@@ -49,6 +49,38 @@ The model was trained from the pinned published Hugging Face dataset commit abov
 
 The model `config.json` records `annotation_tokenization`, `label_all_tokens`, `subtoken_labeling`, and `subtoken_decoding`. Inference must apply the declared annotation-token profile and the declared `subtoken_decoding` policy. `label_all_tokens` describes training supervision; it does not by itself define inference decoding.
 
+## Model Selection Experiments
+
+The released protocol was chosen through validation-only experiments. The held-out test set was not used for selecting the supervision strategy, decoder, or context-window parameters.
+
+A decoder/supervision experiment compared the released all-subtoken B-to-I training supervision against first-subtoken-only supervision. The released model uses all-subtoken B-to-I supervision, so the most relevant decoder comparison is within that supervision regime.
+
+`first_subtoken` decoders use only the first model subtoken as word-level evidence, while `all_subtoken` decoders aggregate evidence from all model subtokens belonging to an annotation token. The `_viterbi` variants additionally enforce the BIO sequence constraints:
+
+- `first_subtoken`: raw argmax on the first subtoken of each word.
+- `first_subtoken_viterbi`: BIO-constrained Viterbi over first-subtoken emissions.
+- `all_subtoken`: raw argmax over legal all-subtoken word-expansion emissions.
+- `all_subtoken_viterbi`: BIO-constrained Viterbi over all-subtoken word-expansion emissions.
+
+Under all-subtoken B-to-I supervision, the validation means across three seeds were:
+
+- `first_subtoken_viterbi`: entity F1 `0.934203`
+- `all_subtoken_viterbi`: entity F1 `0.931488`
+- `first_subtoken`: entity F1 `0.909763`
+- `all_subtoken`: entity F1 `0.909749`
+
+The strongest validation setting was therefore all-subtoken B-to-I supervision with `first_subtoken_viterbi` decoding. Replacing `first_subtoken_viterbi` with raw first-subtoken argmax reduced validation entity F1 by about 2.4 points on average. The unconstrained `all_subtoken` argmax decoder performed similarly to first-subtoken argmax, while `all_subtoken_viterbi` was close but did not improve over `first_subtoken_viterbi`.
+
+The broader experiment also showed that all-subtoken inference decoders are not compatible with first-subtoken-only training supervision. With first-subtoken-only supervision, continuation subtokens are not trained as word-level label evidence, and consuming those positions during all-subtoken decoding substantially degrades performance. Runtime decoding should therefore follow the model-configured `subtoken_decoding` policy rather than treating decoder choice as interchangeable post-processing.
+
+A context-window experiment then compared 512, 1024, and 2048 token window configurations under the selected supervision and decoder. Maximum sequence length, words per window, and stride scale together in these settings. The 512-token setting remained best on validation:
+
+- `512/256/32`: mean entity F1 `0.934203`
+- `1024/512/64`: mean entity F1 `0.932313`
+- `2048/1024/128`: mean entity F1 `0.926514`
+
+A separate inference-context matrix evaluated already trained 512-, 1024-, and 2048-context models with 512, 1024, and 2048 inference windows. Longer inference windows did not improve performance, including for the 512-trained model, but results were stable across reasonable window settings: mean entity F1 ranged from `0.924440` to `0.934203`. The selected default `512/256/32` is therefore both the best validation setting and a conservative efficient choice.
+
 ## Evaluation
 
 Exact entity metrics use the constrained `first_subtoken_viterbi` decoder over the checkpoint label space.

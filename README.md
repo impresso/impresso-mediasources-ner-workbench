@@ -212,7 +212,7 @@ Metrics and prediction JSONL files are written under `models.d/newsagency_radios
 
 ### Decoder And Supervision Experiment
 
-The `decoding-v2.0.0` experiment compares two subtoken-supervision regimes across three random seeds and three validation-time decoders. This is a validation-only model-selection experiment; the held-out test set is intentionally not part of the matrix.
+The `decoding-v2.0.0` experiment compares two subtoken-supervision regimes across three random seeds and four validation-time decoders. This is a validation-only model-selection experiment; the held-out test set is intentionally not part of the matrix.
 
 ```bash
 make decoding-experiment-plan CFG=configs/experiments/decoding-v2.0.0.mk
@@ -225,21 +225,43 @@ The factorial design is:
 
 - training supervision: `first_subtoken`, `all_subtokens_b_to_i`
 - seeds: `17`, `42`, `73`
-- validation decoders: `first_subtoken`, `first_subtoken_viterbi`, `all_subtoken_viterbi`
+- validation decoders: `first_subtoken`, `first_subtoken_viterbi`, `all_subtoken`, `all_subtoken_viterbi`
 - checkpoint-selection decoder during training: `first_subtoken_viterbi`
 
 Validation results:
 
 | Training supervision | Decoder | Runs | Entity F1 mean | F1 stdev | Precision mean | Recall mean |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `all_subtokens_b_to_i` | `all_subtoken` | 3 | 0.909749 | 0.009852 | 0.923324 | 0.896636 |
 | `all_subtokens_b_to_i` | `all_subtoken_viterbi` | 3 | 0.931488 | 0.005875 | 0.953285 | 0.910703 |
 | `all_subtokens_b_to_i` | `first_subtoken` | 3 | 0.909763 | 0.012638 | 0.920152 | 0.899694 |
 | `all_subtokens_b_to_i` | `first_subtoken_viterbi` | 3 | 0.934203 | 0.006402 | 0.952969 | 0.916208 |
+| `first_subtoken` | `all_subtoken` | 3 | 0.837113 | 0.011675 | 0.895949 | 0.785933 |
 | `first_subtoken` | `all_subtoken_viterbi` | 3 | 0.862078 | 0.018103 | 0.934897 | 0.800000 |
 | `first_subtoken` | `first_subtoken` | 3 | 0.895961 | 0.008436 | 0.907963 | 0.884404 |
 | `first_subtoken` | `first_subtoken_viterbi` | 3 | 0.921399 | 0.002280 | 0.944217 | 0.899694 |
 
-The strongest validation setting is `all_subtokens_b_to_i` training with `first_subtoken_viterbi` decoding: mean entity F1 `0.934203`. This supports keeping all-subtoken B-to-I supervision and the `first_subtoken_viterbi` decoder as the preferred v2 protocol before any final held-out test evaluation of a selected checkpoint.
+The four decoder settings differ in how model subtokens are converted back to annotation-token predictions. `first_subtoken` decoders use only the first model subtoken as word-level evidence, while `all_subtoken` decoders aggregate evidence from all model subtokens belonging to an annotation token. The `_viterbi` variants additionally enforce the BIO sequence constraints.
+
+These post-release validation experiments support the supervision and decoding choices used by the released v2.0.0 model and establish the preferred protocol for subsequent training runs. The strongest validation setting is `all_subtokens_b_to_i` training with `first_subtoken_viterbi` decoding: mean entity F1 `0.934203`.
+
+Decoder ablation makes the trade-off explicit. With the selected all-subtoken B-to-I supervision, raw first-subtoken argmax costs about 2.4 validation F1 points compared with `first_subtoken_viterbi`. The unconstrained `all_subtoken` argmax decoder performs similarly to raw first-subtoken argmax. `all_subtoken_viterbi` is close under all-subtoken supervision, but does not improve over `first_subtoken_viterbi`. With first-subtoken-only supervision, continuation subtokens are not trained as word-level label evidence, and consuming those positions during all-subtoken decoding substantially degrades performance. Decoder and supervision choices therefore cannot be considered independently.
+
+The simpler `first_subtoken` training setup with `first_subtoken_viterbi` decoding also works reasonably well, reaching mean validation entity F1 `0.921399`. It is not the selected v2 release protocol, but it remains a useful lower-complexity baseline when comparing future supervision strategies.
+
+### Context Width Experiments
+
+The context experiments use the selected supervision and decoder and remain validation-only. They measure whether larger training or inference window configurations improve the selected protocol. Because maximum sequence length, words per window, and stride scale together, these experiments compare window configurations rather than isolating sequence length as a single causal factor.
+
+Matched train/inference context results:
+
+| Context | Max sequence | Max words | Stride | Runs | Entity F1 mean | F1 stdev | Precision mean | Recall mean |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `ctx512` | 512 | 256 | 32 | 3 | 0.934203 | 0.006402 | 0.952969 | 0.916208 |
+| `ctx1024` | 1024 | 512 | 64 | 3 | 0.932313 | 0.003509 | 0.951101 | 0.914373 |
+| `ctx2048` | 2048 | 1024 | 128 | 3 | 0.926514 | 0.003103 | 0.943580 | 0.910092 |
+
+A separate `context-inference-v2.0.0` matrix evaluated already trained 512-, 1024-, and 2048-context models under 512, 1024, and 2048 inference windows. The crossed train/inference matrix separates the effect of training with longer windows from the effect of merely presenting longer windows at inference. Increasing inference context did not improve performance for the longer-context models, and the 512-trained model also did not benefit from larger inference windows. Mean validation entity F1 ranged from `0.924440` to `0.934203`, so quality remained reasonably stable across the tested window configurations. The default `512/256/32` window is therefore the best validation setting and the most efficient conservative deployment choice.
 
 For basic curation of the existing HIPE-derived French/German dev and test folds, run the configured v2 model over both splits and build disagreement records for manual review:
 

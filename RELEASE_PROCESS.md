@@ -392,7 +392,31 @@ If the Hugging Face model repository still contains an older placeholder `pipeli
 
 After model publication and inference validation, commit the model-release metadata and merge the model release branch through the normal PR/review path.
 
-## 17. Close The Model Release
+## 17. Attach Post-Release Model Experiments
+
+After the model release is stable, validation-only experiments can be attached as release evidence for future model choices. These experiments must not modify the immutable dataset release or use the held-out test set for model selection.
+
+For decoder/supervision robustness:
+
+```bash
+make decoding-experiment-plan CFG=configs/experiments/decoding-v2.0.0.mk
+make decoding-experiment-train CFG=configs/experiments/decoding-v2.0.0.mk
+make decoding-experiment-evaluate CFG=configs/experiments/decoding-v2.0.0.mk
+make decoding-experiment-report CFG=configs/experiments/decoding-v2.0.0.mk
+```
+
+The decoder report should include raw argmax and Viterbi variants for both first-subtoken and all-subtoken emissions. Document what the all-subtoken decoder consumes: aggregated emissions from all model subtokens belonging to each annotation token. Record paired deltas against the deployed decoder to document the expected cost of changing runtime decoding, and note when a decoder is only appropriate with matching training supervision.
+
+For context-window robustness:
+
+```bash
+make context-experiment-evaluate CFG=configs/experiments/context-inference-v2.0.0.mk
+make context-experiment-report CFG=configs/experiments/context-inference-v2.0.0.mk
+```
+
+Record the resulting summaries in the workbench README and, when they justify release defaults, in the model card. Keep the model card concise: include conclusions and key validation numbers, not every intermediate artifact. These reports are post-release validation evidence unless they are run before selecting a new model release candidate.
+
+## 18. Close The Model Release
 
 After the model release branch has been reviewed and merged:
 
