@@ -16,7 +16,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release finalize-dataset-release promote-dataset-release download-hf-dataset compare-hf-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map maybe-sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh decoding-experiment-plan decoding-experiment-status decoding-experiment-train decoding-experiment-evaluate decoding-experiment-report stamp-model-inference-metadata smoke-model-inference compare-model-inference-parity evaluate-validation evaluate-test test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release finalize-dataset-release promote-dataset-release download-hf-dataset compare-hf-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map maybe-sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh decoding-experiment-plan decoding-experiment-status decoding-experiment-train decoding-experiment-evaluate decoding-experiment-report context-experiment-plan context-experiment-status context-experiment-train context-experiment-evaluate context-experiment-report stamp-model-inference-metadata smoke-model-inference compare-model-inference-parity evaluate-validation evaluate-test test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -229,6 +229,10 @@ help-finetune:
 	@echo "  make decoding-experiment-train CFG=...     Train experiment cells; optionally pass EXPERIMENT_CELL_*"
 	@echo "  make decoding-experiment-evaluate CFG=...  Evaluate each trained cell across validation decoders"
 	@echo "  make decoding-experiment-report CFG=...    Summarize validation metrics for the experiment"
+	@echo "  make context-experiment-plan CFG=...       Print the context-length experiment matrix"
+	@echo "  make context-experiment-train CFG=...      Train context cells; optionally pass CONTEXT_EXPERIMENT_CELL_*"
+	@echo "  make context-experiment-evaluate CFG=...   Evaluate trained context cells on validation"
+	@echo "  make context-experiment-report CFG=...     Summarize context-length validation metrics"
 	@echo "  make stamp-model-inference-metadata       Stamp tokenization/training/decoding policy into config.json"
 	@echo "  make smoke-model-inference CFG=...        Run a small real-checkpoint inference smoke test"
 	@echo "  make compare-model-inference-parity CFG=... Compare HF runtime predictions with evaluator decoded predictions"
@@ -904,6 +908,26 @@ decoding-experiment-evaluate:
 decoding-experiment-report:
 	@echo "Writing decoder/supervision experiment report."
 	$(PYTHON) -m lib.decoding_experiment report $(DECODING_EXPERIMENT_ARGS)
+
+context-experiment-plan:
+	@echo "Planning the context-length validation experiment."
+	$(PYTHON) -m lib.context_experiment plan $(CONTEXT_EXPERIMENT_ARGS)
+
+context-experiment-status:
+	@echo "Summarizing context-length experiment status."
+	$(PYTHON) -m lib.context_experiment status $(CONTEXT_EXPERIMENT_ARGS)
+
+context-experiment-train:
+	@echo "Training context-length experiment cells."
+	$(PYTHON) -m lib.context_experiment train --execute $(CONTEXT_EXPERIMENT_ARGS)
+
+context-experiment-evaluate:
+	@echo "Evaluating trained context-length experiment cells on validation."
+	$(PYTHON) -m lib.context_experiment evaluate --execute $(CONTEXT_EXPERIMENT_ARGS)
+
+context-experiment-report:
+	@echo "Writing context-length experiment report."
+	$(PYTHON) -m lib.context_experiment report $(CONTEXT_EXPERIMENT_ARGS)
 
 stamp-model-inference-metadata:
 	@echo "Stamping annotation tokenization and subtoken policies into the trained model config."

@@ -103,3 +103,21 @@ def test_decoding_experiment_targets_are_wired_through_make_config() -> None:
 
     assert "--execute" in target_block(text, "decoding-experiment-train")
     assert "--execute" in target_block(text, "decoding-experiment-evaluate")
+
+
+def test_context_experiment_targets_are_wired_through_make_config() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+
+    for target, mode in [
+        ("context-experiment-plan", "plan"),
+        ("context-experiment-status", "status"),
+        ("context-experiment-train", "train"),
+        ("context-experiment-evaluate", "evaluate"),
+        ("context-experiment-report", "report"),
+    ]:
+        block = target_block(text, target)
+        assert f"lib.context_experiment {mode}" in block
+        assert "$(CONTEXT_EXPERIMENT_ARGS)" in block
+
+    assert "--execute" in target_block(text, "context-experiment-train")
+    assert "--execute" in target_block(text, "context-experiment-evaluate")
