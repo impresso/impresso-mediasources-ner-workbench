@@ -98,3 +98,26 @@ def test_deutschlandfunk_includes_1959_proposal_period() -> None:
     assert dlf["wikidata_url"] == "https://www.wikidata.org/wiki/Q695328"
     assert dlf["active_period"]["start"] == "1959"
     assert "Deutschland-Funk" in dlf["aliases"]
+
+
+def test_radiostation_wikidata_qids_for_sampler_seed_rows() -> None:
+    rows = load_json(ROOT / "resources" / "radiostation_seeds.json")
+    by_id = {row["canonical_id"]: row for row in rows}
+
+    assert by_id["bbc"]["wikidata_url"] == "https://www.wikidata.org/wiki/Q9531"
+    assert by_id["radio-paris"]["wikidata_url"] == "https://www.wikidata.org/wiki/Q1944285"
+    assert by_id["radio-moscow"]["wikidata_url"] == "https://www.wikidata.org/wiki/Q18555670"
+    assert by_id["radio-bucharest"]["wikidata_url"] == "https://www.wikidata.org/wiki/Q1142390"
+    assert by_id["voice-of-america"]["wikidata_url"] == "https://www.wikidata.org/wiki/Q228389"
+    assert by_id["radio-prague"]["wikidata_url"] == "https://www.wikidata.org/wiki/Q1939322"
+
+
+def test_rfe_and_radio_liberty_have_broader_wikidata_mapping_notes() -> None:
+    rows = load_json(ROOT / "resources" / "radiostation_seeds.json")
+    by_id = {row["canonical_id"]: row for row in rows}
+
+    for canonical_id in ("radio-free-europe", "radio-liberty"):
+        row = by_id[canonical_id]
+        assert row["wikidata_url"] == "https://www.wikidata.org/wiki/Q485500"
+        assert row["wikidata_mapping"] == "broader"
+        assert "combined Radio Free Europe/Radio Liberty organization" in row["wikidata_note"]

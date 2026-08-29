@@ -12,7 +12,7 @@
       "Radio Liberty Munich"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q485500",
     "description": "US-funded international broadcaster directed at audiences in the Soviet Union. Founded in 1951 by the American Committee for the Liberation of the Peoples of Russia (Amcomlib). Initially known as Radio Liberation from Bolshevism and later Radio Liberation before adopting the name Radio Liberty. It operated separately from Radio Free Europe until their merger in 1976.",
     "annotation_note": "Annotate Radio Liberty, Radio-Liberty, Radio Liberation, and related historical forms when they refer to the broadcaster, a broadcast source, a programme, a transmission, or institutional radio activity. Do not normalize Radio Liberty to Radio Free Europe in pre-1976 contexts; they were separate broadcasters.",
     "active_period": {
@@ -48,7 +48,9 @@
       }
     ],
     "trainable": true,
-    "status": "metadata_enriched"
+    "status": "metadata_enriched",
+    "wikidata_mapping": "broader",
+    "wikidata_note": "Wikidata Q485500 represents the combined Radio Free Europe/Radio Liberty organization. This seed represents Radio Liberty as a distinct pre-1976 broadcaster."
   },
   {
     "canonical_id": "polskie-radio",
@@ -143,7 +145,7 @@
       "Sender London"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/BBC",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q9531",
     "description": "British public broadcaster. In wartime European newspaper contexts, names such as Radio Londres, Radio London, Radio Londra, and Londoner Rundfunk usually refer to BBC foreign-language broadcasts from London rather than to separate stations. These broadcasts could involve Free French, exile-government, resistance, or other allied contributors, but the broadcasting infrastructure and service were part of the BBC's wider European output.",
     "annotation_note": "Normalize wartime foreign-language references to Radio Londres/Radio London/Radio Londra/Londoner Rundfunk to org.ent.radiostation.bbc when the context is a broadcast, source attribution, programme, or broadcaster mention.",
     "trainable": true,
@@ -168,7 +170,7 @@
       "Radiola"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Paris",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1944285",
     "trainable": true,
     "status": "seed_from_sampler"
   },
@@ -201,7 +203,7 @@
       "Sender Moskau"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Moscow",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q18555670",
     "trainable": true,
     "status": "seed_from_sampler"
   },
@@ -234,7 +236,7 @@
       "Sender Bukarest"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Romania_International",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1142390",
     "description": "Romanian international/state broadcaster from Bucharest. In French and German historical newspaper snippets, Radio Bucarest or Radio-Bucarest is used as a broadcast-source name for announcements from Bucharest. Radio Romania International documents that in 1948 broadcasts in French, English, Russian, Serbian, and German were aired from Bucharest, and that Radio Bucharest later became Radio Romania International.",
     "annotation_note": "Annotate Radio Bucarest/Radio-Bucarest as a radio-station or broadcaster mention when it introduces, reports, announces, schedules, or otherwise refers to a broadcast/media-source function.",
     "active_period": {
@@ -276,7 +278,7 @@
       "Stimme Amerikas"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Voice_of_America",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q228389",
     "aliases_by_language": {
       "de": ["Voice of America", "Stimme Amerikas"],
       "fr": ["Voice of America", "Voix de l'Amerique", "Voix de l’Amérique"],
@@ -301,9 +303,11 @@
       "en": ["Radio Free Europe"]
     },
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Free_Europe/Radio_Liberty",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q485500",
     "trainable": true,
-    "status": "seed_from_sampler"
+    "status": "seed_from_sampler",
+    "wikidata_mapping": "broader",
+    "wikidata_note": "Wikidata Q485500 represents the combined Radio Free Europe/Radio Liberty organization and also covers historical Radio Free Europe in its multilingual sitelinks. This seed represents Radio Free Europe as a distinct pre-1976 broadcaster."
   },
   {
     "canonical_id": "deutsche-welle",
@@ -617,7 +621,7 @@
       "Sender Prag"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Radio_Prague_International",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q1939322",
     "trainable": true,
     "status": "seed_from_sampler"
   },
