@@ -284,6 +284,24 @@ Fixed protocol:
 
 The 4-layer cells reuse the `decoding-v2.0.0` all-subtoken B-to-I baseline metrics. The experiment trains only the 8-layer cells and reports paired seed deltas against the 4-layer baseline.
 
+Validation results:
+
+| Unfrozen top layers | Runs | Entity F1 mean | F1 stdev | Precision mean | Recall mean |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 3 | 0.934203 | 0.006402 | 0.952969 | 0.916208 |
+| 8 | 3 | 0.933544 | 0.005805 | 0.952874 | 0.914985 |
+
+Paired seed deltas:
+
+| Seed | Baseline layers | Baseline F1 | `layers8_minus_layers4` |
+| --- | ---: | ---: | ---: |
+| 17 | 4 | 0.935970 | -0.004386 |
+| 42 | 4 | 0.927103 | 0.001869 |
+| 73 | 4 | 0.939535 | 0.000540 |
+| mean | 4 |  | -0.000659 |
+
+The 8-layer setting did not improve validation performance. The mean paired delta is effectively neutral and slightly favors the 4-layer setup, so the 4-layer adaptation remains the more efficient default for the v2 protocol.
+
 For basic curation of the existing HIPE-derived French/German dev and test folds, run the configured v2 model over both splits and build disagreement records for manual review:
 
 ```bash

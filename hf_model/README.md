@@ -81,6 +81,8 @@ A context-window experiment then compared 512, 1024, and 2048 token window confi
 
 A separate inference-context matrix evaluated already trained 512-, 1024-, and 2048-context models with 512, 1024, and 2048 inference windows. Longer inference windows did not improve performance, including for the 512-trained model, but results were stable across reasonable window settings: mean entity F1 ranged from `0.924440` to `0.934203`. The selected default `512/256/32` is therefore both the best validation setting and a conservative efficient choice.
 
+A layer-adaptation experiment then compared unfreezing the top 4 versus top 8 ModernBERT layers under the selected 512-window, all-subtoken B-to-I, `first_subtoken_viterbi` protocol. The 8-layer setting did not improve validation performance: mean entity F1 was `0.933544`, compared with `0.934203` for 4 layers, with a paired mean delta of `-0.000659`. The release therefore keeps the more efficient 4-layer adaptation.
+
 ## Evaluation
 
 Exact entity metrics use the constrained `first_subtoken_viterbi` decoder over the checkpoint label space.
