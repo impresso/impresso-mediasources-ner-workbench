@@ -11,7 +11,7 @@
       "Téléradio"
     ],
     "wikipedia_url": "https://en.wikipedia.org/wiki/Agence_Radio",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q2826564",
     "trainable": true,
     "status": "metadata_enriched",
     "description": "French wire/news agency rooted in Henri Turot's early twentieth-century radio-telegraph news activity and formally established as Agence Radio / Radio-Agence télégraphique after World War I. Despite the name, it was a press agency distributing telegrams, international news, and political information to newspapers, not primarily a radio broadcaster. It was closely linked to Havas, later came under stronger French state influence, was renamed Agence Téléradio under Vichy, and disappeared during the reorganization of French information services around Liberation.",
@@ -113,7 +113,7 @@
       ]
     },
     "wikipedia_url": "https://en.wikipedia.org/wiki/Agence_Kampuchea_Press",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q4691980",
     "trainable": true,
     "status": "metadata_enriched",
     "description": "Cambodia's official state news agency, established in late 1978 under the historical name Sarpordamean Kampuchea (SPK) and renamed Agence Kampuchea Presse / Agence Kampuchea Press (AKP) after the 1993 elections.",
@@ -989,7 +989,7 @@
     ],
     "search_aliases": ["Keystone", "Keystone Press", "Keystone-Press"],
     "wikipedia_url": "https://de.wikipedia.org/wiki/Keystone_(Bildagentur)",
-    "wikidata_url": null,
+    "wikidata_url": "https://www.wikidata.org/wiki/Q25393480",
     "trainable": true,
     "status": "metadata_enriched",
     "description": "Swiss press-photo agency founded in Zurich in 1953 by Max Schneider as Keystone-Press, Max Schneider. It developed into Switzerland's largest picture agency, later operating as Keystone Press AG and Keystone AG. Keystone merged with the Swiss Telegraphic Agency (SDA/ATS) effective 1 January 2018 to form the multimedia news agency Keystone-SDA/Keystone-ATS.",
