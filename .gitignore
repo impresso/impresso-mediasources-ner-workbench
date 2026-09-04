@@ -1,8 +1,8 @@
 # Project-generated local directories use the *.d suffix convention.
 *.d/
 
-impresso-newsagencies-cookbook/
-imppresso-pipelines/
+impresso-newsagencies-cookbook/*
+imppresso-pipelines/*
 # Tool/runtime directories we do not control.
 .venv/
 .agents/
