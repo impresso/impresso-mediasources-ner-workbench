@@ -26,6 +26,7 @@ from lib.sample_newsagencies import (
     RateLimitThrottle,
     balanced_select,
     bucket_is_undercovered,
+    connect_impresso_from_env,
     context_window,
     expand_candidate_with_full_content,
     extract_candidate,
@@ -60,6 +61,70 @@ from lib.score_newsagency_snippets import (
     suppress_overlapping_spans,
 )
 from lib.snippet_data import row_text, tokenize_with_offsets, write_jsonl
+
+
+def test_connect_impresso_from_env_persists_token_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_connect(**kwargs: object) -> str:
+        calls.append(kwargs)
+        return "connected"
+
+    class FakeClient:
+        def __init__(self, **_kwargs: object) -> None:
+            raise AssertionError("direct token client should not be used")
+
+    monkeypatch.delenv("IMPRESSO_API_TOKEN", raising=False)
+    monkeypatch.delenv("IMPRESSO_PERSISTED_TOKEN", raising=False)
+    monkeypatch.setenv("IMPRESSO_API_URL", "https://dev.impresso-project.ch/public-api/v1")
+
+    result = connect_impresso_from_env(fake_connect, FakeClient, "https://impresso-project.ch/public-api/v1")
+
+    assert result == "connected"
+    assert calls == [
+        {
+            "public_api_url": "https://dev.impresso-project.ch/public-api/v1",
+            "persisted_token": True,
+        }
+    ]
+
+
+def test_connect_impresso_from_env_can_disable_persistent_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_connect(**kwargs: object) -> str:
+        calls.append(kwargs)
+        return "connected"
+
+    monkeypatch.delenv("IMPRESSO_API_TOKEN", raising=False)
+    monkeypatch.setenv("IMPRESSO_PERSISTED_TOKEN", "false")
+    monkeypatch.delenv("IMPRESSO_API_URL", raising=False)
+
+    result = connect_impresso_from_env(fake_connect, object, "https://impresso-project.ch/public-api/v1")
+
+    assert result == "connected"
+    assert calls == [{"public_api_url": None, "persisted_token": False}]
+
+
+def test_connect_impresso_from_env_uses_direct_token_without_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_connect(**_kwargs: object) -> None:
+        raise AssertionError("impresso-py connect should not be used when IMPRESSO_API_TOKEN is set")
+
+    class FakeClient:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    monkeypatch.setenv("IMPRESSO_API_TOKEN", "secret-token")
+    monkeypatch.setenv("IMPRESSO_PERSISTED_TOKEN", "true")
+    monkeypatch.setenv("IMPRESSO_API_URL", "https://dev.impresso-project.ch/public-api/v1")
+
+    result = connect_impresso_from_env(fake_connect, FakeClient, "https://impresso-project.ch/public-api/v1")
+
+    assert isinstance(result, FakeClient)
+    assert result.kwargs == {
+        "api_url": "https://dev.impresso-project.ch/public-api/v1",
+        "api_bearer_token": "secret-token",
+    }
 
 
 def test_tokenize_with_offsets_keeps_character_spans() -> None:
@@ -1654,6 +1719,58 @@ def test_export_snippet_training_data_writes_training_rows(tmp_path: Path) -> No
     assert "source_component" not in rows[0]
     assert "entity_id" not in rows[0]["entities"][0]
     assert "normalized_surface" not in rows[0]["entities"][0]
+
+
+def test_export_snippet_training_data_uses_accepted_cookbook_prediction_span(tmp_path: Path, capsys) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.pressagency.wolff": 1,
+                    "I-org.ent.pressagency.wolff": 2,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.pressagency.wolff",
+                    "2": "I-org.ent.pressagency.wolff",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "cookbook-snippet:BBLT-1877-02-23-a-i0106",
+                "text": "The agency Wolff reports.",
+                "candidate_label": "org.ent.pressagency.wolff",
+                "model": {"predicted_spans": []},
+                "cookbook_prediction": {
+                    "label": "org.ent.pressagency.wolff",
+                    "surface": "Wolff",
+                    "snippet_start": 11,
+                    "snippet_stop": 16,
+                },
+                "curation": {
+                    "status": "accepted",
+                    "label": "org.ent.pressagency.wolff",
+                    "reasons": ["no_predicted_media_source_span"],
+                },
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert len(rows) == 1
+    assert rows[0]["token_labels"] == ["O", "O", "B-org.ent.pressagency.wolff", "O", "O"]
+    assert rows[0]["entities"][0]["surface"] == "Wolff"
+    captured = capsys.readouterr()
+    assert "repaired stale token offsets" not in captured.out
 
 
 def test_export_snippet_training_data_extends_label_map_with_radio_metadata(tmp_path: Path) -> None:
@@ -3536,6 +3653,47 @@ def test_newsagency_review_accepts_multiple_prediction_spans(tmp_path: Path, mon
         "org.ent.pressagency.reuters",
     ]
     assert decision["notes"] == "two agencies"
+
+
+def test_newsagency_review_can_delete_accepted_annotation_before_saving(tmp_path: Path, monkeypatch) -> None:
+    decisions_path = tmp_path / "decisions.jsonl"
+    row = {
+        "id": "snippet-delete-span",
+        "query": "Associated Press",
+        "candidate_label": "org.ent.pressagency.ap",
+        "curation": {"status": "needs_review", "label": "org.ent.pressagency.ap", "reasons": ["multiple_predicted_spans"]},
+        "text": "The Associated Press reports.",
+        "tokens": ["The", "Associated", "Press", "reports", "."],
+        "token_start_offsets": [0, 4, 15, 21, 28],
+        "token_end_offsets": [3, 14, 20, 28, 29],
+        "model": {
+            "predicted_spans": [
+                {
+                    "token_start": 0,
+                    "token_stop": 3,
+                    "label": "org.ent.pressagency.ap",
+                    "surface": "The Associated Press",
+                    "confidence": 0.51,
+                    "margin": 0.51,
+                },
+                {
+                    "token_start": 1,
+                    "token_stop": 3,
+                    "label": "org.ent.pressagency.ap",
+                    "surface": "Associated Press",
+                },
+            ]
+        },
+    }
+    answers = iter(["a", "a", "a", "d 1", ""])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    reviewed = review_loop([row], decisions_path, "tester", limit=0)
+
+    decision = json.loads(decisions_path.read_text(encoding="utf-8"))
+    assert reviewed == 1
+    assert len(decision["accepted_spans"]) == 1
+    assert decision["accepted_spans"][0]["surface"] == "Associated Press"
 
 
 def test_newsagency_review_accepts_all_prediction_spans_with_A(tmp_path: Path, monkeypatch) -> None:

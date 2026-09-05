@@ -380,6 +380,15 @@ def extract_candidate(
     return enrich_sample_identity(row)
 
 
+def connect_impresso_from_env(connect_fn: Any, client_cls: Any, default_api_url: str) -> Any:
+    api_url = os.getenv("IMPRESSO_API_URL") or None
+    api_token = os.getenv("IMPRESSO_API_TOKEN") or None
+    if api_token:
+        return client_cls(api_url=api_url or default_api_url, api_bearer_token=api_token)
+    persisted_token = parse_bool(os.getenv("IMPRESSO_PERSISTED_TOKEN"), default=True)
+    return connect_fn(public_api_url=api_url, persisted_token=persisted_token)
+
+
 def import_runtime() -> tuple[Any, Any]:
     local_cache = Path("cache.d")
     (local_cache / "matplotlib").mkdir(parents=True, exist_ok=True)
@@ -387,14 +396,14 @@ def import_runtime() -> tuple[Any, Any]:
     os.environ.setdefault("MPLCONFIGDIR", str(local_cache / "matplotlib"))
     try:
         from impresso import DateRange, connect  # type: ignore
+        from impresso.client import ImpressoClient  # type: ignore
+        from impresso.config_file import DEFAULT_API_URL  # type: ignore
     except ImportError as exc:
         raise SystemExit("News-agency sampling requires the impresso package.") from exc
     load_local_env()
 
     def connect_from_env() -> Any:
-        api_url = os.getenv("IMPRESSO_API_URL") or None
-        persisted_token = parse_bool(os.getenv("IMPRESSO_PERSISTED_TOKEN"), default=False)
-        return connect(public_api_url=api_url, persisted_token=persisted_token)
+        return connect_impresso_from_env(connect, ImpressoClient, DEFAULT_API_URL)
 
     return DateRange, connect_from_env
 

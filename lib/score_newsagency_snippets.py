@@ -413,8 +413,17 @@ def load_model_runtime(args: argparse.Namespace) -> tuple[Any, Any, Any, Any, st
     model_name = str(getattr(args, "model", "") or "")
     if not model_name:
         return None
-    torch, model_cls, tokenizer_cls = import_runtime()
     model_ref = resolve_model_ref(model_name)
+    if "/" in model_ref and not model_ref.startswith(("http://", "https://")):
+        model_path = Path(model_ref)
+        if not model_path.exists() and model_ref.count("/") > 1:
+            raise SystemExit(
+                f"Model path does not exist: {model_ref}\n\n"
+                "Transformers would otherwise treat this as a Hugging Face repo id. "
+                "Point HF_MODEL/--model to an existing local model directory, or use a Hub id like "
+                "impresso-project/mmbert-impresso-mediasources-ner."
+            )
+    torch, model_cls, tokenizer_cls = import_runtime()
     device = device_for(str(getattr(args, "device", "auto")), torch)
     tokenizer = tokenizer_cls.from_pretrained(model_ref)
     model = model_cls.from_pretrained(model_ref).to(device)

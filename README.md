@@ -428,7 +428,7 @@ make split-media-snippets CFG=configs/model-v2.0.0.mk MEDIA_FAMILY=radiostation
 make push-model CFG=configs/model-v2.0.0.mk
 ```
 
-For Impresso API sampling, the token is entered interactively when the sampler connects. Do not put the token in `.env`.
+For Impresso API sampling, the token is entered interactively when the sampler connects and is reused through the `impresso-py` token cache.
 
 You can create a local `.env` for non-secret Impresso API settings and optional Hugging Face authentication:
 
@@ -436,7 +436,7 @@ You can create a local `.env` for non-secret Impresso API settings and optional 
 cp .env.example .env
 ```
 
-By default `IMPRESSO_PERSISTED_TOKEN=false`, so the `impresso` client prompts for the Impresso API token and does not write it to `~/.impresso_py.yml`. Set it to `true` only if you intentionally want the client to reuse/store its persisted token outside this repository. `.env` is gitignored.
+By default `IMPRESSO_PERSISTED_TOKEN=true`, so the `impresso` client prompts for the Impresso API token once and can write it to `~/.impresso_py.yml`. Set it to `false` if you want interactive token entry without writing the cache file. Alternatively, set `IMPRESSO_API_TOKEN` in `.env` to use that token directly; in that mode the workbench does not call the `impresso-py` cache. `.env` is gitignored.
 
 ## Publish Dataset
 

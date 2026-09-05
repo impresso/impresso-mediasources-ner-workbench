@@ -341,7 +341,7 @@ def confirm_annotation_finished(
                 print("  " + span_line(span, span_index))
         else:
             print("  <none>")
-        raw = input("annotation finished? [Y/m] ").strip().lower()
+        raw = input("annotation finished? [Y/m/d N] ").strip().lower()
         if raw in {"", "y", "yes"}:
             return accepted_spans
         if raw == "m":
@@ -349,7 +349,16 @@ def confirm_annotation_finished(
             if manual_spans:
                 accepted_spans.extend(manual_spans)
             continue
-        print("Invalid choice; use y to save or m to add manual annotation spans.")
+        delete_match = re.match(r"^(?:d|del|delete|remove)\s+(\d+)$", raw)
+        if delete_match:
+            span_index = int(delete_match.group(1))
+            if not 1 <= span_index <= len(accepted_spans):
+                print(f"Invalid annotation number: {span_index}")
+                continue
+            removed = accepted_spans.pop(span_index - 1)
+            print("deleted annotation: " + span_line(removed, span_index))
+            continue
+        print("Invalid choice; use y to save, m to add manual annotation spans, or d N to delete an annotation.")
 
 
 def review_loop(

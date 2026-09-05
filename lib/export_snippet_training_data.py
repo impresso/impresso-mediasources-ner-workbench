@@ -19,6 +19,7 @@ LABEL_ALIASES = {
     "org.ent.pressagency.conti": "org.ent.pressagency.wolff",
     "org.ent.pressagency.reuter": "org.ent.pressagency.reuters",
 }
+EXPORT_DIAGNOSTICS: Counter[str] = Counter()
 
 
 def load_label_map(path: Path) -> dict[str, Any]:
@@ -56,11 +57,37 @@ def selected_spans(row: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(model, dict) and isinstance(model.get("predicted_spans"), list):
         target = row.get("curation", {}).get("label") or row.get("candidate_label")
         spans = [span for span in model["predicted_spans"] if isinstance(span, dict)]
-        if target:
-            matching = [span for span in spans if span.get("label") == target]
-            return matching or spans
-        return spans
+        if spans:
+            if target:
+                matching = [span for span in spans if span.get("label") == target]
+                return matching or spans
+            return spans
+    cookbook = row.get("cookbook_prediction")
+    if isinstance(cookbook, dict):
+        label = canonical_label(cookbook.get("label") or row.get("curation", {}).get("label") or row.get("candidate_label"))
+        try:
+            start = int(cookbook["snippet_start"])
+            stop = int(cookbook["snippet_stop"])
+        except (KeyError, TypeError, ValueError):
+            return []
+        surface = str(cookbook.get("surface") or row_text_slice(row, start, stop))
+        return [
+            {
+                "label": label,
+                "start": start,
+                "stop": stop,
+                "surface": surface,
+                "source": "cookbook_prediction",
+            }
+        ]
     return []
+
+
+def row_text_slice(row: dict[str, Any], start: int, stop: int) -> str:
+    text = str(row.get("text") or row.get("snippet") or "")
+    if 0 <= start < stop <= len(text):
+        return text[start:stop]
+    return ""
 
 
 def canonical_label(label: Any) -> str:
@@ -120,12 +147,19 @@ def normalized_span_for_export(
         token_start = int(span["token_start"])
         token_stop = int(span["token_stop"])
     except (KeyError, TypeError, ValueError):
-        return None
-    if 0 <= token_start < token_stop <= len(starts):
-        token_char_start = starts[token_start]
-        token_char_stop = stops[token_stop - 1]
-        if "start" not in span or "stop" not in span:
-            return {**span, "start": token_char_start, "stop": token_char_stop, "token_start": token_start, "token_stop": token_stop}
+        token_start = -1
+        token_stop = -1
+        token_char_start = -1
+        token_char_stop = -1
+    else:
+        if 0 <= token_start < token_stop <= len(starts):
+            token_char_start = starts[token_start]
+            token_char_stop = stops[token_stop - 1]
+            if "start" not in span or "stop" not in span:
+                return {**span, "start": token_char_start, "stop": token_char_stop, "token_start": token_start, "token_stop": token_stop}
+        else:
+            token_char_start = -1
+            token_char_stop = -1
     try:
         char_start = int(span["start"])
         char_stop = int(span["stop"])
@@ -143,7 +177,10 @@ def normalized_span_for_export(
         return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
     if repaired_token_start >= repaired_token_stop:
         return normalized_span_from_surface(row_id, span, text=text, starts=starts, stops=stops)
-    print(f"{row_id}: repaired stale token offsets for span {char_start}:{char_stop} {span.get('label', '')}")
+    if span.get("source") == "cookbook_prediction":
+        EXPORT_DIAGNOSTICS["cookbook_prediction_token_offsets_derived"] += 1
+    else:
+        print(f"{row_id}: repaired stale token offsets for span {char_start}:{char_stop} {span.get('label', '')}")
     return {**span, "start": char_start, "stop": char_stop, "token_start": repaired_token_start, "token_stop": repaired_token_stop}
 
 
@@ -493,6 +530,7 @@ def deduplicate_exported_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]
 
 
 def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata: list[Path] | None = None) -> list[dict[str, Any]]:
+    EXPORT_DIAGNOSTICS.clear()
     label_map = load_label_map(label_map_path)
     if extra_label_metadata:
         label_map = extend_label_map(label_map, extra_label_metadata)
@@ -620,6 +658,11 @@ def main(argv: list[str] | None = None) -> int:
         validation_output=Path(args.validation_output) if args.validation_output else None,
         test_output=Path(args.test_output) if args.test_output else None,
     )
+    if EXPORT_DIAGNOSTICS["cookbook_prediction_token_offsets_derived"]:
+        print(
+            "derived token offsets for "
+            f"{EXPORT_DIAGNOSTICS['cookbook_prediction_token_offsets_derived']} accepted cookbook prediction span(s)"
+        )
     print(json.dumps({"rows": len(rows), "outputs": counts}, ensure_ascii=False, sort_keys=True))
     return 0
 
