@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 import re
 import time
 from collections import Counter
@@ -30,7 +31,11 @@ DEFAULT_HEALTHCHECK_CONTENT_ITEM = "NZZ-1794-08-09-a-i0002"
 DEFAULT_SMOKE_CONTENT_ITEMS = 10
 DEFAULT_HTTP_TIMEOUT = 30.0
 DEFAULT_HTTP_RETRIES = 3
+DEFAULT_SELECTION_STRATEGY = "newspaper-round-robin"
+DEFAULT_SELECTION_SEED = 42
+DEFAULT_MAX_PER_NEWSPAPER = 3
 LOGGER_NAME = "sample_cookbook_snippets"
+SELECTION_STRATEGIES = {"input", "random", "newspaper-round-robin"}
 
 
 class ImpressoApiError(RuntimeError):
@@ -195,6 +200,62 @@ def choose_one_prediction_per_document(predictions: list[dict[str, Any]]) -> lis
         if previous is None or ranking_key(prediction, label_counts) < ranking_key(previous, label_counts):
             selected[ci_id] = prediction
     return [selected[ci_id] for ci_id in order]
+
+
+def order_predictions(
+    predictions: list[dict[str, Any]],
+    *,
+    strategy: str,
+    seed: int,
+    max_per_newspaper: int,
+) -> list[dict[str, Any]]:
+    if strategy not in SELECTION_STRATEGIES:
+        raise ValueError(f"unsupported cookbook selection strategy: {strategy}")
+    if max_per_newspaper < 0:
+        raise ValueError("max_per_newspaper must be >= 0")
+    if strategy == "input":
+        ordered = list(predictions)
+    elif strategy == "random":
+        ordered = list(predictions)
+        rng = random.Random(seed)
+        rng.shuffle(ordered)
+    else:
+        label_counts = Counter(str(prediction["label"]) for prediction in predictions)
+        buckets: dict[str, list[dict[str, Any]]] = {}
+        for prediction in predictions:
+            buckets.setdefault(prediction_media(prediction) or "<unknown>", []).append(prediction)
+        for bucket in buckets.values():
+            bucket.sort(key=lambda prediction: ranking_key(prediction, label_counts))
+        newspaper_order = sorted(
+            buckets,
+            key=lambda newspaper: hashlib.sha1(f"{seed}\t{newspaper}".encode("utf-8")).hexdigest(),
+        )
+        emitted_by_newspaper: Counter[str] = Counter()
+        ordered = []
+        while True:
+            added = False
+            for newspaper in newspaper_order:
+                if max_per_newspaper > 0 and emitted_by_newspaper[newspaper] >= max_per_newspaper:
+                    continue
+                bucket = buckets[newspaper]
+                if not bucket:
+                    continue
+                ordered.append(bucket.pop(0))
+                emitted_by_newspaper[newspaper] += 1
+                added = True
+            if not added:
+                break
+    if max_per_newspaper > 0 and strategy != "newspaper-round-robin":
+        emitted_by_newspaper = Counter()
+        capped: list[dict[str, Any]] = []
+        for prediction in ordered:
+            newspaper = prediction_media(prediction) or "<unknown>"
+            if emitted_by_newspaper[newspaper] >= max_per_newspaper:
+                continue
+            capped.append(prediction)
+            emitted_by_newspaper[newspaper] += 1
+        ordered = capped
+    return ordered
 
 
 def top_counts(values: Iterable[Any], limit: int) -> dict[str, int]:
@@ -472,6 +533,9 @@ def sample_rows(
     logger: logging.Logger | None = None,
     progress_every: int = DEFAULT_PROGRESS_EVERY,
     diagnostic_examples: int = DEFAULT_DIAGNOSTIC_EXAMPLES,
+    selection_strategy: str = DEFAULT_SELECTION_STRATEGY,
+    selection_seed: int = DEFAULT_SELECTION_SEED,
+    max_per_newspaper: int = DEFAULT_MAX_PER_NEWSPAPER,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     counts: Counter[str] = Counter()
     content_cache: dict[str, str] = {}
@@ -503,12 +567,28 @@ def sample_rows(
             continue
         filtered_predictions.append(prediction)
 
-    selected_predictions = choose_one_prediction_per_document(filtered_predictions)
-    counts["duplicates_same_content_item"] = len(filtered_predictions) - len(selected_predictions)
+    deduped_predictions = choose_one_prediction_per_document(filtered_predictions)
+    selected_predictions = order_predictions(
+        deduped_predictions,
+        strategy=selection_strategy,
+        seed=selection_seed,
+        max_per_newspaper=max_per_newspaper,
+    )
+    counts["duplicates_same_content_item"] = len(filtered_predictions) - len(deduped_predictions)
+    counts["selection_cap_suppressed"] = len(deduped_predictions) - len(selected_predictions)
     if logger:
         logger.info("family predictions seen: %d", counts["predictions_total"])
         logger.info("eligible predictions after filters: %d", len(filtered_predictions))
-        logger.info("selected content items after one-ci_id deduplication: %d", len(selected_predictions))
+        logger.info("deduplicated content items after one-ci_id deduplication: %d", len(deduped_predictions))
+        logger.info(
+            "selection order: %s; selection seed: %d; max per newspaper: %s",
+            selection_strategy,
+            selection_seed,
+            max_per_newspaper if max_per_newspaper > 0 else "unlimited",
+        )
+        if counts["selection_cap_suppressed"]:
+            logger.info("selection cap suppressed content items: %d", counts["selection_cap_suppressed"])
+        logger.info("selected content items queued for retrieval: %d", len(selected_predictions))
         logger.info("top selected labels: %s", top_counts((prediction["label"] for prediction in selected_predictions), diagnostic_examples))
         logger.info("top selected newspapers: %s", top_counts((prediction_media(prediction) for prediction in selected_predictions), diagnostic_examples))
         logger.info("top selected years: %s", top_counts((prediction_year(prediction) for prediction in selected_predictions), diagnostic_examples))
@@ -765,11 +845,15 @@ def sample_rows(
             "max_fetch_failures": max_fetch_failures,
             "smoke_content_items": smoke_content_items,
             "deduplication": "one_snippet_per_content_item",
+            "selection_strategy": selection_strategy,
+            "selection_seed": selection_seed,
+            "max_per_newspaper": max_per_newspaper,
             "existing_paths": [str(path) for path in existing_paths],
         },
         "counts": dict(sorted(counts.items())),
         "counts_by_label": dict(sorted(Counter(row["candidate_label"] for row in rows).items())),
         "eligible_counts_by_label": top_counts((prediction["label"] for prediction in filtered_predictions), 100),
+        "deduplicated_counts_by_newspaper": top_counts((prediction_media(prediction) for prediction in deduped_predictions), 100),
         "selected_counts_by_label": top_counts((prediction["label"] for prediction in selected_predictions), 100),
         "selected_counts_by_newspaper": top_counts((prediction_media(prediction) for prediction in selected_predictions), 100),
         "selected_counts_by_year": top_counts((prediction_year(prediction) for prediction in selected_predictions), 100),
@@ -826,6 +910,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--http-timeout", type=float, default=DEFAULT_HTTP_TIMEOUT)
     parser.add_argument("--http-retries", type=int, default=DEFAULT_HTTP_RETRIES)
     parser.add_argument(
+        "--selection-strategy",
+        choices=sorted(SELECTION_STRATEGIES),
+        default=DEFAULT_SELECTION_STRATEGY,
+        help="Order eligible cookbook content items before retrieval.",
+    )
+    parser.add_argument("--selection-seed", type=int, default=DEFAULT_SELECTION_SEED)
+    parser.add_argument(
+        "--max-per-newspaper",
+        type=int,
+        default=DEFAULT_MAX_PER_NEWSPAPER,
+        help="Maximum queued content items per newspaper after deduplication; 0 means no cap.",
+    )
+    parser.add_argument(
         "--max-fetch-failures",
         type=int,
         default=DEFAULT_MAX_FETCH_FAILURES,
@@ -873,6 +970,9 @@ def main(argv: list[str] | None = None) -> int:
             logger=logger,
             progress_every=max(1, args.progress_every),
             diagnostic_examples=max(0, args.diagnostic_examples),
+            selection_strategy=args.selection_strategy,
+            selection_seed=args.selection_seed,
+            max_per_newspaper=max(0, args.max_per_newspaper),
         )
     except RuntimeError as exc:
         logger.error("aborted: %s", exc)

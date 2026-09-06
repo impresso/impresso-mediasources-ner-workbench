@@ -1,1 +1,88 @@
+autopress: The context is automotive copy, and external evidence fits extremely well. Contemporary trade-press material describes autopress as a VW/Audi-associated Pressedienst producing photo and text information for newspapers; Arthur Westrup had run it from 1970.   Even better, a later Swiss motoring publication reproduces automotive material ending simply with the source credit autopress, exactly like your snippet.   A scholarly bibliography also cites an item as AUTOPRESS (1975): ... Autopress Bild Nr. 27/75, confirming that this service was producing material under that name in precisely 1975.  
 
+
+{
+  "canonical_id": "interfax",
+  "label": "org.ent.pressagency.interfax",
+  "display_name": "Interfax",
+  "aliases": ["Interfax"],
+  "trainable": true,
+  "status": "metadata_enriched",
+  "description": "News agency founded in Moscow in 1989, originally as the first non-state news agency in the Soviet Union. It became a major Russian and post-Soviet news and business-information provider.",
+  "active_period": {
+    "start": "1989",
+    "end": null,
+    "note": "Founded in 1989; still active."
+  },
+  "aliases_by_language": {
+    "en": ["Interfax", "Interfax News Agency"],
+    "de": ["Interfax"],
+    "fr": ["Interfax"]
+  },
+  "annotation_note": "Annotate Interfax when it refers to the news agency. In descriptive forms such as russische Nachrichtenagentur Interfax, strip the classifier and annotate Interfax.",
+  "agency_word_boundary_policy": {
+    "policy": "strip_short_name",
+    "note": "Strip generic classifiers such as Nachrichtenagentur, news agency, or agence before the proper name Interfax.",
+    "migrate_strip_agency_words": true
+  }
+}
+
+
+
+{
+  "canonical_id": "pap",
+  "label": "org.ent.pressagency.pap",
+  "display_name": "Polska Agencja Prasowa",
+  "aliases": [
+    "PAP",
+    "Polpress",
+    "PAP Polpress",
+    "PAP \"Polpress\"",
+    "Polska Agencja Prasowa",
+    "Polska Agencja Prasowa Polpress"
+  ],
+  "trainable": true,
+  "status": "metadata_enriched",
+  "description": "Polish press agency established in 1944 as Polska Agencja Prasowa 'Polpress'. In October 1945 it was transformed into the state enterprise Polska Agencja Prasowa (PAP). Historical newspaper source attributions may therefore use Polpress, particularly in 1944-1945.",
+  "active_period": {
+    "start": "1944",
+    "end": null,
+    "note": "Established in 1944 as PAP 'Polpress'; transformed into Polska Agencja Prasowa (PAP) by decree of 26 October 1945."
+  },
+  "aliases_by_language": {
+    "pl": [
+      "PAP",
+      "Polpress",
+      "PAP Polpress",
+      "Polska Agencja Prasowa",
+      "Polska Agencja Prasowa Polpress"
+    ],
+    "de": ["PAP", "Polpress", "Polnische Presseagentur"],
+    "fr": ["PAP", "Polpress", "Agence polonaise de presse"],
+    "en": ["PAP", "Polpress", "Polish Press Agency"]
+  },
+  "contextual_aliases": [
+    {
+      "alias": "Polpress",
+      "use": "historical_name",
+      "note": "Historical name/source siglum of Polska Agencja Prasowa, especially in 1944-1945."
+    }
+  ],
+  "annotation_note": "Normalize historical Polpress and later PAP mentions to org.ent.pressagency.pap. Polpress is particularly expected in 1944-1945. In generic classifier constructions, annotate the proper name or siglum rather than the surrounding classifier.",
+  "agency_word_boundary_policy": {
+    "policy": "keep_official_strip_short",
+    "note": "Keep Polska Agencja Prasowa as the full proper name; strip generic classifiers before PAP or Polpress.",
+    "migrate_strip_agency_words": true
+  }
+}
+Hier ist die Vorhersage falsch, aber sbp ist tatsächlich eine Medienquelle.
+
+Eine sehr gute Quelle des ETH-Archivs identifiziert sbp als Sozialdemokratischen Bundesstadt-Pressedienst. Otto Pünter war nach dem Zweiten Weltkrieg dessen Leiter.   Noch stärker: In einer digitalisierten Schweizer Zeitschrift von 1950 finden wir genau dieselbe Quellenformel sbp. vor einem nachrichtenartigen Text.  
+
+Damit ist das hier nicht SPK/SMP. Ich würde m wählen:
+
+sbp → neue Entity org.ent.pressagency.sbp
+
+Der Name sollte zunächst Sozialdemokratischer Bundesstadt-Pressedienst (SBP) sein. Der Beleg ist stark genug, dass ich das Sample keinesfalls entfernen würde.
+
+Das ist außerdem ein guter Kandidat für einen neuen Seed. Vor dem Anlegen würde ich noch Gründungs-/Enddaten, weitere Namensformen und eventuell einen Wikidata-Eintrag gezielt recherchieren; SBP sollte wegen der vielen anderen Auflösungen des Akronyms nur kontextuell gematcht werden.

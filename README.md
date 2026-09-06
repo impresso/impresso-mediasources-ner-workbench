@@ -366,7 +366,7 @@ See [docs/curation.md](docs/curation.md) for full curation workflows, path selec
 | If you want to... | Call this target | `CFG=...`? |
 | --- | --- | --- |
 | See the main help and target groups. | `make` | Not needed. |
-| Refresh annotation checks, coverage, profiles, and curation state. | `make anno-housekeeping` | Yes, to choose another dataset/model config. |
+| Refresh annotation checks, coverage, profiles, TSV views, and curation state. | `make anno-housekeeping` | Yes, to choose another dataset/model config. |
 | Refresh dataset checks, TSV views, statistics, label map, and quality reports. | `make data-housekeeping` | Yes, to choose another dataset/model config. |
 | Check current annotation, snippet, and dataset progress. | `make curation-state` | Yes, to inspect another configured prerelease/model. |
 | Validate token offsets, BIO labels, entities, and minimal JSONL fields. | `make validate-jsonl-format` | Yes, if validating another configured dataset. |

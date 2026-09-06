@@ -341,13 +341,20 @@ def confirm_annotation_finished(
                 print("  " + span_line(span, span_index))
         else:
             print("  <none>")
-        raw = input("annotation finished? [Y/m/d N] ").strip().lower()
+        raw = input("annotation finished? [Y/m/d N/N] ").strip()
+        if raw == "N":
+            print(numbered_tokens(row))
+            continue
+        raw = raw.lower()
         if raw in {"", "y", "yes"}:
             return accepted_spans
         if raw == "m":
             manual_spans = prompt_manual_spans(row, label_metadata)
             if manual_spans:
                 accepted_spans.extend(manual_spans)
+            continue
+        if raw in {"d", "del", "delete", "remove"}:
+            print("Choose an annotation number to delete, for example: d 1")
             continue
         delete_match = re.match(r"^(?:d|del|delete|remove)\s+(\d+)$", raw)
         if delete_match:
@@ -358,7 +365,7 @@ def confirm_annotation_finished(
             removed = accepted_spans.pop(span_index - 1)
             print("deleted annotation: " + span_line(removed, span_index))
             continue
-        print("Invalid choice; use y to save, m to add manual annotation spans, or d N to delete an annotation.")
+        print("Invalid choice; use y to save, m to add manual annotation spans, N to show numbered tokens, or d N to delete an annotation.")
 
 
 def review_loop(
@@ -473,7 +480,7 @@ def apply_decisions(rows: list[dict[str, Any]], decisions_path: Path, *, review_
                 "reviewed_at": decision.get("reviewed_at"),
                 "notes": decision.get("notes"),
             }
-            if decision.get("accepted_spans"):
+            if "accepted_spans" in decision:
                 revised["accepted_spans"] = decision["accepted_spans"]
         out.append(revised)
     return out

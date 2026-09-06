@@ -139,13 +139,15 @@ make data-housekeeping
 
 This target does not publish the dataset. Validation/test quality evaluation can take time because it runs the configured `CURATION_MODEL` over both held-out splits.
 
-Refresh annotation coverage, mention profiles, disagreement-decision checks, and all annotation state summaries without starting an interactive review:
+Refresh annotation coverage, mention profiles, disagreement-decision checks, human-readable TSV views, and all annotation state summaries without starting an interactive review:
 
 ```bash
 make anno-housekeeping
 ```
 
-This target does not apply or promote annotation decisions. Incomplete review queues are reported in the state summaries but do not make housekeeping fail.
+This target does not apply or promote annotation decisions. Incomplete review queues are reported in the state summaries but do not make housekeeping fail. TSV materialization is incremental in both housekeeping targets: the train, validation, and test TSV files are rebuilt only when the configured JSONL split is newer or the TSV is missing.
+
+Housekeeping also writes `reports.d/curation-article-ids.jsonl`, a cross-family list of content-item IDs already present in train/validation/test data or any snippet candidate, scored, reviewed, or split file. Cookbook sampling refreshes this list before sampling and uses it as an additional suppression source, so articles already in the dataset or under curation are not resampled.
 
 ### 0. Inspect current state
 
@@ -265,7 +267,9 @@ make review-media-snippet-spans MEDIA_FAMILY=pressagency REVIEWER="$USER"
 make integrate-snippets
 ```
 
-By default, cookbook snippets keep predictions with `0.30 <= confidence_ner < 0.80`. Override with `COOKBOOK_SNIPPET_MIN_CONFIDENCE`, `COOKBOOK_SNIPPET_MAX_CONFIDENCE`, `COOKBOOK_SNIPPET_CONTEXT_CHARS`, or `COOKBOOK_SNIPPET_LIMIT` when preparing a different review queue. Use `COOKBOOK_SNIPPET_LOG_LEVEL=DEBUG|INFO|WARNING|ERROR`, `COOKBOOK_SNIPPET_PROGRESS_EVERY=10`, and `COOKBOOK_SNIPPET_DIAGNOSTIC_EXAMPLES=10` to control terminal progress and example diagnostics. The original cookbook prediction is preserved under `cookbook_prediction`; the current-model scorer writes the normal `model.predicted_spans` used by review.
+By default, cookbook snippets keep predictions with `0.30 <= confidence_ner < 0.80`. Override with `COOKBOOK_SNIPPET_MIN_CONFIDENCE`, `COOKBOOK_SNIPPET_MAX_CONFIDENCE`, `COOKBOOK_SNIPPET_CONTEXT_CHARS`, or `COOKBOOK_SNIPPET_LIMIT` when preparing a different review queue. Eligible content items are deduplicated to one candidate per content item, then ordered with `COOKBOOK_SNIPPET_SELECTION_STRATEGY=newspaper-round-robin` and `COOKBOOK_SNIPPET_SELECTION_SEED=42`. `COOKBOOK_SNIPPET_MAX_PER_NEWSPAPER=3` keeps a small manual batch from being dominated by one title; set it to `0` to disable the hard cap, or use `COOKBOOK_SNIPPET_SELECTION_STRATEGY=random|input` for different reproducible queues. Use `COOKBOOK_SNIPPET_LOG_LEVEL=DEBUG|INFO|WARNING|ERROR`, `COOKBOOK_SNIPPET_PROGRESS_EVERY=10`, and `COOKBOOK_SNIPPET_DIAGNOSTIC_EXAMPLES=10` to control terminal progress and example diagnostics. The original cookbook prediction is preserved under `cookbook_prediction`; the current-model scorer writes the normal `model.predicted_spans` used by review.
+
+Before filtering cookbook predictions, the Make target refreshes `reports.d/curation-article-ids.jsonl` and passes it as an `--existing-jsonl` source. This suppresses content items already present in the configured train/validation/test splits and content items already sampled, scored, reviewed, or exported for any media-source snippet family.
 
 At startup the sampler uses the REST API directly: it requests `/version`, retrieves `COOKBOOK_SNIPPET_HEALTHCHECK_CONTENT_ITEM` (`NZZ-1794-08-09-a-i0002` by default), then smokes the first `COOKBOOK_SNIPPET_SMOKE_CONTENT_ITEMS=10` selected cookbook content-item ids from distinct newspapers. If none of the sampled cookbook ids exists in the configured API corpus, the sampler aborts with a corpus-mismatch message. If a content item returns 404, the sampler marks its newspaper unavailable and skips later candidates from the same newspaper without trying the API again. 404 responses are counted as `content_item_not_found` or `ignored_unavailable_newspaper`, not as network/API failures. Authentication and authorization errors abort separately. The summary JSON records `impresso_api_url`, `impresso_api_version`, `healthcheck_content_item`, `content_items_attempted`, `content_items_retrieved`, `preflight_results`, and `ignored_newspapers`.
 

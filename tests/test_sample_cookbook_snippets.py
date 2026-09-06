@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import bz2
 import json
+from collections import Counter
 from pathlib import Path
 
 import pytest
 
 from lib import sample_cookbook_snippets
-from lib.sample_cookbook_snippets import load_content_fetcher, sample_rows
+from lib.sample_cookbook_snippets import load_content_fetcher, order_predictions, sample_rows
 from lib.snippet_data import write_jsonl
 
 
@@ -173,9 +174,125 @@ def test_sample_cookbook_snippets_preserves_first_seen_document_order(tmp_path: 
         max_fetch_failures=25,
         existing_paths=[],
         fetch_content=fetch_content,
+        selection_strategy="input",
+        max_per_newspaper=0,
     )
 
     assert fetched == ["DP-1975-10-30-a-i0007"]
+
+
+def test_sample_cookbook_snippets_round_robins_newspapers_before_fetch(tmp_path: Path) -> None:
+    input_path = tmp_path / "predictions.jsonl"
+    write_jsonl(
+        input_path,
+        [
+            {
+                "ci_id": f"HOUR-1875-01-{index + 1:02d}-a-i0001",
+                "nes": [
+                    {
+                        "fine_grained_type": "org.ent.pressagency.reuters",
+                        "surface": "Reuters",
+                        "lOffset": 0,
+                        "rOffset": 7,
+                        "confidence_ner": 0.55,
+                    }
+                ],
+            }
+            for index in range(8)
+        ]
+        + [
+            {
+                "ci_id": "BBLT-1877-02-23-a-i0106",
+                "nes": [
+                    {
+                        "fine_grained_type": "org.ent.pressagency.wolff",
+                        "surface": "Wolff",
+                        "lOffset": 0,
+                        "rOffset": 5,
+                        "confidence_ner": 0.45,
+                    }
+                ],
+            },
+            {
+                "ci_id": "NZZ-1794-08-09-a-i0002",
+                "nes": [
+                    {
+                        "fine_grained_type": "org.ent.pressagency.havas",
+                        "surface": "Havas",
+                        "lOffset": 0,
+                        "rOffset": 5,
+                        "confidence_ner": 0.5,
+                    }
+                ],
+            },
+        ],
+    )
+
+    fetched: list[str] = []
+
+    def fetch_content(ci_id: str) -> str:
+        fetched.append(ci_id)
+        if ci_id.startswith("HOUR-"):
+            return "Reuters dispatch."
+        if ci_id.startswith("BBLT-"):
+            return "Wolff dispatch."
+        return "Havas dispatch."
+
+    rows, _rejected, summary = sample_rows(
+        input_path,
+        family="pressagency",
+        min_confidence=0.3,
+        max_confidence=0.8,
+        context_chars=20,
+        limit=5,
+        max_fetch_failures=25,
+        existing_paths=[],
+        fetch_content=fetch_content,
+        selection_strategy="newspaper-round-robin",
+        selection_seed=42,
+        max_per_newspaper=0,
+    )
+
+    assert len(rows) == 5
+    assert Counter(ci_id.split("-", 1)[0] for ci_id in fetched[:3]) == {"BBLT": 1, "HOUR": 1, "NZZ": 1}
+    assert Counter(row["newspaper"] for row in rows)["HOUR"] <= 3
+    assert summary["settings"]["selection_strategy"] == "newspaper-round-robin"
+    assert summary["settings"]["selection_seed"] == 42
+    assert summary["settings"]["max_per_newspaper"] == 0
+
+
+def test_order_predictions_can_cap_each_newspaper() -> None:
+    predictions = [
+        {
+            "ci_id": f"HOUR-1875-01-{index + 1:02d}-a-i0001",
+            "label": "org.ent.pressagency.reuters",
+            "surface": "Reuters",
+            "start": 0,
+            "stop": 7,
+            "confidence": 0.55,
+        }
+        for index in range(5)
+    ] + [
+        {
+            "ci_id": f"BBLT-1877-02-{index + 1:02d}-a-i0001",
+            "label": "org.ent.pressagency.wolff",
+            "surface": "Wolff",
+            "start": 0,
+            "stop": 5,
+            "confidence": 0.45,
+        }
+        for index in range(2)
+    ]
+
+    ordered = order_predictions(
+        predictions,
+        strategy="newspaper-round-robin",
+        seed=7,
+        max_per_newspaper=2,
+    )
+
+    assert len(ordered) == 4
+    assert Counter(prediction["ci_id"].split("-", 1)[0] for prediction in ordered) == {"BBLT": 2, "HOUR": 2}
 
 
 def test_sample_cookbook_snippets_suppresses_existing_content_items(tmp_path: Path) -> None:

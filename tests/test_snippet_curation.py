@@ -11,6 +11,7 @@ from lib.build_newsagency_snippets import build_snippets
 from lib.annotation_stats import build_stats, fill_defaults, parse_args
 from lib.export_snippet_training_data import apply_holdout_deficit_assignments, apply_split_assignments, canonical_label, deduplicate_exported_rows, export_rows, write_split_outputs
 from lib.review_newsagency_snippets import (
+    apply_decisions,
     confirm_annotation_finished,
     coverage_priority,
     parse_manual_span,
@@ -1721,7 +1722,7 @@ def test_export_snippet_training_data_writes_training_rows(tmp_path: Path) -> No
     assert "normalized_surface" not in rows[0]["entities"][0]
 
 
-def test_export_snippet_training_data_uses_accepted_cookbook_prediction_span(tmp_path: Path, capsys) -> None:
+def test_export_snippet_training_data_requires_explicit_accepted_spans(tmp_path: Path, capsys) -> None:
     input_path = tmp_path / "reviewed.jsonl"
     label_map_path = tmp_path / "label_map.json"
     label_map_path.write_text(
@@ -1766,11 +1767,60 @@ def test_export_snippet_training_data_uses_accepted_cookbook_prediction_span(tmp
 
     rows = export_rows(input_path, label_map_path)
 
-    assert len(rows) == 1
-    assert rows[0]["token_labels"] == ["O", "O", "B-org.ent.pressagency.wolff", "O", "O"]
-    assert rows[0]["entities"][0]["surface"] == "Wolff"
+    assert rows == []
     captured = capsys.readouterr()
     assert "repaired stale token offsets" not in captured.out
+
+
+def test_export_snippet_training_data_exports_accepted_none_as_negative(tmp_path: Path) -> None:
+    input_path = tmp_path / "reviewed.jsonl"
+    label_map_path = tmp_path / "label_map.json"
+    label_map_path.write_text(
+        json.dumps(
+            {
+                "label2id": {
+                    "O": 0,
+                    "B-org.ent.pressagency.ap": 1,
+                },
+                "id2label": {
+                    "0": "O",
+                    "1": "B-org.ent.pressagency.ap",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_jsonl(
+        input_path,
+        [
+            {
+                "id": "cookbook-snippet:MEWT-1875-04-03-a-i0030",
+                "text": "The room burst into applause.",
+                "candidate_label": "org.ent.pressagency.ap",
+                "model": {"predicted_spans": []},
+                "cookbook_prediction": {
+                    "label": "org.ent.pressagency.ap",
+                    "surface": "applause",
+                    "snippet_start": 20,
+                    "snippet_stop": 28,
+                },
+                "curation": {
+                    "status": "accepted",
+                    "label": "org.ent.pressagency.ap",
+                    "reasons": ["no_predicted_media_source_span"],
+                },
+                "accepted_spans": [],
+            }
+        ],
+    )
+
+    rows = export_rows(input_path, label_map_path)
+
+    assert len(rows) == 1
+    assert rows[0]["entities"] == []
+    assert set(rows[0]["token_labels"]) == {"O"}
+    assert rows[0]["legacy"]["review_status"] == "accepted"
+    assert rows[0]["quality_flags"] == ["reviewed_negative_snippet"]
 
 
 def test_export_snippet_training_data_extends_label_map_with_radio_metadata(tmp_path: Path) -> None:
@@ -3548,6 +3598,85 @@ def test_accept_confirmation_can_add_missed_manual_annotation(monkeypatch) -> No
         (0, 1, "org.ent.pressagency.apa"),
         (2, 3, "org.ent.pressagency.dnb"),
     ]
+
+
+def test_accept_confirmation_can_print_numbered_tokens(monkeypatch, capsys) -> None:
+    row = {
+        "text": "APA et ADN",
+        "tokens": ["APA", "et", "ADN"],
+        "token_start_offsets": [0, 4, 7],
+        "token_end_offsets": [3, 6, 10],
+        "candidate_label": "org.ent.pressagency.apa",
+    }
+    accepted = [
+        {
+            "token_start": 0,
+            "token_stop": 1,
+            "label": "org.ent.pressagency.apa",
+            "surface": "APA",
+        }
+    ]
+    answers = iter(["N", ""])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    completed = confirm_annotation_finished(row, accepted, {})
+
+    assert completed == accepted
+    captured = capsys.readouterr()
+    assert "0:APA" in captured.out
+
+
+def test_accept_confirmation_bare_delete_prints_hint(monkeypatch, capsys) -> None:
+    row = {
+        "text": "APA et ADN",
+        "tokens": ["APA", "et", "ADN"],
+        "token_start_offsets": [0, 4, 7],
+        "token_end_offsets": [3, 6, 10],
+        "candidate_label": "org.ent.pressagency.apa",
+    }
+    accepted = [
+        {
+            "token_start": 0,
+            "token_stop": 1,
+            "label": "org.ent.pressagency.apa",
+            "surface": "APA",
+        }
+    ]
+    answers = iter(["d", ""])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    completed = confirm_annotation_finished(row, accepted, {})
+
+    assert completed == accepted
+    captured = capsys.readouterr()
+    assert "for example: d 1" in captured.out
+
+
+def test_apply_decisions_preserves_empty_accepted_spans(tmp_path: Path) -> None:
+    decisions_path = tmp_path / "decisions.jsonl"
+    row = {
+        "id": "cookbook-snippet:MEWT-1875-04-03-a-i0030",
+        "curation": {"status": "needs_review", "label": "org.ent.pressagency.ap"},
+    }
+    write_jsonl(
+        decisions_path,
+        [
+            {
+                "review_id": "pressagency-span:cookbook-snippet:MEWT-1875-04-03-a-i0030",
+                "candidate_id": "cookbook-snippet:MEWT-1875-04-03-a-i0030",
+                "status": "accepted",
+                "accepted_spans": [],
+                "reviewer": "tester",
+                "reviewed_at": "2026-09-05T00:00:00+02:00",
+                "notes": "",
+            }
+        ],
+    )
+
+    revised = apply_decisions([row], decisions_path, review_prefix="pressagency-span")
+
+    assert revised[0]["curation"]["status"] == "accepted"
+    assert revised[0]["accepted_spans"] == []
 
 
 def test_newsagency_manual_review_prints_numbered_tokens(tmp_path: Path, monkeypatch, capsys) -> None:

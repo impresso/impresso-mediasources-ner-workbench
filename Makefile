@@ -16,7 +16,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release finalize-dataset-release promote-dataset-release download-hf-dataset compare-hf-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map maybe-sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-cookbook-snippets sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh decoding-experiment-plan decoding-experiment-status decoding-experiment-train decoding-experiment-evaluate decoding-experiment-report context-experiment-plan context-experiment-status context-experiment-train context-experiment-evaluate context-experiment-report stamp-model-inference-metadata smoke-model-inference compare-model-inference-parity evaluate-validation evaluate-test test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release finalize-dataset-release promote-dataset-release download-hf-dataset compare-hf-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map maybe-sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-article-ids curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-cookbook-snippets recover-cookbook-snippet-decisions sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh decoding-experiment-plan decoding-experiment-status decoding-experiment-train decoding-experiment-evaluate decoding-experiment-report context-experiment-plan context-experiment-status context-experiment-train context-experiment-evaluate context-experiment-report stamp-model-inference-metadata smoke-model-inference compare-model-inference-parity evaluate-validation evaluate-test test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -135,7 +135,7 @@ help-anno:
 	@echo "Useful overrides:"
 	@echo "  MEDIA_FAMILY=pressagency|radiostation, REVIEWER=$$USER, SNIPPET_REVIEW_MAX_ITEMS=0 (all), MEDIA_SNIPPETS=..."
 	@echo "  MEDIA_LABELS='org.ent.pressagency.reuters', MEDIA_SAMPLE_MODE=focused|coverage|surface"
-	@echo "  COOKBOOK_PREDICTIONS=path/to/predictions.jsonl, COOKBOOK_IMPRESSO_API_URL=https://dev.impresso-project.ch/public-api/v1, COOKBOOK_SNIPPET_MIN_CONFIDENCE=0.30, COOKBOOK_SNIPPET_MAX_CONFIDENCE=0.80, COOKBOOK_SNIPPET_CONTEXT_CHARS=256, COOKBOOK_SNIPPET_LIMIT=0, COOKBOOK_SNIPPET_MAX_FETCH_FAILURES=25, COOKBOOK_SNIPPET_HEALTHCHECK_CONTENT_ITEM=NZZ-1794-08-09-a-i0002, COOKBOOK_SNIPPET_SMOKE_CONTENT_ITEMS=10, COOKBOOK_SNIPPET_HTTP_TIMEOUT=30, COOKBOOK_SNIPPET_HTTP_RETRIES=3, COOKBOOK_SNIPPET_LOG_LEVEL=INFO, COOKBOOK_SNIPPET_DIAGNOSTIC_EXAMPLES=10"
+	@echo "  COOKBOOK_PREDICTIONS=path/to/predictions.jsonl, COOKBOOK_IMPRESSO_API_URL=https://dev.impresso-project.ch/public-api/v1, COOKBOOK_SNIPPET_MIN_CONFIDENCE=0.30, COOKBOOK_SNIPPET_MAX_CONFIDENCE=0.80, COOKBOOK_SNIPPET_CONTEXT_CHARS=256, COOKBOOK_SNIPPET_LIMIT=0, COOKBOOK_SNIPPET_MAX_FETCH_FAILURES=25, COOKBOOK_SNIPPET_SELECTION_STRATEGY=newspaper-round-robin|random|input, COOKBOOK_SNIPPET_SELECTION_SEED=42, COOKBOOK_SNIPPET_MAX_PER_NEWSPAPER=3, COOKBOOK_SNIPPET_HEALTHCHECK_CONTENT_ITEM=NZZ-1794-08-09-a-i0002, COOKBOOK_SNIPPET_SMOKE_CONTENT_ITEMS=10, COOKBOOK_SNIPPET_HTTP_TIMEOUT=30, COOKBOOK_SNIPPET_HTTP_RETRIES=3, COOKBOOK_SNIPPET_LOG_LEVEL=INFO, COOKBOOK_SNIPPET_DIAGNOSTIC_EXAMPLES=10"
 	@echo "  REVIEW_COVERAGE_JSON=$(ANNOTATION_STATS_JSON), REVIEW_ONLY_UNDER_TARGET=false (set true for coverage-only review)"
 	@echo "  ENTITY_LABEL=org.ent.pressagency.havas, ENTITY_SURFACE_FREQUENCIES_EXAMPLES=0"
 	@echo "  MISSING_SPAN_TARGET_LABEL=org.ent.pressagency.ata, MISSING_SPAN_SPLIT=train|validation|test"
@@ -175,6 +175,7 @@ help-data:
 	@echo "  make compare-hf-dataset-release            Compare local HF materialization with Git release"
 	@echo "  make dataset-state                         Summarize staging and configured published dataset state"
 	@echo "  make curation-state-json                   Write $(CURATION_STATE_JSON)"
+	@echo "  make curation-article-ids                  Write $(CURATION_ARTICLE_IDS_JSONL)"
 	@echo ""
 	@echo "Import, export, publish:"
 	@echo "  make import-hipe ARGS=...                  Convert HIPE TSV annotations to JSONL"
@@ -287,6 +288,7 @@ data-housekeeping:
 	$(MAKE) validate-labels
 	$(MAKE) validate-dataset-splits
 	$(MAKE) materialize-dataset-tsv-quiet
+	$(MAKE) curation-article-ids
 	$(MAKE) curation-state-json
 	$(MAKE) dataset-subword-stats
 	$(MAKE) dataset-quality-analysis
@@ -380,10 +382,7 @@ dataset-subword-stats:
 	$(PYTHON) -m lib.dataset_subword_stats --tokenizer "$(DATASET_SUBWORD_STATS_TOKENIZER)" --split train="$(TRAIN_JSONL)" --split validation="$(VALIDATION_JSONL)" --split test="$(TEST_JSONL)" --max-words-per-window "$(MAX_WORDS_PER_WINDOW)" --stride-words "$(STRIDE_WORDS)" $(foreach length,$(DATASET_SUBWORD_STATS_SEQUENCE_LENGTHS),--sequence-length "$(length)") --output-json "$(DATASET_SUBWORD_STATS_JSON)" $(ARGS)
 	@echo "Report: $(DATASET_SUBWORD_STATS_JSON)"
 
-materialize-dataset-tsv-quiet:
-	@$(PYTHON) -m lib.materialize_dataset_tsv --input "$(TRAIN_JSONL)" --output "$(DATASET_TSV_TRAIN)" --split train >/dev/null
-	@$(PYTHON) -m lib.materialize_dataset_tsv --input "$(VALIDATION_JSONL)" --output "$(DATASET_TSV_VALIDATION)" --split validation >/dev/null
-	@$(PYTHON) -m lib.materialize_dataset_tsv --input "$(TEST_JSONL)" --output "$(DATASET_TSV_TEST)" --split test >/dev/null
+materialize-dataset-tsv-quiet: $(DATASET_TSV_TRAIN) $(DATASET_TSV_VALIDATION) $(DATASET_TSV_TEST)
 
 materialize-dataset-tsv: materialize-dataset-tsv-quiet
 	@echo "Materialized CoNLL-style TSV views under $(DATASET_TSV_DIR)."
@@ -435,8 +434,10 @@ curation-dashboard:
 anno-housekeeping:
 	@echo "Running complete non-interactive housekeeping for annotation and curation state."
 	$(MAKE) validate-labels
+	$(MAKE) materialize-dataset-tsv-quiet
 	$(MAKE) annotation-stats
 	$(MAKE) mention-profiles
+	$(MAKE) curation-article-ids
 	@if [ -f "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" ] && [ -f "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" ]; then \
 		$(PYTHON) -m lib.validate_curation --disagreements "$(CURATION_OUTPUT_DIR)/review/all_disagreements.jsonl" --decisions "$(CURATION_OUTPUT_DIR)/review/decisions.jsonl" --no-require-complete; \
 	else \
@@ -455,6 +456,12 @@ anno-housekeeping:
 	@echo "  $(MENTION_PROFILE_JSON)"
 	@echo "  $(MENTION_PROFILE_TSV)"
 	@echo "  $(CURATION_STATE_JSON)"
+	@echo "  $(CURATION_ARTICLE_IDS_JSONL)"
+	@echo "  $(DATASET_TSV_DIR)/"
+
+curation-article-ids:
+	@echo "Writing content-item IDs already present in dataset or curation files."
+	$(PYTHON) -m lib.curation_article_ids --output "$(CURATION_ARTICLE_IDS_JSONL)" --source dataset-train="$(TRAIN_JSONL)" --source dataset-validation="$(VALIDATION_JSONL)" --source dataset-test="$(TEST_JSONL)" --source newsagency-candidates="$(NEWSAGENCY_SNIPPETS)" --source newsagency-scored="$(NEWSAGENCY_SCORED_SNIPPETS)" --source newsagency-reviewed="$(NEWSAGENCY_REVIEWED_SNIPPETS)" --source newsagency-snippet-train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --source newsagency-snippet-validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --source newsagency-snippet-test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --source radiostation-candidates="$(RADIOSTATION_SNIPPETS)" --source radiostation-scored="$(RADIOSTATION_SCORED_SNIPPETS)" --source radiostation-reviewed="$(RADIOSTATION_REVIEWED_SNIPPETS)" --source radiostation-snippet-train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --source radiostation-snippet-validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --source radiostation-snippet-test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --source newspaper-candidates="$(NEWSPAPER_SNIPPETS)" --source newspaper-scored="$(NEWSPAPER_SCORED_SNIPPETS)" --source newspaper-reviewed="$(NEWSPAPER_REVIEWED_SNIPPETS)" --source newspaper-snippet-train="$(NEWSPAPER_SNIPPET_TRAIN_JSONL)" --source newspaper-snippet-validation="$(NEWSPAPER_SNIPPET_VALIDATION_JSONL)" --source newspaper-snippet-test="$(NEWSPAPER_SNIPPET_TEST_JSONL)"
 
 curation-state:
 	@echo "Summarizing all curation, snippet, and dataset state."
@@ -848,10 +855,18 @@ sample-media-snippets:
 sample-cookbook-snippets:
 	@echo "Sampling $(MEDIA_FAMILY) snippet candidates from cookbook low-confidence predictions."
 	@test -n "$(COOKBOOK_PREDICTIONS)" || { echo "COOKBOOK_PREDICTIONS is required"; exit 1; }
-	$(PYTHON) -m lib.sample_cookbook_snippets --family "$(MEDIA_FAMILY)" --input "$(COOKBOOK_PREDICTIONS)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(COOKBOOK_SNIPPET_SUMMARY)" --rejected-out "$(COOKBOOK_SNIPPET_REJECTED)" --min-confidence "$(COOKBOOK_SNIPPET_MIN_CONFIDENCE)" --max-confidence "$(COOKBOOK_SNIPPET_MAX_CONFIDENCE)" --context-chars "$(COOKBOOK_SNIPPET_CONTEXT_CHARS)" --limit "$(COOKBOOK_SNIPPET_LIMIT)" --impresso-api-url "$(COOKBOOK_IMPRESSO_API_URL)" --healthcheck-content-item "$(COOKBOOK_SNIPPET_HEALTHCHECK_CONTENT_ITEM)" --smoke-content-items "$(COOKBOOK_SNIPPET_SMOKE_CONTENT_ITEMS)" --http-timeout "$(COOKBOOK_SNIPPET_HTTP_TIMEOUT)" --http-retries "$(COOKBOOK_SNIPPET_HTTP_RETRIES)" --max-fetch-failures "$(COOKBOOK_SNIPPET_MAX_FETCH_FAILURES)" --log-level "$(COOKBOOK_SNIPPET_LOG_LEVEL)" --progress-every "$(COOKBOOK_SNIPPET_PROGRESS_EVERY)" --diagnostic-examples "$(COOKBOOK_SNIPPET_DIAGNOSTIC_EXAMPLES)" --existing-jsonl "$(TRAIN_JSONL)" --existing-jsonl "$(VALIDATION_JSONL)" --existing-jsonl "$(TEST_JSONL)" --existing-jsonl "$(MEDIA_SCORED_SNIPPETS)" --existing-jsonl "$(MEDIA_REVIEWED_SNIPPETS)" --existing-jsonl "$(MEDIA_SNIPPET_TRAIN_JSONL)" --existing-jsonl "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --existing-jsonl "$(MEDIA_SNIPPET_TEST_JSONL)" $(ARGS)
+	$(MAKE) curation-article-ids
+	$(PYTHON) -m lib.sample_cookbook_snippets --family "$(MEDIA_FAMILY)" --input "$(COOKBOOK_PREDICTIONS)" --out "$(MEDIA_SNIPPETS)" --summary-out "$(COOKBOOK_SNIPPET_SUMMARY)" --rejected-out "$(COOKBOOK_SNIPPET_REJECTED)" --min-confidence "$(COOKBOOK_SNIPPET_MIN_CONFIDENCE)" --max-confidence "$(COOKBOOK_SNIPPET_MAX_CONFIDENCE)" --context-chars "$(COOKBOOK_SNIPPET_CONTEXT_CHARS)" --limit "$(COOKBOOK_SNIPPET_LIMIT)" --impresso-api-url "$(COOKBOOK_IMPRESSO_API_URL)" --healthcheck-content-item "$(COOKBOOK_SNIPPET_HEALTHCHECK_CONTENT_ITEM)" --smoke-content-items "$(COOKBOOK_SNIPPET_SMOKE_CONTENT_ITEMS)" --http-timeout "$(COOKBOOK_SNIPPET_HTTP_TIMEOUT)" --http-retries "$(COOKBOOK_SNIPPET_HTTP_RETRIES)" --selection-strategy "$(COOKBOOK_SNIPPET_SELECTION_STRATEGY)" --selection-seed "$(COOKBOOK_SNIPPET_SELECTION_SEED)" --max-per-newspaper "$(COOKBOOK_SNIPPET_MAX_PER_NEWSPAPER)" --max-fetch-failures "$(COOKBOOK_SNIPPET_MAX_FETCH_FAILURES)" --log-level "$(COOKBOOK_SNIPPET_LOG_LEVEL)" --progress-every "$(COOKBOOK_SNIPPET_PROGRESS_EVERY)" --diagnostic-examples "$(COOKBOOK_SNIPPET_DIAGNOSTIC_EXAMPLES)" --existing-jsonl "$(TRAIN_JSONL)" --existing-jsonl "$(VALIDATION_JSONL)" --existing-jsonl "$(TEST_JSONL)" --existing-jsonl "$(CURATION_ARTICLE_IDS_JSONL)" --existing-jsonl "$(MEDIA_SCORED_SNIPPETS)" --existing-jsonl "$(MEDIA_REVIEWED_SNIPPETS)" --existing-jsonl "$(MEDIA_SNIPPET_TRAIN_JSONL)" --existing-jsonl "$(MEDIA_SNIPPET_VALIDATION_JSONL)" --existing-jsonl "$(MEDIA_SNIPPET_TEST_JSONL)" $(ARGS)
 	@echo "Next step:"
 	@echo "  # Score the cookbook-derived snippets with the current model."
 	@echo "  make suggest-media-snippet-spans MEDIA_FAMILY=$(MEDIA_FAMILY)"
+
+recover-cookbook-snippet-decisions:
+	@echo "Recovering overwritten cookbook snippet review rows from append-only decisions."
+	@test -n "$(COOKBOOK_PREDICTIONS)" || { echo "COOKBOOK_PREDICTIONS is required"; exit 1; }
+	$(PYTHON) -m lib.recover_cookbook_snippet_decisions --family "$(MEDIA_FAMILY)" --predictions "$(COOKBOOK_PREDICTIONS)" --decisions "$(MEDIA_SNIPPET_DECISIONS)" --current-rows "$(MEDIA_REVIEWED_SNIPPETS)" --output "$(MEDIA_RECOVERED_REVIEWED_SNIPPETS)" --rejected-output "$(COOKBOOK_RECOVERY_REJECTED)" --summary-output "$(COOKBOOK_RECOVERY_SUMMARY)" --review-prefix "$(MEDIA_REVIEW_PREFIX)" --context-chars "$(COOKBOOK_SNIPPET_CONTEXT_CHARS)" --impresso-api-url "$(COOKBOOK_IMPRESSO_API_URL)" --http-timeout "$(COOKBOOK_SNIPPET_HTTP_TIMEOUT)" --http-retries "$(COOKBOOK_SNIPPET_HTTP_RETRIES)" $(ARGS)
+	@echo "Next step:"
+	@echo "  # Inspect $(COOKBOOK_RECOVERY_SUMMARY), then replace MEDIA_REVIEWED_SNIPPETS or pass MEDIA_REVIEWED_SNIPPETS=$(MEDIA_RECOVERED_REVIEWED_SNIPPETS) to split-media-snippets."
 
 curate:
 	@echo "Running the generic candidate curation command with ARGS."

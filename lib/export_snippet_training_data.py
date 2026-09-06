@@ -53,33 +53,6 @@ def selected_spans(row: dict[str, Any]) -> list[dict[str, Any]]:
     manual = row.get("accepted_spans")
     if isinstance(manual, list):
         return [span for span in manual if isinstance(span, dict)]
-    model = row.get("model")
-    if isinstance(model, dict) and isinstance(model.get("predicted_spans"), list):
-        target = row.get("curation", {}).get("label") or row.get("candidate_label")
-        spans = [span for span in model["predicted_spans"] if isinstance(span, dict)]
-        if spans:
-            if target:
-                matching = [span for span in spans if span.get("label") == target]
-                return matching or spans
-            return spans
-    cookbook = row.get("cookbook_prediction")
-    if isinstance(cookbook, dict):
-        label = canonical_label(cookbook.get("label") or row.get("curation", {}).get("label") or row.get("candidate_label"))
-        try:
-            start = int(cookbook["snippet_start"])
-            stop = int(cookbook["snippet_stop"])
-        except (KeyError, TypeError, ValueError):
-            return []
-        surface = str(cookbook.get("surface") or row_text_slice(row, start, stop))
-        return [
-            {
-                "label": label,
-                "start": start,
-                "stop": stop,
-                "surface": surface,
-                "source": "cookbook_prediction",
-            }
-        ]
     return []
 
 
@@ -541,8 +514,12 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         status = str(curation.get("status") or "")
         if status not in ACCEPTED_STATUSES | NEGATIVE_STATUSES:
             continue
-        spans = [] if status in NEGATIVE_STATUSES else selected_spans(row)
-        if not spans and status in ACCEPTED_STATUSES:
+        explicit_accepted_spans = isinstance(row.get("accepted_spans"), list)
+        if status in NEGATIVE_STATUSES:
+            spans = []
+        elif explicit_accepted_spans:
+            spans = selected_spans(row)
+        else:
             continue
         spans = canonicalize_span_labels(str(row.get("id") or row.get("document_id") or ""), spans)
         text, tokens, starts, stops = candidate_tokens(row)
@@ -550,7 +527,7 @@ def export_rows(input_path: Path, label_map_path: Path, *, extra_label_metadata:
         spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
         spans = normalize_span_boundaries(spans, text)
         spans = valid_spans_for_export(row, spans, text=text, starts=starts, stops=stops)
-        if not spans and status in ACCEPTED_STATUSES:
+        if not spans and status in ACCEPTED_STATUSES and not explicit_accepted_spans:
             continue
         prepared.append((row, spans, text, tokens, starts, stops))
     id_counts = Counter(str(row["id"]) for row, *_ in prepared)
