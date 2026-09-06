@@ -16,7 +16,7 @@ endif
 export HF_HOME
 
 .PHONY: plan-holdout-gaps sample-holdout-gaps
-.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release finalize-dataset-release promote-dataset-release download-hf-dataset compare-hf-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search validate-labels validate-jsonl-format validate-dataset-splits sync-label-map maybe-sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-article-ids curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-cookbook-snippets recover-cookbook-snippet-decisions sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh decoding-experiment-plan decoding-experiment-status decoding-experiment-train decoding-experiment-evaluate decoding-experiment-report context-experiment-plan context-experiment-status context-experiment-train context-experiment-evaluate context-experiment-report stamp-model-inference-metadata smoke-model-inference compare-model-inference-parity evaluate-validation evaluate-test test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
+.PHONY: help help-anno help-data help-model help-pretrain help-finetune smoke clean clean-dry-run anno-housekeeping data-housekeeping prepare-dataset-release finalize-dataset-release promote-dataset-release download-hf-dataset compare-hf-dataset-release audit-tokenization audit-predicted-iob audit-subtokens migrate-tokenization semantic-search check-prerelease-source-dir validate-labels validate-jsonl-format validate-dataset-splits sync-label-map maybe-sync-label-map dataset-statistics dataset-quality-analysis dataset-subword-stats materialize-dataset-tsv materialize-dataset-tsv-quiet annotation-stats mention-profiles entity-surface-frequencies audit-seed-alias-matches curation-article-ids curation-state curation-state-json snippet-state dataset-state eval-disagreement-state audit-empty-training-docs audit-empty-docs-split audit-missing-spans review-missing-spans apply-missing-spans missing-span-status promote-missing-spans integrate-missing-spans audit-existing-spans review-existing-spans apply-existing-spans existing-span-status promote-existing-spans integrate-existing-spans audit-agency-word-boundaries apply-agency-word-boundaries agency-word-boundary-status promote-agency-word-boundaries integrate-agency-word-boundaries review-span-patches apply-span-patches span-patch-status promote-span-patches integrate-span-patches search-tsv review-tsv-search replace-tsv-segment create-tsv-span-patch create-tsv-span-patches apply-tsv-span-patches tsv-span-patch-status promote-tsv-span-patches integrate-tsv-span-patches check-curation-checker plan-media-sampling sample-media-snippets sample-cookbook-snippets recover-cookbook-snippet-decisions sample-all-aliases-media-snippets sample-freely-media-snippets curate import-hipe export-dataset download-mlm-sources build-mlm-data pretrain-mlm push-mlm-model publish-dataset publish-testset train train-fresh decoding-experiment-plan decoding-experiment-status decoding-experiment-train decoding-experiment-evaluate decoding-experiment-report context-experiment-plan context-experiment-status context-experiment-train context-experiment-evaluate context-experiment-report stamp-model-inference-metadata smoke-model-inference compare-model-inference-parity evaluate-validation evaluate-test test test-official curation-eval curation-eval-train curation-eval-validation curation-eval-test curation-review curation-review-train curation-review-validation curation-review-test suggest-eval-disagreements suggest-eval-disagreements-train suggest-eval-disagreements-validation suggest-eval-disagreements-test suggest-media-snippet-spans review-media-snippet-spans review-auto-media-snippet-spans split-media-snippets preview-promote-snippets promote-snippets integrate-snippets curation-dashboard review-curation validate-curation apply-curation push-model
 
 help:
 	@echo "Impresso media sources NER workbench"
@@ -352,6 +352,13 @@ sync-label-map:
 maybe-sync-label-map:
 	$(if $(filter true,$(TRAIN_SYNC_LABEL_MAP)),$(MAKE) sync-label-map,)
 
+check-prerelease-source-dir:
+	@case "$(DATASET_SOURCE_DIR)" in data/releases/*) \
+		echo "Refusing to promote curation output into immutable release directory: $(DATASET_SOURCE_DIR)"; \
+		echo "Rerun the curation promotion command with a prerelease config, for example: CFG=configs/model-v2.1.0.mk"; \
+		exit 1; \
+	esac
+
 dataset-statistics:
 	@echo "Generating the Markdown dataset statistics report from train/validation/test."
 	$(PYTHON) -m lib.dataset_statistics --train "$(TRAIN_JSONL)" --validation "$(VALIDATION_JSONL)" --test "$(TEST_JSONL)" --output "$(DATASET_STATISTICS_MD)" --release "$(DATASET_REVISION)" $(ARGS)
@@ -546,7 +553,7 @@ missing-span-status:
 		echo "  make integrate-missing-spans MISSING_SPAN_TARGET_LABEL=$(MISSING_SPAN_TARGET_LABEL) MISSING_SPAN_SPLIT=$(MISSING_SPAN_SPLIT)"; \
 	fi
 
-promote-missing-spans:
+promote-missing-spans: check-prerelease-source-dir
 	@echo "Promoting the missing-span patched split into the configured source split."
 	@test -f "$(MISSING_SPAN_OUTPUT_JSONL)" || { echo "Missing patched output: $(MISSING_SPAN_OUTPUT_JSONL). Run make apply-missing-spans first."; exit 1; }
 	@echo "Promoting $(MISSING_SPAN_OUTPUT_JSONL) -> $(MISSING_SPAN_PROMOTE_JSONL)"
@@ -605,7 +612,7 @@ existing-span-status:
 		echo "  make integrate-existing-spans SPAN_BOUNDARY_TARGET_LABEL=$(SPAN_BOUNDARY_TARGET_LABEL) SPAN_BOUNDARY_SPLIT=$(SPAN_BOUNDARY_SPLIT_KEY)"; \
 	fi
 
-promote-existing-spans:
+promote-existing-spans: check-prerelease-source-dir
 	@echo "Promoting the existing-span patched split into the configured source split."
 	@test "$(SPAN_BOUNDARY_SPLIT_KEY)" = "train" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "validation" -o "$(SPAN_BOUNDARY_SPLIT_KEY)" = "test" || { echo "SPAN_BOUNDARY_SPLIT must be train, validation/dev, or test"; exit 1; }
 	@test -f "$(SPAN_BOUNDARY_OUTPUT_JSONL)" || { echo "Missing patched output: $(SPAN_BOUNDARY_OUTPUT_JSONL). Run make apply-existing-spans first."; exit 1; }
@@ -654,7 +661,7 @@ agency-word-boundary-status:
 		echo "  make promote-agency-word-boundaries AGENCY_WORD_SPLIT=$(AGENCY_WORD_SPLIT_KEY)"; \
 	fi
 
-promote-agency-word-boundaries:
+promote-agency-word-boundaries: check-prerelease-source-dir
 	@echo "Promoting agency-word boundary migration output into $(AGENCY_WORD_SPLIT_KEY)."
 	@test "$(AGENCY_WORD_SPLIT_KEY)" = "train" -o "$(AGENCY_WORD_SPLIT_KEY)" = "validation" -o "$(AGENCY_WORD_SPLIT_KEY)" = "test" || { echo "AGENCY_WORD_SPLIT must be train, validation/dev, or test"; exit 1; }
 	@test -f "$(AGENCY_WORD_OUTPUT_JSONL)" || { echo "Missing patched output: $(AGENCY_WORD_OUTPUT_JSONL). Run make apply-agency-word-boundaries first."; exit 1; }
@@ -689,7 +696,7 @@ span-patch-status:
 	@test -f "$(SPAN_PATCH_PROMOTE_JSONL)" || { echo "promote target:  missing"; exit 1; }
 	@if cmp -s "$(SPAN_PATCH_OUTPUT_JSONL)" "$(SPAN_PATCH_PROMOTE_JSONL)"; then echo "state:           promoted target is up to date"; else echo "state:           patched output differs from promote target"; fi
 
-promote-span-patches:
+promote-span-patches: check-prerelease-source-dir
 	@echo "Promoting the span-patch output into the configured prerelease/source split."
 	@test -f "$(SPAN_PATCH_OUTPUT_JSONL)" || { echo "Missing patched output: $(SPAN_PATCH_OUTPUT_JSONL). Run make apply-span-patches first."; exit 1; }
 	@test -n "$(SPAN_PATCH_PROMOTE_JSONL)" || { echo "SPAN_PATCH_PROMOTE_JSONL is empty"; exit 1; }
@@ -794,7 +801,7 @@ else
 	@if cmp -s "$(TSV_PATCH_OUTPUT_JSONL)" "$(TSV_PATCH_PROMOTE_JSONL)"; then echo "state:           promoted target is up to date"; else echo "state:           patched output differs from promote target"; fi
 endif
 
-promote-tsv-span-patches:
+promote-tsv-span-patches: check-prerelease-source-dir
 ifeq ($(strip $(TSV_PATCH_SPLIT)),)
 	@for split in $(TSV_PATCH_SPLITS); do $(MAKE) $@ TSV_PATCH_SPLIT=$$split TSV_PATCH_SUPPRESS_NEXT=true || exit $$?; done
 	@echo "Next step:"
@@ -1120,7 +1127,7 @@ preview-promote-snippets:
 	@echo "  # Promote split snippets into configured dataset splits."
 	@echo "  make promote-snippets"
 
-promote-snippets:
+promote-snippets: check-prerelease-source-dir
 	@echo "Promoting split snippet rows into the configured dataset splits."
 	$(PYTHON) -m lib.promote_snippet_splits --base train="$(SNIPPET_PROMOTE_TRAIN_JSONL)" --base validation="$(SNIPPET_PROMOTE_VALIDATION_JSONL)" --base test="$(SNIPPET_PROMOTE_TEST_JSONL)" --snippet train="$(NEWSAGENCY_SNIPPET_TRAIN_JSONL)" --snippet train="$(RADIOSTATION_SNIPPET_TRAIN_JSONL)" --snippet validation="$(NEWSAGENCY_SNIPPET_VALIDATION_JSONL)" --snippet validation="$(RADIOSTATION_SNIPPET_VALIDATION_JSONL)" --snippet test="$(NEWSAGENCY_SNIPPET_TEST_JSONL)" --snippet test="$(RADIOSTATION_SNIPPET_TEST_JSONL)" --summary-json "$(SNIPPET_PROMOTE_SUMMARY_JSON)" $(ARGS)
 	$(MAKE) validate-dataset-splits

@@ -44,3 +44,6 @@ hub/*
 !hub/mmbert-impresso-mediasources-ner/**
 !hub/multilingualmodernimpressoBERT
 !hub/multilingualmodernimpressoBERT/**
+impresso-pipelines
+impresso-newsagencies-cookbook
+mediasources-ner-mmbert-impresso-mediasources-ner_v2-0-0_v1-0-0__AGGREGATED.confidence_ner_lt_0-8.jsonl
